@@ -84,12 +84,17 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 
 	a := &AIAgent{
 		model:          cfg.Model,
+		baseURL:        cfg.BaseURL,
+		apiKey:         cfg.APIKey,
+		provider:       cfg.Provider,
+		apiMode:        cfg.APIMode,
 		maxIterations:  cfg.MaxIterations,
 		platform:       "cli",
 		persistSession: true,
 		lastActivity:   time.Now(),
 	}
 
+	// Options override config defaults
 	for _, opt := range opts {
 		opt(a)
 	}

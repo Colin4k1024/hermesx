@@ -190,6 +190,21 @@ func RunSetupWizard() {
 	cfg.Provider = selectedProvider
 	if selectedProvider == "custom" {
 		cfg.BaseURL = selectedBaseURL
+		// For custom endpoints, store API key directly in config (no env var)
+		cfg.APIKey = apiKey
+
+		// Auto-detect API mode from URL or ask user
+		if strings.Contains(strings.ToLower(selectedBaseURL), "anthropic") {
+			cfg.APIMode = "anthropic"
+			fmt.Println("  Detected Anthropic-compatible endpoint, setting api_mode=anthropic")
+		} else {
+			apiModeChoice := promptInput(scanner, "API mode: (1) OpenAI-compatible (2) Anthropic Messages API", "1")
+			if apiModeChoice == "2" || strings.ToLower(apiModeChoice) == "anthropic" {
+				cfg.APIMode = "anthropic"
+			}
+		}
+	} else if selectedProvider == "anthropic" {
+		cfg.APIMode = "anthropic"
 	}
 
 	if err := config.Save(cfg); err != nil {
@@ -202,7 +217,8 @@ func RunSetupWizard() {
 	envPath := filepath.Join(config.HermesHome(), ".env")
 	envLines := loadExistingEnvLines(envPath)
 
-	if apiKey != "" {
+	// Only save to .env for known provider env vars (not custom)
+	if apiKey != "" && selectedProvider != "custom" {
 		envLines = setEnvLine(envLines, envKeyName, apiKey)
 	}
 	for key, value := range messagingTokens {
