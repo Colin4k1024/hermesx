@@ -1,0 +1,4 @@
+# Mark skills and optional-skills as vendored so GitHub
+# language statistics only count the Go source code.
+skills/** linguist-vendored
+optional-skills/** linguist-vendored
