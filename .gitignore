@@ -1,6 +1,6 @@
-# Binary
-hermes
-hermes-*
+# Binary (root level only, don't ignore cmd/hermes/)
+/hermes
+/hermes-*
 
 # Go
 *.exe
