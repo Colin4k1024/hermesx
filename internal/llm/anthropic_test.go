@@ -2,7 +2,10 @@ package llm
 
 import (
 	"encoding/json"
+	"net/http"
 	"testing"
+
+	openai "github.com/sashabaranov/go-openai"
 )
 
 func TestAnthropicClientCreation(t *testing.T) {
@@ -194,5 +197,289 @@ func TestEnsureAlternating(t *testing.T) {
 	result = ensureAlternating(msgs)
 	if result[0].Role != "user" {
 		t.Errorf("Expected user prepended, got '%s'", result[0].Role)
+	}
+}
+
+func TestEnsureAlternating_Empty(t *testing.T) {
+	result := ensureAlternating(nil)
+	if len(result) != 0 {
+		t.Errorf("Expected empty result for nil input, got %d", len(result))
+	}
+}
+
+func TestEnsureAlternating_SingleUser(t *testing.T) {
+	msgs := []anthropicMessage{
+		{Role: "user", Content: "Hello"},
+	}
+	result := ensureAlternating(msgs)
+	if len(result) != 1 {
+		t.Errorf("Expected 1 message, got %d", len(result))
+	}
+	if result[0].Role != "user" {
+		t.Error("Expected user role")
+	}
+}
+
+func TestEnsureAlternating_ConsecutiveAssistant(t *testing.T) {
+	msgs := []anthropicMessage{
+		{Role: "user", Content: "Start"},
+		{Role: "assistant", Content: "First response"},
+		{Role: "assistant", Content: "Second response"},
+	}
+	result := ensureAlternating(msgs)
+	// Should insert a user message between consecutive assistants
+	if len(result) != 4 {
+		t.Errorf("Expected 4 messages, got %d", len(result))
+	}
+	if result[2].Role != "user" {
+		t.Errorf("Expected inserted user between assistants, got '%s'", result[2].Role)
+	}
+}
+
+func TestEnsureAlternating_ProperlyAlternating(t *testing.T) {
+	msgs := []anthropicMessage{
+		{Role: "user", Content: "Hello"},
+		{Role: "assistant", Content: "Hi"},
+		{Role: "user", Content: "How are you?"},
+		{Role: "assistant", Content: "Good!"},
+	}
+	result := ensureAlternating(msgs)
+	if len(result) != 4 {
+		t.Errorf("Expected 4 messages (no changes needed), got %d", len(result))
+	}
+}
+
+func TestEnsureAlternating_MultipleConsecutiveUser(t *testing.T) {
+	msgs := []anthropicMessage{
+		{Role: "user", Content: "1"},
+		{Role: "user", Content: "2"},
+		{Role: "user", Content: "3"},
+	}
+	result := ensureAlternating(msgs)
+	// Each pair of consecutive users should get an assistant inserted
+	// 1 user, assistant, 2 user, assistant, 3 user = 5
+	if len(result) != 5 {
+		t.Errorf("Expected 5 messages, got %d", len(result))
+	}
+	for i, m := range result {
+		expectedRole := "user"
+		if i%2 == 1 {
+			expectedRole = "assistant"
+		}
+		if m.Role != expectedRole {
+			t.Errorf("Message %d: expected role '%s', got '%s'", i, expectedRole, m.Role)
+		}
+	}
+}
+
+func TestConvertResponse_ThinkingBlock(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	resp := &anthropicResponse{
+		StopReason: "end_turn",
+		Content: []anthropicContentBlock{
+			{Type: "thinking", Text: "Let me think about this..."},
+			{Type: "text", Text: "The answer is 42."},
+		},
+		Usage: anthropicUsage{InputTokens: 50, OutputTokens: 30},
+	}
+
+	result := c.convertResponse(resp)
+	if result.Reasoning != "Let me think about this..." {
+		t.Errorf("Expected reasoning 'Let me think about this...', got '%s'", result.Reasoning)
+	}
+	if result.Content != "The answer is 42." {
+		t.Errorf("Expected content 'The answer is 42.', got '%s'", result.Content)
+	}
+}
+
+func TestConvertResponse_MaxTokens(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	resp := &anthropicResponse{
+		StopReason: "max_tokens",
+		Content: []anthropicContentBlock{
+			{Type: "text", Text: "Partial response..."},
+		},
+		Usage: anthropicUsage{InputTokens: 100, OutputTokens: 1000},
+	}
+
+	result := c.convertResponse(resp)
+	if result.FinishReason != "length" {
+		t.Errorf("Expected 'length', got '%s'", result.FinishReason)
+	}
+}
+
+func TestConvertResponse_CacheUsage(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	resp := &anthropicResponse{
+		StopReason: "end_turn",
+		Content: []anthropicContentBlock{
+			{Type: "text", Text: "Cached response"},
+		},
+		Usage: anthropicUsage{
+			InputTokens:              100,
+			OutputTokens:             50,
+			CacheCreationInputTokens: 80,
+			CacheReadInputTokens:     200,
+		},
+	}
+
+	result := c.convertResponse(resp)
+	if result.Usage.CacheReadTokens != 200 {
+		t.Errorf("Expected 200 cache read tokens, got %d", result.Usage.CacheReadTokens)
+	}
+	if result.Usage.CacheWriteTokens != 80 {
+		t.Errorf("Expected 80 cache write tokens, got %d", result.Usage.CacheWriteTokens)
+	}
+}
+
+func TestAnthropicClient_MessagesURL(t *testing.T) {
+	tests := []struct {
+		baseURL  string
+		expected string
+	}{
+		{"https://api.anthropic.com", "https://api.anthropic.com/v1/messages"},
+		{"https://custom.proxy.com", "https://custom.proxy.com/v1/messages"},
+	}
+
+	for _, tt := range tests {
+		c := NewAnthropicClient("model", tt.baseURL, "key", "")
+		url := c.messagesURL()
+		if url != tt.expected {
+			t.Errorf("For baseURL '%s': expected '%s', got '%s'", tt.baseURL, tt.expected, url)
+		}
+	}
+}
+
+func TestAnthropicClient_SetHeaders(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "test-api-key", "")
+
+	req, _ := http.NewRequest("POST", "https://api.anthropic.com/v1/messages", nil)
+	c.setHeaders(req)
+
+	if req.Header.Get("Content-Type") != "application/json" {
+		t.Errorf("Expected Content-Type 'application/json', got '%s'", req.Header.Get("Content-Type"))
+	}
+	if req.Header.Get("x-api-key") != "test-api-key" {
+		t.Errorf("Expected x-api-key 'test-api-key', got '%s'", req.Header.Get("x-api-key"))
+	}
+	if req.Header.Get("anthropic-version") != "2023-06-01" {
+		t.Errorf("Expected anthropic-version '2023-06-01', got '%s'", req.Header.Get("anthropic-version"))
+	}
+}
+
+func TestTruncateStr(t *testing.T) {
+	tests := []struct {
+		input    string
+		maxLen   int
+		expected string
+	}{
+		{"hello", 10, "hello"},
+		{"hello world", 5, "hello..."},
+		{"", 5, ""},
+		{"abc", 3, "abc"},
+		{"abcd", 3, "abc..."},
+	}
+
+	for _, tt := range tests {
+		result := truncateStr(tt.input, tt.maxLen)
+		if result != tt.expected {
+			t.Errorf("truncateStr(%q, %d) = %q, want %q", tt.input, tt.maxLen, result, tt.expected)
+		}
+	}
+}
+
+func TestBuildAnthropicRequest_DefaultMaxTokens(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	req := ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "Hello"},
+		},
+	}
+
+	apiReq := c.buildAnthropicRequest(req)
+	if apiReq.MaxTokens != 8192 {
+		t.Errorf("Expected default max_tokens 8192, got %d", apiReq.MaxTokens)
+	}
+}
+
+func TestBuildAnthropicRequest_CustomMaxTokens(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	req := ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "Hello"},
+		},
+		MaxTokens: 16000,
+	}
+
+	apiReq := c.buildAnthropicRequest(req)
+	if apiReq.MaxTokens != 16000 {
+		t.Errorf("Expected max_tokens 16000, got %d", apiReq.MaxTokens)
+	}
+}
+
+func TestBuildAnthropicRequest_ToolConversion(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	tool := openai.Tool{
+		Type: "function",
+		Function: &openai.FunctionDefinition{
+			Name:        "test_tool",
+			Description: "A test tool",
+			Parameters:  map[string]any{"type": "object"},
+		},
+	}
+
+	req := ChatRequest{
+		Messages: []Message{
+			{Role: "user", Content: "Use the tool"},
+		},
+		Tools: []openai.Tool{tool},
+	}
+
+	apiReq := c.buildAnthropicRequest(req)
+	if len(apiReq.Tools) != 1 {
+		t.Fatalf("Expected 1 tool, got %d", len(apiReq.Tools))
+	}
+	if apiReq.Tools[0].Name != "test_tool" {
+		t.Errorf("Expected tool name 'test_tool', got '%s'", apiReq.Tools[0].Name)
+	}
+	if apiReq.Tools[0].Description != "A test tool" {
+		t.Errorf("Expected description 'A test tool', got '%s'", apiReq.Tools[0].Description)
+	}
+}
+
+func TestAnthropicClient_DefaultProvider(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+	if c.provider != "anthropic" {
+		t.Errorf("Expected default provider 'anthropic', got '%s'", c.provider)
+	}
+}
+
+func TestConvertResponse_MultipleToolCalls(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+
+	resp := &anthropicResponse{
+		StopReason: "tool_use",
+		Content: []anthropicContentBlock{
+			{Type: "tool_use", ID: "tc_1", Name: "read_file", Input: map[string]any{"path": "/test.txt"}},
+			{Type: "tool_use", ID: "tc_2", Name: "terminal", Input: map[string]any{"command": "ls"}},
+		},
+		Usage: anthropicUsage{InputTokens: 100, OutputTokens: 50},
+	}
+
+	result := c.convertResponse(resp)
+	if len(result.ToolCalls) != 2 {
+		t.Fatalf("Expected 2 tool calls, got %d", len(result.ToolCalls))
+	}
+	if result.ToolCalls[0].Function.Name != "read_file" {
+		t.Errorf("Expected first tool 'read_file', got '%s'", result.ToolCalls[0].Function.Name)
+	}
+	if result.ToolCalls[1].Function.Name != "terminal" {
+		t.Errorf("Expected second tool 'terminal', got '%s'", result.ToolCalls[1].Function.Name)
 	}
 }
