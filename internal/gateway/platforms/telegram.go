@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
@@ -14,8 +15,9 @@ import (
 // TelegramAdapter implements the gateway.PlatformAdapter interface for Telegram.
 type TelegramAdapter struct {
 	BasePlatformAdapter
-	bot   *tgbotapi.BotAPI
-	token string
+	bot         *tgbotapi.BotAPI
+	token       string
+	reconnectWg *sync.WaitGroup // tracked goroutine for reconnect loop
 }
 
 // NewTelegramAdapter creates a new Telegram adapter.
