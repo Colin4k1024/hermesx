@@ -1,27 +1,25 @@
+
 # Binary (root level only, don't ignore cmd/hermes/)
+# Env
+# Go
+# IDE
+# OS
+*.dll
+*.dylib
+*.env.local
+*.exe
+*.out
+*.so
+*.swo
+*.swp
+*.test
+*~
+.DS_Store
+.env
+.idea/
+.omc/
+.vscode/
 /hermes
 /hermes-*
-
-# Go
-*.exe
-*.dll
-*.so
-*.dylib
-*.test
-*.out
-vendor/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-
-# OS
-.DS_Store
 Thumbs.db
-
-# Env
-.env
-*.env.local
+vendor/

@@ -11,11 +11,11 @@ import (
 
 // Config represents the full Hermes configuration.
 type Config struct {
-	Model    string         `yaml:"model"`
-	Provider string         `yaml:"provider"`
-	BaseURL  string         `yaml:"base_url"`
-	APIKey   string         `yaml:"api_key"`
-	APIMode  string         `yaml:"api_mode"`
+	Model    string `yaml:"model"`
+	Provider string `yaml:"provider"`
+	BaseURL  string `yaml:"base_url"`
+	APIKey   string `yaml:"api_key"`
+	APIMode  string `yaml:"api_mode"`
 
 	MaxIterations int     `yaml:"max_iterations"`
 	ToolDelay     float64 `yaml:"tool_delay"`
@@ -28,6 +28,7 @@ type Config struct {
 	Reasoning  ReasoningConfig  `yaml:"reasoning"`
 	Delegation DelegationConfig `yaml:"delegation"`
 	Auxiliary  AuxiliaryConfig  `yaml:"auxiliary"`
+	Plugins    PluginsConfig    `yaml:"plugins"`
 
 	ProviderRouting map[string]any `yaml:"provider_routing"`
 
@@ -80,6 +81,11 @@ type DelegationConfig struct {
 // AuxiliaryConfig controls auxiliary LLM clients.
 type AuxiliaryConfig struct {
 	WebExtract map[string]any `yaml:"web_extract"`
+}
+
+// PluginsConfig controls plugin discovery and loading.
+type PluginsConfig struct {
+	Disabled []string `yaml:"disabled"`
 }
 
 // DefaultConfig returns the default configuration.

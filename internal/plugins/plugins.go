@@ -4,10 +4,15 @@
 package plugins
 
 import (
+	"bytes"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
 	"github.com/hermes-agent/hermes-agent-go/internal/tools"
@@ -200,14 +205,55 @@ func registerPluginTool(plugin Plugin, pt PluginTool) error {
 
 // executePluginCommand runs a plugin's shell command and returns the output.
 func executePluginCommand(command, pluginDir string, args map[string]any) string {
-	// Build environment from args.
 	env := os.Environ()
 	for k, v := range args {
-		env = append(env, fmt.Sprintf("HERMES_ARG_%s=%v", k, v))
+		// Sanitize key: only allow alphanumeric and underscore.
+		safeKey := sanitizeEnvKey(k)
+		if safeKey != "" {
+			env = append(env, fmt.Sprintf("HERMES_ARG_%s=%v", safeKey, v))
+		}
+	}
+	env = append(env, "HERMES_PLUGIN_DIR="+pluginDir)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd.Dir = pluginDir
+	cmd.Env = env
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Sprintf(`{"error":%q,"stderr":%q}`,
+			fmt.Sprintf("plugin command failed: %v", err),
+			truncateStr(stderr.String(), 2000))
 	}
 
-	// Use the terminal tool's execution path if available; otherwise
-	// fall back to a simple exec. For now, return a stub directing to
-	// the terminal tool.
-	return fmt.Sprintf(`{"status":"plugin_command_pending","command":%q,"plugin_dir":%q,"note":"Plugin command execution delegates to the terminal tool infrastructure."}`, command, pluginDir)
+	output := stdout.String()
+	if len(output) > 8000 {
+		output = output[:8000] + "\n... (truncated)"
+	}
+
+	return fmt.Sprintf(`{"output":%q}`, output)
+}
+
+func truncateStr(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
+// sanitizeEnvKey strips non-alphanumeric/underscore characters from env var keys.
+func sanitizeEnvKey(key string) string {
+	var b strings.Builder
+	for _, c := range key {
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' {
+			b.WriteRune(c)
+		}
+	}
+	return b.String()
 }
