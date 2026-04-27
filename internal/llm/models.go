@@ -22,6 +22,16 @@ var KnownModels = map[string]ModelMeta{
 	"deepseek/deepseek-chat":             {ContextLength: 65536, MaxOutput: 8192, SupportsTools: true, SupportsVision: false},
 	"deepseek/deepseek-r1":               {ContextLength: 65536, MaxOutput: 8192, SupportsTools: true, SupportsVision: false},
 	"meta-llama/llama-4-maverick":        {ContextLength: 1048576, MaxOutput: 32768, SupportsTools: true, SupportsVision: true},
+
+	// Bedrock model IDs
+	"bedrock/anthropic.claude-3-5-sonnet": {ContextLength: 200000, MaxOutput: 8192, SupportsTools: true, SupportsVision: true},
+	"bedrock/anthropic.claude-3-haiku":    {ContextLength: 200000, MaxOutput: 4096, SupportsTools: true, SupportsVision: true},
+	"bedrock/anthropic.claude-3-opus":     {ContextLength: 200000, MaxOutput: 4096, SupportsTools: true, SupportsVision: true},
+	"bedrock/meta.llama3-70b-instruct":    {ContextLength: 8192, MaxOutput: 2048, SupportsTools: true, SupportsVision: false},
+	"bedrock/amazon.titan-text-premier":   {ContextLength: 32000, MaxOutput: 8192, SupportsTools: false, SupportsVision: false},
+
+	// Codex / Responses API
+	"openai/codex-mini":                   {ContextLength: 200000, MaxOutput: 100000, SupportsTools: true, SupportsVision: false},
 }
 
 // EstimateTokens gives a rough token count for a string.

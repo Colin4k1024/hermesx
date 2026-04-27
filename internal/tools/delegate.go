@@ -10,7 +10,7 @@ import (
 
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
 	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	openai "github.com/sashabaranov/go-openai"
+
 )
 
 const (
@@ -245,9 +245,9 @@ func runSubAgentWithOptions(goal, model, provider, apiKey, baseURL string, cfg *
 		}
 	}
 
-	// Get tool definitions in OpenAI format
+	// Get tool definitions and convert to ToolDef
 	toolDefs := Registry().GetDefinitions(allowedNames, true)
-	var tools []openai.Tool
+	var tools []llm.ToolDef
 	for _, td := range toolDefs {
 		fnDef, ok := td["function"].(map[string]any)
 		if !ok {
@@ -255,17 +255,19 @@ func runSubAgentWithOptions(goal, model, provider, apiKey, baseURL string, cfg *
 		}
 		name, _ := fnDef["name"].(string)
 		desc, _ := fnDef["description"].(string)
-		params, _ := fnDef["parameters"]
-
-		paramsJSON, _ := json.Marshal(params)
-
-		tools = append(tools, openai.Tool{
-			Type: openai.ToolTypeFunction,
-			Function: &openai.FunctionDefinition{
-				Name:        name,
-				Description: desc,
-				Parameters:  json.RawMessage(paramsJSON),
-			},
+		var params map[string]any
+		if p, ok := fnDef["parameters"]; ok {
+			if pm, ok := p.(map[string]any); ok {
+				params = pm
+			} else {
+				b, _ := json.Marshal(p)
+				json.Unmarshal(b, &params)
+			}
+		}
+		tools = append(tools, llm.ToolDef{
+			Name:        name,
+			Description: desc,
+			Parameters:  params,
 		})
 	}
 

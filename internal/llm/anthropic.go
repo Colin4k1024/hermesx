@@ -456,12 +456,10 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 
 	// Convert tools to Anthropic format
 	for _, t := range req.Tools {
-		// Extract from OpenAI tool format
-		funcData := t.Function
 		tool := anthropicTool{
-			Name:        funcData.Name,
-			Description: funcData.Description,
-			InputSchema: funcData.Parameters,
+			Name:        t.Name,
+			Description: t.Description,
+			InputSchema: t.Parameters,
 		}
 		apiReq.Tools = append(apiReq.Tools, tool)
 	}

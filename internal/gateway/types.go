@@ -23,8 +23,16 @@ const (
 type Platform string
 
 const (
-	PlatformLocal        Platform = "local"
-	PlatformDMWork       Platform = "dmwork"
+	PlatformLocal    Platform = "local"
+	PlatformDMWork   Platform = "dmwork"
+	PlatformTelegram Platform = "telegram"
+	PlatformDiscord  Platform = "discord"
+	PlatformSlack    Platform = "slack"
+	PlatformAPI      Platform = "api"
+	PlatformWeixin   Platform = "weixin"
+	PlatformDingTalk Platform = "dingtalk"
+	PlatformFeishu   Platform = "feishu"
+	PlatformWeCom    Platform = "wecom"
 )
 
 // MessageEvent represents an incoming message from any platform.

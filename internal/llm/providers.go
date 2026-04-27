@@ -12,6 +12,7 @@ const (
 	NousAPIBaseURL    = "https://inference-api.nousresearch.com/v1"
 	OpenAIBaseURL     = "https://api.openai.com/v1"
 	AnthropicBaseURL  = "https://api.anthropic.com/v1"
+	GeminiBaseURL     = "https://generativelanguage.googleapis.com/v1beta"
 )
 
 // ResolveProvider determines the provider, base URL, and API key from config + env.
@@ -32,7 +33,7 @@ func ResolveProvider(cfg *config.Config) (provider, baseURL, apiKey string) {
 		providerPrefix := parts[0]
 
 		switch providerPrefix {
-		case "openai":
+		case "openai", "codex":
 			if key := os.Getenv("OPENAI_API_KEY"); key != "" {
 				return "openai", OpenAIBaseURL, key
 			}
@@ -40,6 +41,16 @@ func ResolveProvider(cfg *config.Config) (provider, baseURL, apiKey string) {
 			if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 				return "anthropic", AnthropicBaseURL, key
 			}
+		case "google", "gemini":
+			if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+				return "gemini", GeminiBaseURL, key
+			}
+			if key := os.Getenv("GOOGLE_API_KEY"); key != "" {
+				return "gemini", GeminiBaseURL, key
+			}
+		case "bedrock":
+			// Bedrock uses AWS credential chain, not an API key
+			return "bedrock", "", "aws-credential-chain"
 		}
 	}
 
@@ -52,6 +63,12 @@ func ResolveProvider(cfg *config.Config) (provider, baseURL, apiKey string) {
 	}
 	if key := os.Getenv("ANTHROPIC_API_KEY"); key != "" {
 		return "anthropic", AnthropicBaseURL, key
+	}
+	if key := os.Getenv("GEMINI_API_KEY"); key != "" {
+		return "gemini", GeminiBaseURL, key
+	}
+	if key := os.Getenv("GOOGLE_API_KEY"); key != "" {
+		return "gemini", GeminiBaseURL, key
 	}
 
 	// Check config-level key

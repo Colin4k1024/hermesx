@@ -33,11 +33,11 @@ func TestNewClientWithModeAnthropic(t *testing.T) {
 	if c.APIMode() != APIModeAnthropic {
 		t.Errorf("Expected Anthropic mode, got '%s'", c.APIMode())
 	}
-	if c.anthropic == nil {
-		t.Error("Expected Anthropic client to be initialized")
+	if c.transport == nil {
+		t.Error("Expected transport to be initialized")
 	}
-	if c.inner != nil {
-		t.Error("Expected OpenAI inner client to be nil in Anthropic mode")
+	if c.transport.Name() != "anthropic" {
+		t.Errorf("Expected anthropic transport, got '%s'", c.transport.Name())
 	}
 }
 
@@ -202,11 +202,11 @@ func TestNewClientWithMode_OpenAI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewClientWithMode failed: %v", err)
 	}
-	if c.inner == nil {
-		t.Error("Expected OpenAI inner client to be initialized")
+	if c.transport == nil {
+		t.Error("Expected transport to be initialized")
 	}
-	if c.anthropic != nil {
-		t.Error("Expected Anthropic client to be nil in OpenAI mode")
+	if c.transport.Name() != "openai" {
+		t.Errorf("Expected openai transport, got '%s'", c.transport.Name())
 	}
 }
 
@@ -292,7 +292,7 @@ func TestBuildOpenAIRequest(t *testing.T) {
 		Temperature: &temp,
 	}
 
-	apiReq := c.buildOpenAIRequest(req)
+	apiReq := BuildOpenAIRequest(c.Model(), req)
 	if apiReq.Model != "gpt-4" {
 		t.Errorf("Expected model 'gpt-4', got '%s'", apiReq.Model)
 	}
@@ -322,7 +322,7 @@ func TestBuildOpenAIRequest_NoOptionals(t *testing.T) {
 		},
 	}
 
-	apiReq := c.buildOpenAIRequest(req)
+	apiReq := BuildOpenAIRequest(c.Model(), req)
 	if apiReq.MaxTokens != 0 {
 		t.Errorf("Expected 0 max_tokens when not set, got %d", apiReq.MaxTokens)
 	}

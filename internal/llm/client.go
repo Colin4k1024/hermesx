@@ -19,12 +19,14 @@ type APIMode string
 const (
 	APIModeOpenAI    APIMode = "openai"
 	APIModeAnthropic APIMode = "anthropic"
+	APIModeGemini    APIMode = "gemini"
+	APIModeBedrock   APIMode = "bedrock"
+	APIModeCodex     APIMode = "codex"
 )
 
-// Client wraps an LLM API client supporting both OpenAI and Anthropic protocols.
+// Client wraps an LLM API client using a pluggable Transport.
 type Client struct {
-	inner     *openai.Client      // OpenAI-compatible client
-	anthropic *AnthropicClient    // Anthropic Messages API client
+	transport Transport
 	apiMode   APIMode
 	model     string
 	provider  string
@@ -45,7 +47,6 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	}
 
 	apiMode := detectAPIMode(cfg.APIMode, provider, baseURL)
-
 	return newClientInternal(model, baseURL, apiKey, provider, apiMode)
 }
 
@@ -66,6 +67,18 @@ func NewClientWithMode(model, baseURL, apiKey, provider string, mode APIMode) (*
 	return newClientInternal(model, baseURL, apiKey, provider, mode)
 }
 
+// NewClientWithTransport creates a client with a specific transport implementation.
+func NewClientWithTransport(model, baseURL, apiKey, provider string, t Transport) *Client {
+	return &Client{
+		transport: t,
+		model:     model,
+		provider:  provider,
+		baseURL:   baseURL,
+		apiKey:    apiKey,
+		apiMode:   APIModeOpenAI,
+	}
+}
+
 func newClientInternal(model, baseURL, apiKey, provider string, mode APIMode) (*Client, error) {
 	c := &Client{
 		model:    model,
@@ -75,40 +88,40 @@ func newClientInternal(model, baseURL, apiKey, provider string, mode APIMode) (*
 		apiMode:  mode,
 	}
 
-	switch mode {
-	case APIModeAnthropic:
-		c.anthropic = NewAnthropicClient(model, baseURL, apiKey, provider)
-		slog.Info("Using Anthropic Messages API", "model", model, "baseURL", baseURL)
-	default:
-		clientCfg := openai.DefaultConfig(apiKey)
-		clientCfg.BaseURL = baseURL
-		c.inner = openai.NewClientWithConfig(clientCfg)
-		slog.Info("Using OpenAI-compatible API", "model", model, "baseURL", baseURL)
-	}
-
+	c.transport = newDefaultTransport(provider, baseURL, apiKey, model, mode)
+	slog.Info("Using LLM transport", "transport", c.transport.Name(), "model", model, "baseURL", baseURL)
 	return c, nil
 }
 
 func detectAPIMode(explicit, provider, baseURL string) APIMode {
-	// Explicit config takes priority
 	switch strings.ToLower(explicit) {
 	case "anthropic", "anthropic_messages":
 		return APIModeAnthropic
+	case "gemini":
+		return APIModeGemini
+	case "bedrock":
+		return APIModeBedrock
+	case "codex", "responses":
+		return APIModeCodex
 	case "openai", "chat_completions", "":
 		// fall through to auto-detect
-	default:
-		// fall through
 	}
 
-	// Auto-detect from provider
-	if provider == "anthropic" {
+	switch provider {
+	case "anthropic":
 		return APIModeAnthropic
+	case "gemini":
+		return APIModeGemini
+	case "bedrock":
+		return APIModeBedrock
 	}
 
-	// Auto-detect from base URL
 	lower := strings.ToLower(baseURL)
 	if strings.Contains(lower, "anthropic.com") {
 		return APIModeAnthropic
+	}
+	if strings.Contains(lower, "generativelanguage.googleapis.com") {
+		return APIModeGemini
 	}
 
 	return APIModeOpenAI
@@ -126,10 +139,13 @@ func (c *Client) BaseURL() string { return c.baseURL }
 // APIMode returns the API mode.
 func (c *Client) APIMode() APIMode { return c.apiMode }
 
+// GetTransport returns the underlying transport.
+func (c *Client) GetTransport() Transport { return c.transport }
+
 // ChatRequest represents a chat completion request.
 type ChatRequest struct {
 	Messages       []Message
-	Tools          []openai.Tool
+	Tools          []ToolDef
 	MaxTokens      int
 	Temperature    *float32
 	Stream         bool
@@ -146,7 +162,7 @@ type Message struct {
 	FinishReason     string     `json:"finish_reason,omitempty"`
 	Reasoning        string     `json:"reasoning,omitempty"`
 	ReasoningContent string     `json:"reasoning_content,omitempty"`
-	ImageURLs        []string   `json:"image_urls,omitempty"` // multimodal: image data URLs or HTTP URLs
+	ImageURLs        []string   `json:"image_urls,omitempty"`
 }
 
 // ToolCall represents a tool call from the assistant.
@@ -191,25 +207,112 @@ type StreamDelta struct {
 
 // CreateChatCompletion sends a non-streaming chat completion request.
 func (c *Client) CreateChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	if c.apiMode == APIModeAnthropic {
-		return c.anthropic.CreateChatCompletion(ctx, req)
-	}
-	return c.openaiChatCompletion(ctx, req)
+	return c.transport.Chat(ctx, req)
 }
 
 // CreateChatCompletionStream sends a streaming chat completion request.
 func (c *Client) CreateChatCompletionStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
-	if c.apiMode == APIModeAnthropic {
-		return c.anthropic.CreateChatCompletionStream(ctx, req)
-	}
-	return c.openaiChatCompletionStream(ctx, req)
+	return c.transport.ChatStream(ctx, req)
 }
 
-func (c *Client) openaiChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
-	apiReq := c.buildOpenAIRequest(req)
+// --- Internal transport implementations (kept in this file to avoid circular imports) ---
+
+func newDefaultTransport(provider, baseURL, apiKey, model string, mode APIMode) Transport {
+	switch mode {
+	case APIModeAnthropic:
+		return &anthropicTransportImpl{client: NewAnthropicClient(model, baseURL, apiKey, provider)}
+	case APIModeGemini:
+		return &geminiTransportImpl{apiKey: apiKey, model: model}
+	case APIModeBedrock:
+		return &bedrockTransportImpl{model: model}
+	case APIModeCodex:
+		return &codexTransportImpl{apiKey: apiKey, model: model, baseURL: baseURL}
+	default:
+		cfg := openai.DefaultConfig(apiKey)
+		cfg.BaseURL = baseURL
+		return &openaiTransportImpl{
+			client: openai.NewClientWithConfig(cfg),
+			model:  model,
+		}
+	}
+}
+
+// geminiTransportImpl is a lazy-init wrapper for Gemini.
+type geminiTransportImpl struct {
+	apiKey string
+	model  string
+}
+
+func (g *geminiTransportImpl) Name() string { return "gemini" }
+func (g *geminiTransportImpl) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	// Lazy import to avoid pulling in HTTP client at init time
+	t := g.transport()
+	return t.Chat(ctx, req)
+}
+func (g *geminiTransportImpl) ChatStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+	return g.transport().ChatStream(ctx, req)
+}
+func (g *geminiTransportImpl) transport() Transport {
+	// Uses the transports sub-package indirectly via a simple HTTP-based impl
+	return &geminiHTTPTransport{apiKey: g.apiKey, model: g.model}
+}
+
+// bedrockTransportImpl is a lazy-init wrapper for Bedrock.
+type bedrockTransportImpl struct{ model string }
+
+func (b *bedrockTransportImpl) Name() string { return "bedrock" }
+func (b *bedrockTransportImpl) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	return nil, fmt.Errorf("bedrock transport requires initialization via transports.NewBedrockTransport()")
+}
+func (b *bedrockTransportImpl) ChatStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+	errCh := make(chan error, 1)
+	errCh <- fmt.Errorf("bedrock transport requires initialization via transports.NewBedrockTransport()")
+	close(errCh)
+	return nil, errCh
+}
+
+// codexTransportImpl wraps the Codex/Responses API.
+type codexTransportImpl struct {
+	apiKey  string
+	model   string
+	baseURL string
+}
+
+func (c *codexTransportImpl) Name() string { return "codex" }
+func (c *codexTransportImpl) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	return c.transport().Chat(ctx, req)
+}
+func (c *codexTransportImpl) ChatStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+	return c.transport().ChatStream(ctx, req)
+}
+func (c *codexTransportImpl) transport() Transport {
+	return &codexHTTPTransport{apiKey: c.apiKey, model: c.model, baseURL: c.baseURL}
+}
+
+// anthropicTransportImpl adapts AnthropicClient to Transport.
+type anthropicTransportImpl struct{ client *AnthropicClient }
+
+func (a *anthropicTransportImpl) Name() string { return "anthropic" }
+func (a *anthropicTransportImpl) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	return a.client.CreateChatCompletion(ctx, req)
+}
+func (a *anthropicTransportImpl) ChatStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+	return a.client.CreateChatCompletionStream(ctx, req)
+}
+
+// openaiTransportImpl adapts the go-openai SDK to Transport.
+type openaiTransportImpl struct {
+	client *openai.Client
+	model  string
+}
+
+func (o *openaiTransportImpl) Name() string { return "openai" }
+
+func (o *openaiTransportImpl) Chat(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	apiReq := BuildOpenAIRequest(o.model, req)
 	apiReq.Stream = false
 
-	resp, err := c.inner.CreateChatCompletion(ctx, apiReq)
+	resp, err := o.client.CreateChatCompletion(ctx, apiReq)
 	if err != nil {
 		return nil, fmt.Errorf("API call failed: %w", err)
 	}
@@ -243,7 +346,7 @@ func (c *Client) openaiChatCompletion(ctx context.Context, req ChatRequest) (*Ch
 	return result, nil
 }
 
-func (c *Client) openaiChatCompletionStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+func (o *openaiTransportImpl) ChatStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
 	deltaCh := make(chan StreamDelta, 64)
 	errCh := make(chan error, 1)
 
@@ -251,10 +354,10 @@ func (c *Client) openaiChatCompletionStream(ctx context.Context, req ChatRequest
 		defer close(deltaCh)
 		defer close(errCh)
 
-		apiReq := c.buildOpenAIRequest(req)
+		apiReq := BuildOpenAIRequest(o.model, req)
 		apiReq.Stream = true
 
-		stream, err := c.inner.CreateChatCompletionStream(ctx, apiReq)
+		stream, err := o.client.CreateChatCompletionStream(ctx, apiReq)
 		if err != nil {
 			errCh <- fmt.Errorf("stream creation failed: %w", err)
 			return
@@ -315,14 +418,13 @@ func (c *Client) openaiChatCompletionStream(ctx context.Context, req ChatRequest
 	return deltaCh, errCh
 }
 
-func (c *Client) buildOpenAIRequest(req ChatRequest) openai.ChatCompletionRequest {
+// BuildOpenAIRequest converts a ChatRequest to an openai.ChatCompletionRequest.
+// Exported for use by the transports sub-package.
+func BuildOpenAIRequest(model string, req ChatRequest) openai.ChatCompletionRequest {
 	var msgs []openai.ChatCompletionMessage
 	for _, m := range req.Messages {
-		msg := openai.ChatCompletionMessage{
-			Role: m.Role,
-		}
+		msg := openai.ChatCompletionMessage{Role: m.Role}
 
-		// Multimodal: if ImageURLs are present, use MultiContent parts
 		if len(m.ImageURLs) > 0 {
 			var parts []openai.ChatMessagePart
 			if m.Content != "" {
@@ -363,10 +465,22 @@ func (c *Client) buildOpenAIRequest(req ChatRequest) openai.ChatCompletionReques
 		msgs = append(msgs, msg)
 	}
 
+	var oaiTools []openai.Tool
+	for _, td := range req.Tools {
+		oaiTools = append(oaiTools, openai.Tool{
+			Type: openai.ToolTypeFunction,
+			Function: &openai.FunctionDefinition{
+				Name:        td.Name,
+				Description: td.Description,
+				Parameters:  td.ToRawParameters(),
+			},
+		})
+	}
+
 	apiReq := openai.ChatCompletionRequest{
-		Model:    c.model,
+		Model:    model,
 		Messages: msgs,
-		Tools:    req.Tools,
+		Tools:    oaiTools,
 	}
 
 	if req.MaxTokens > 0 {

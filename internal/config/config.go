@@ -162,7 +162,12 @@ func Save(cfg *Config) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(configPath, data, 0644)
+	// Atomic write: write to temp file then rename to prevent corruption
+	tmpPath := configPath + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmpPath, configPath)
 }
 
 func mergeConfig(dst, src *Config) {

@@ -264,45 +264,141 @@ func browserStubResponse(tool string) string {
 }
 
 func handleBrowserNavigate(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_navigate")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_navigate")
+	}
+	url, _ := args["url"].(string)
+	if safety := checkNavigationSafety(url); safety != "" {
+		return toJSON(map[string]any{"error": safety})
+	}
+	result, err := backend.Navigate(url)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserSnapshot(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_snapshot")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_snapshot")
+	}
+	result, err := backend.Snapshot()
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserClick(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_click")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_click")
+	}
+	ref, _ := args["ref"].(string)
+	result, err := backend.Click(ref)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserType(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_type")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_type")
+	}
+	ref, _ := args["ref"].(string)
+	text, _ := args["text"].(string)
+	clearFirst, _ := args["clear_first"].(bool)
+	result, err := backend.Type(ref, text, clearFirst)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserScroll(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_scroll")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_scroll")
+	}
+	direction, _ := args["direction"].(string)
+	amount := 3
+	if a, ok := args["amount"].(float64); ok {
+		amount = int(a)
+	}
+	result, err := backend.Scroll(direction, amount)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserBack(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_back")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_back")
+	}
+	result, err := backend.GoBack()
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserPress(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_press")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_press")
+	}
+	key, _ := args["key"].(string)
+	result, err := backend.PressKey(key)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserGetImages(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_get_images")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_get_images")
+	}
+	result, err := backend.GetImages()
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserVision(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_vision")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_vision")
+	}
+	result, err := backend.Snapshot()
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserConsole(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_console")
+	backend, err := getOrCreateBackend()
+	if err != nil {
+		return browserStubResponse("browser_console")
+	}
+	script, _ := args["javascript"].(string)
+	result, err := backend.ExecuteScript(script)
+	if err != nil {
+		return toJSON(map[string]any{"error": err.Error()})
+	}
+	return toJSON(result)
 }
 
 func handleBrowserClose(args map[string]any, ctx *ToolContext) string {
-	return browserStubResponse("browser_close")
+	closeActiveBackend()
+	return toJSON(map[string]any{"status": "browser session closed"})
 }

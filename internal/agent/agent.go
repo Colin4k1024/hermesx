@@ -14,7 +14,7 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/state"
 	"github.com/hermes-agent/hermes-agent-go/internal/tools"
 	"github.com/hermes-agent/hermes-agent-go/internal/toolsets"
-	openai "github.com/sashabaranov/go-openai"
+
 )
 
 // FallbackModel describes an alternative model to try on API failures.
@@ -60,15 +60,17 @@ type AIAgent struct {
 	sessionDB       *state.SessionDB
 	budget        *IterationBudget
 	callbacks     *StreamCallbacks
-	toolDefs      []openai.Tool
+	toolDefs      []llm.ToolDef
 	validTools    map[string]bool
 	systemPrompt  string
 
-	// Interrupt support
-	mu                sync.Mutex
+	// Interrupt and steer support
+	mu                 sync.Mutex
 	interruptRequested bool
-	apiCallCount      int
-	lastActivity      time.Time
+	steerMessage       string
+	apiCallCount       int
+	lastActivity       time.Time
+	heartbeatCh        chan struct{}
 
 	// Compression cooldown
 	lastCompressionFailure time.Time
@@ -213,6 +215,7 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 	a.interruptRequested = false
 
 	// Main agent loop
+	emptyRetryCount := 0
 	for a.apiCallCount < a.maxIterations {
 		if !a.budget.Consume() {
 			a.fireStatus("Iteration budget exhausted")
@@ -240,6 +243,7 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		}
 
 		// Call LLM (with fallback chain on failure)
+		a.fireHeartbeat()
 		var resp *llm.ChatResponse
 		var err error
 
@@ -294,6 +298,45 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 			resp.ToolCalls = DeduplicateToolCalls(resp.ToolCalls)
 		}
 
+		// Empty response recovery: retry with nudge
+		if resp.Content == "" && len(resp.ToolCalls) == 0 {
+			emptyRetryCount++
+			if emptyRetryCount <= 3 {
+				slog.Warn("Empty response from LLM, injecting nudge", "retry", emptyRetryCount)
+				messages = append(messages, llm.Message{
+					Role:    "user",
+					Content: "Please continue with your response or use a tool to make progress.",
+				})
+				continue
+			}
+			slog.Error("Empty responses after multiple retries", "count", emptyRetryCount)
+			result.FinalResponse = "Agent produced empty responses after multiple retries."
+			result.Completed = false
+			break
+		}
+		emptyRetryCount = 0
+
+		// Validate tool calls for truncation
+		if len(resp.ToolCalls) > 0 {
+			valid, tcErrors := ValidateToolCalls(resp.ToolCalls)
+			if len(tcErrors) > 0 {
+				slog.Warn("Truncated tool calls detected", "count", len(tcErrors))
+				resp.ToolCalls = valid
+				// Inject error results for truncated calls
+				for _, tce := range tcErrors {
+					messages = append(messages, llm.Message{
+						Role:       "tool",
+						Content:    fmt.Sprintf(`{"error": "%s"}`, tce.Reason),
+						ToolCallID: tce.ToolCall.ID,
+						ToolName:   tce.ToolCall.Function.Name,
+					})
+				}
+				if len(valid) == 0 {
+					continue
+				}
+			}
+		}
+
 		// Build assistant message
 		assistantMsg := llm.Message{
 			Role:         "assistant",
@@ -335,9 +378,20 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 				}
 			}
 
+			a.fireHeartbeat()
+
 			if a.isInterrupted() {
 				result.Interrupted = true
 				break
+			}
+
+			// Check for steer message injection
+			if steer := a.consumeSteer(); steer != "" {
+				slog.Info("Injecting steer message", "length", len(steer))
+				messages = append(messages, llm.Message{
+					Role:    "user",
+					Content: steer,
+				})
 			}
 
 			// Continue loop for next LLM call
@@ -392,6 +446,40 @@ func (a *AIAgent) isInterrupted() bool {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	return a.interruptRequested
+}
+
+// Steer injects a user message into the conversation at the next safe point
+// (after the current tool call completes) without breaking prompt cache.
+func (a *AIAgent) Steer(prompt string) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.steerMessage = prompt
+}
+
+func (a *AIAgent) consumeSteer() string {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	msg := a.steerMessage
+	a.steerMessage = ""
+	return msg
+}
+
+// Heartbeat returns a channel that receives a signal on each LLM call or tool execution.
+func (a *AIAgent) Heartbeat() <-chan struct{} {
+	if a.heartbeatCh == nil {
+		a.heartbeatCh = make(chan struct{}, 1)
+	}
+	return a.heartbeatCh
+}
+
+func (a *AIAgent) fireHeartbeat() {
+	if a.heartbeatCh == nil {
+		return
+	}
+	select {
+	case a.heartbeatCh <- struct{}{}:
+	default:
+	}
 }
 
 // SessionID returns the current session ID.
@@ -522,12 +610,28 @@ func (a *AIAgent) buildToolDefs(cfg *config.Config) {
 	// Get OpenAI-format definitions
 	defs := tools.Registry().GetDefinitions(toolNames, a.quietMode)
 
-	a.toolDefs = make([]openai.Tool, 0, len(defs))
+	a.toolDefs = make([]llm.ToolDef, 0, len(defs))
 	for _, d := range defs {
-		b, _ := json.Marshal(d)
-		var tool openai.Tool
-		json.Unmarshal(b, &tool)
-		a.toolDefs = append(a.toolDefs, tool)
+		fnDef, ok := d["function"].(map[string]any)
+		if !ok {
+			continue
+		}
+		name, _ := fnDef["name"].(string)
+		desc, _ := fnDef["description"].(string)
+		var params map[string]any
+		if p, ok := fnDef["parameters"]; ok {
+			if pm, ok := p.(map[string]any); ok {
+				params = pm
+			} else {
+				b, _ := json.Marshal(p)
+				json.Unmarshal(b, &params)
+			}
+		}
+		a.toolDefs = append(a.toolDefs, llm.ToolDef{
+			Name:        name,
+			Description: desc,
+			Parameters:  params,
+		})
 	}
 }
 

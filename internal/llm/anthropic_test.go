@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"testing"
 
-	openai "github.com/sashabaranov/go-openai"
+
 )
 
 func TestAnthropicClientCreation(t *testing.T) {
@@ -425,20 +425,17 @@ func TestBuildAnthropicRequest_CustomMaxTokens(t *testing.T) {
 func TestBuildAnthropicRequest_ToolConversion(t *testing.T) {
 	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
 
-	tool := openai.Tool{
-		Type: "function",
-		Function: &openai.FunctionDefinition{
-			Name:        "test_tool",
-			Description: "A test tool",
-			Parameters:  map[string]any{"type": "object"},
-		},
+	tool := ToolDef{
+		Name:        "test_tool",
+		Description: "A test tool",
+		Parameters:  map[string]any{"type": "object"},
 	}
 
 	req := ChatRequest{
 		Messages: []Message{
 			{Role: "user", Content: "Use the tool"},
 		},
-		Tools: []openai.Tool{tool},
+		Tools: []ToolDef{tool},
 	}
 
 	apiReq := c.buildAnthropicRequest(req)

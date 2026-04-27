@@ -97,11 +97,34 @@ func InstallFromHub(skillName, sourceURL string) error {
 		return fmt.Errorf("save skill: %w", err)
 	}
 
+	// Security scan before committing the install
+	trust := TrustCommunity
+	if isTrustedSource(sourceURL) {
+		trust = TrustTrusted
+	}
+	scanResult, scanErr := ScanSkillWithTrust(skillsDir, trust)
+	if scanErr == nil && scanResult != nil {
+		decision := ShouldAllowInstall(trust, scanResult)
+		if decision == InstallBlock {
+			os.RemoveAll(skillsDir)
+			return fmt.Errorf("skill blocked by security scan: %s", FormatIssues(scanResult.Findings))
+		}
+	}
+
 	// Write lock entry
 	writeLockEntry(skillName, sourceURL)
 
 	slog.Info("Skill installed", "name", skillName, "path", skillsDir)
 	return nil
+}
+
+func isTrustedSource(url string) bool {
+	for _, src := range DefaultSources() {
+		if strings.Contains(url, src.URL) {
+			return true
+		}
+	}
+	return false
 }
 
 // UninstallSkill removes an installed skill.
