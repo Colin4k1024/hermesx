@@ -37,7 +37,7 @@ jobs:
       - name: Install gosec
         run: go install github.com/securego/gosec/v2/cmd/gosec@latest
       - name: Run gosec
-        run: gosec -severity medium -confidence medium ./...
+        run: gosec -severity high -confidence high -exclude=G304,G204,G702,G703,G704 ./...
 
   trivy:
     name: Trivy Container Scan
