@@ -65,6 +65,9 @@ func (s *pgAPIKeyStore) List(ctx context.Context, tenantID string) ([]*store.API
 		}
 		keys = append(keys, k)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate api keys: %w", err)
+	}
 	return keys, nil
 }
 

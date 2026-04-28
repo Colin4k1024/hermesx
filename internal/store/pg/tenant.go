@@ -81,6 +81,9 @@ func (s *pgTenantStore) List(ctx context.Context, opts store.ListOptions) ([]*st
 		}
 		tenants = append(tenants, t)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate tenants: %w", err)
+	}
 	return tenants, total, nil
 }
 

@@ -2,11 +2,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -46,6 +48,9 @@ func (p *PGMemoryProvider) ReadMemory() (string, error) {
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("## %s\n%s", key, content))
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("pg iterate memories: %w", err)
 	}
 
 	return strings.Join(parts, "\n\n"), nil
@@ -101,7 +106,7 @@ func (p *PGMemoryProvider) ReadUserProfile() (string, error) {
 		 WHERE tenant_id = $1 AND user_id = $2`,
 		p.tenantID, p.userID).Scan(&content)
 	if err != nil {
-		if err.Error() == "no rows in result set" {
+		if errors.Is(err, pgx.ErrNoRows) {
 			return "", nil
 		}
 		return "", fmt.Errorf("pg read user profile: %w", err)

@@ -63,6 +63,9 @@ func (s *pgAuditLogStore) List(ctx context.Context, tenantID string, opts store.
 		}
 		logs = append(logs, l)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("iterate audit logs: %w", err)
+	}
 	return logs, total, nil
 }
 

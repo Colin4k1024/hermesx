@@ -244,6 +244,9 @@ func (s *PGSessionStore) ensureLoaded() {
 
 		s.entries[sessionKey] = entry
 	}
+	if err := rows.Err(); err != nil {
+		slog.Warn("PG: error iterating sessions", "error", err)
+	}
 
 	slog.Info("PG: loaded gateway sessions", "count", len(s.entries), "tenant", s.tenantID)
 	s.loaded = true

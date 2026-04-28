@@ -704,7 +704,9 @@ func (r *Runner) reconnectAdapter(platform Platform, adapter PlatformAdapter) {
 		fmt.Sprintf("failed after %d attempts", maxRetries))
 }
 
-// flushMemoriesForSession saves any pending memory data before a session is reset.
+// flushMemoriesForSession marks session memory as flushed before a session is reset.
+// Memory persistence is handled by the agent's MemoryProvider during normal operations
+// (PG-backed agents write directly to PostgreSQL, filesystem agents write to disk).
 func (r *Runner) flushMemoriesForSession(sessionKey string) {
 	r.agentMu.RLock()
 	ag, ok := r.agentCache[sessionKey]
@@ -714,20 +716,8 @@ func (r *Runner) flushMemoriesForSession(sessionKey string) {
 		return
 	}
 
-	// Save memory using the agent's memory manager.
-	mm := agent.NewMemoryManager("")
-	sessionID := ag.SessionID()
-
-	// Read existing memory; if it fails, that's OK -- this is best-effort.
-	existing, _ := mm.ReadMemory()
-	if existing == "" {
-		return
-	}
-
-	// Mark the session as flushed in the session store.
 	r.sessions.SetMemoryFlushed(sessionKey)
-
-	slog.Info("Flushed memories for session", "session_key", sessionKey, "session_id", sessionID)
+	slog.Info("Flushed memories for session", "session_key", sessionKey, "session_id", ag.SessionID())
 }
 
 func (r *Runner) sessionExpiryWatcher() {
