@@ -25,6 +25,7 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/api-keys":     pathItem("GET", "List API keys", "200"),
 			"/v1/audit-logs":   pathItem("GET", "List audit logs", "200"),
 			"/v1/usage":        pathItem("GET", "Usage summary for billing", "200"),
+			"/v1/me":           pathItem("GET", "Current identity and tenant info", "200"),
 			"/v1/metrics":      pathItem("GET", "Prometheus metrics", "200"),
 		},
 		"components": map[string]any{
