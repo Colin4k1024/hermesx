@@ -4,6 +4,8 @@ metadata:
   name: {{ .Release.Name }}
   labels:
     app: {{ .Chart.Name }}
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
@@ -13,18 +15,40 @@ spec:
     metadata:
       labels:
         app: {{ .Chart.Name }}
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.service.port }}"
+        prometheus.io/path: "/metrics"
     spec:
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - /usr/local/bin/hermes
+          args:
+            {{- range .Values.args }}
+            - {{ . }}
+            {{- end }}
           ports:
-            - containerPort: {{ .Values.service.port }}
+            - name: http
+              containerPort: {{ .Values.service.port }}
+              protocol: TCP
           env:
             - name: DATABASE_URL
               value: {{ .Values.env.DATABASE_URL | quote }}
             - name: HERMES_ACP_TOKEN
               value: {{ .Values.env.HERMES_ACP_TOKEN | quote }}
+            - name: SAAS_API_PORT
+              value: {{ .Values.env.SAAS_API_PORT | quote }}
+            - name: SAAS_ALLOWED_ORIGINS
+              value: {{ .Values.env.SAAS_ALLOWED_ORIGINS | quote }}
+            - name: SAAS_STATIC_DIR
+              value: {{ .Values.env.SAAS_STATIC_DIR | quote }}
+            - name: HERMES_API_PORT
+              value: {{ .Values.env.HERMES_API_PORT | quote }}
+            - name: HERMES_API_KEY
+              value: {{ .Values.env.HERMES_API_KEY | quote }}
             - name: REDIS_URL
               value: {{ .Values.env.REDIS_URL | quote }}
           livenessProbe:
@@ -33,11 +57,26 @@ spec:
               port: {{ .Values.service.port }}
             initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: {{ .Values.probes.readiness.path }}
               port: {{ .Values.service.port }}
             initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
             periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: 3
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            limits:
+              cpu: {{ .Values.resources.limits.cpu }}
+              memory: {{ .Values.resources.limits.memory }}
+            requests:
+              cpu: {{ .Values.resources.requests.cpu }}
+              memory: {{ .Values.resources.requests.memory }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false
+            capabilities:
+              drop:
+                - ALL

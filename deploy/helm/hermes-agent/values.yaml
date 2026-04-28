@@ -1,28 +1,43 @@
-replicaCount: 2
+replicaCount: 1
 
 image:
-  repository: hermes-agent
-  tag: latest
-  pullPolicy: IfNotPresent
+  repository: hermes-agent-saas
+  tag: local
+  pullPolicy: Never
 
 service:
   type: ClusterIP
-  port: 3000
+  port: 8080
 
 ingress:
   enabled: false
 
 resources:
   limits:
-    cpu: 500m
-    memory: 256Mi
+    cpu: 1000m
+    memory: 512Mi
   requests:
-    cpu: 100m
-    memory: 128Mi
+    cpu: 250m
+    memory: 256Mi
+
+args:
+  - saas-api
 
 env:
+  # Required: PostgreSQL connection string (格式: postgres://user:pass@host:5432/dbname)
   DATABASE_URL: ""
-  HERMES_ACP_TOKEN: ""
+  # Required: Static bearer token for ACP endpoints
+  HERMES_ACP_TOKEN: "dev-token-change-in-production"
+  # Optional: SaaS API port (default: 8080)
+  SAAS_API_PORT: "8080"
+  # Optional: CORS allowed origins (comma-separated, or "*")
+  SAAS_ALLOWED_ORIGINS: "*"
+  # Optional: Static file directory (default: empty = no static serving)
+  SAAS_STATIC_DIR: "/static"
+  # Optional: OpenAI-compatible adapter port
+  HERMES_API_PORT: "8081"
+  HERMES_API_KEY: "dev-api-key-change-in-production"
+  # Optional: Redis URL
   REDIS_URL: ""
 
 tls:
@@ -32,8 +47,8 @@ tls:
 
 autoscaling:
   enabled: false
-  minReplicas: 2
-  maxReplicas: 10
+  minReplicas: 1
+  maxReplicas: 5
   targetCPUUtilizationPercentage: 70
 
 probes:
@@ -45,3 +60,14 @@ probes:
     path: /health/ready
     initialDelaySeconds: 10
     periodSeconds: 15
+
+# PostgreSQL sub-chart dependency
+postgresql:
+  enabled: true
+  auth:
+    database: hermes
+    username: hermes
+    password: hermes-dev-password
+  primary:
+    persistence:
+      enabled: false

@@ -1,6 +1,18 @@
 apiVersion: v2
 name: hermes-agent
-description: Multi-tenant AI agent platform
+description: Multi-tenant AI agent platform (SaaS mode)
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "1.0.0"
+keywords:
+  - ai
+  - agent
+  - hermes
+  - multi-tenant
+  - saas
+maintainers:
+  - name: Hermes Team
+# Note: PostgreSQL is deployed separately as a StatefulSet.
+# To use Bitnami PostgreSQL as a sub-chart instead, run:
+#   helm dependency build deploy/helm/hermes-agent/
+# and set postgresql.enabled=true in values.yaml.

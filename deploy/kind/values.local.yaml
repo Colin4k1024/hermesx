@@ -1,0 +1,45 @@
+# Local kind deployment values
+replicaCount: 1
+
+image:
+  repository: hermes-agent-saas
+  tag: local
+  pullPolicy: Never
+
+service:
+  type: ClusterIP
+  port: 8080
+
+args:
+  - saas-api
+
+env:
+  DATABASE_URL: "postgres://hermes:hermes-dev-password@postgres:5432/hermes?sslmode=disable"
+  HERMES_ACP_TOKEN: "dev-token-change-in-production"
+  SAAS_API_PORT: "8080"
+  SAAS_ALLOWED_ORIGINS: "*"
+  SAAS_STATIC_DIR: "/static"
+  HERMES_API_PORT: "8081"
+  HERMES_API_KEY: "dev-api-key-change-in-production"
+  REDIS_URL: ""
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 512Mi
+  requests:
+    cpu: 250m
+    memory: 256Mi
+
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 15
+
+postgresql:
+  enabled: false
