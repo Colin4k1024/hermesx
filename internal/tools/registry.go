@@ -17,8 +17,11 @@ type ToolContext struct {
 	SessionID       string
 	ToolCallID      string
 	Platform        string
+	TenantID        string
+	UserID          string
 	Extra           map[string]any  // Additional context (e.g., delegation depth)
 	ApprovalHandler ApprovalHandler // Optional handler for interactive command approval
+	MemoryProvider  MemoryProvider  // Per-agent memory provider (overrides global singleton)
 }
 
 // ToolEntry holds metadata for a registered tool.

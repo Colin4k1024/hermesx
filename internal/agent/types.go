@@ -3,6 +3,7 @@ package agent
 import (
 	"github.com/hermes-agent/hermes-agent-go/internal/llm"
 	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/hermes-agent/hermes-agent-go/internal/tools"
 )
 
 // ConversationResult holds the result of a conversation turn.
@@ -148,4 +149,19 @@ func WithFallbackModels(models []FallbackModel) AgentOption {
 // WithSmartRouter enables smart model routing.
 func WithSmartRouter(router *SmartRouter) AgentOption {
 	return func(a *AIAgent) { a.smartRouter = router }
+}
+
+// WithTenantID sets the tenant ID for multi-tenant isolation.
+func WithTenantID(id string) AgentOption {
+	return func(a *AIAgent) { a.tenantID = id }
+}
+
+// WithUserID sets the user ID for per-user isolation.
+func WithUserID(id string) AgentOption {
+	return func(a *AIAgent) { a.userID = id }
+}
+
+// WithMemoryProvider sets a per-agent memory provider (overrides global singleton).
+func WithMemoryProvider(mp tools.MemoryProvider) AgentOption {
+	return func(a *AIAgent) { a.memoryProvider = mp }
 }

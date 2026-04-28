@@ -3,6 +3,7 @@ package gateway
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -90,6 +91,41 @@ func TestBuildSessionKeyVariations(t *testing.T) {
 	// Different sources should give different keys
 	if key1 == key2 {
 		t.Error("Expected different keys for different platforms/chats")
+	}
+}
+
+func TestBuildSessionKeyTenantIsolation(t *testing.T) {
+	base := SessionSource{
+		Platform: PlatformAPI,
+		ChatID:   "session_001",
+		ChatType: "dm",
+		UserID:   "api",
+	}
+
+	srcA := base
+	srcA.TenantID = "tenant-a"
+	srcB := base
+	srcB.TenantID = "tenant-b"
+	srcDefault := base
+
+	keyA := BuildSessionKey(&srcA, true, false)
+	keyB := BuildSessionKey(&srcB, true, false)
+	keyDefault := BuildSessionKey(&srcDefault, true, false)
+
+	if keyA == keyB {
+		t.Errorf("Tenant A and B share same session key: %s", keyA)
+	}
+	if keyA == keyDefault {
+		t.Error("Tenant A and default share same session key")
+	}
+	if !strings.HasPrefix(keyA, "tenant-a:") {
+		t.Errorf("Expected tenant-a prefix, got: %s", keyA)
+	}
+	if !strings.HasPrefix(keyB, "tenant-b:") {
+		t.Errorf("Expected tenant-b prefix, got: %s", keyB)
+	}
+	if !strings.HasPrefix(keyDefault, "default:") {
+		t.Errorf("Expected default prefix, got: %s", keyDefault)
 	}
 }
 

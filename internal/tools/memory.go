@@ -117,7 +117,13 @@ func handleMemory(args map[string]any, ctx *ToolContext) string {
 	key, _ := args["key"].(string)
 	content, _ := args["content"].(string)
 
-	p := getMemoryProvider()
+	// Per-agent provider takes precedence over global singleton.
+	var p MemoryProvider
+	if ctx != nil && ctx.MemoryProvider != nil {
+		p = ctx.MemoryProvider
+	} else {
+		p = getMemoryProvider()
+	}
 	if p == nil {
 		return `{"error":"no memory provider configured"}`
 	}

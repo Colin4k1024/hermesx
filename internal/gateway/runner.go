@@ -281,6 +281,11 @@ func (r *Runner) handleMessage(event *MessageEvent) {
 	// Track message count.
 	r.status.IncrementMessageCount(string(source.Platform))
 
+	// Inject tenant ID into source for session key isolation.
+	if source.TenantID == "" {
+		source.TenantID = resolveTenantID(event)
+	}
+
 	// Get or create session.
 	sessionEntry := r.sessions.GetOrCreateSession(source, false)
 
@@ -444,8 +449,18 @@ func (r *Runner) processWithAgent(event *MessageEvent, session *SessionEntry) {
 		return
 	}
 
-	// Run conversation.
-	result, err := ag.Chat(event.Text)
+	// Run conversation with history if available.
+	var result string
+	if len(event.History) > 0 {
+		convResult, convErr := ag.RunConversation(event.Text, event.History)
+		if convErr != nil {
+			err = convErr
+		} else {
+			result = convResult.FinalResponse
+		}
+	} else {
+		result, err = ag.Chat(event.Text)
+	}
 	if err != nil {
 		slog.Error("Agent error", "error", err, "session", session.SessionID)
 		adapter := r.GetAdapter(event.Source.Platform)
@@ -501,9 +516,25 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 		opts = append(opts, agent.WithSystemPrompt(event.SystemPrompt))
 	}
 
+	// Per-tenant isolation: tenant ID and user ID.
+	tenantID := resolveTenantID(event)
+	userID := event.Source.UserID
+	if userID == "" {
+		userID = "default"
+	}
+	opts = append(opts,
+		agent.WithTenantID(tenantID),
+		agent.WithUserID(userID),
+	)
+
+	// Per-tenant memory provider from PostgreSQL.
+	if r.pgPool != nil {
+		mp := agent.NewPGMemoryProviderAsToolsProvider(r.pgPool, tenantID, userID)
+		opts = append(opts, agent.WithMemoryProvider(mp))
+	}
+
 	// Per-tenant skill loader from MinIO.
 	if r.minioClient != nil {
-		tenantID := resolveTenantID(event)
 		loader := skills.NewMinIOSkillLoader(r.minioClient, tenantID)
 		opts = append(opts, agent.WithSkillLoader(loader))
 	}

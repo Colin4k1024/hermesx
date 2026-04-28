@@ -3,6 +3,8 @@ package gateway
 
 import (
 	"context"
+
+	"github.com/hermes-agent/hermes-agent-go/internal/llm"
 )
 
 // MessageType represents the type of an incoming message.
@@ -45,6 +47,7 @@ type MessageEvent struct {
 	MediaPaths  []string          `json:"media_paths,omitempty"`
 	ReplyToID   string            `json:"reply_to_id,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	History     []llm.Message     `json:"history,omitempty"`
 	RawMessage  any               `json:"-"` // Platform-specific raw message
 }
 
@@ -68,6 +71,7 @@ type SessionSource struct {
 	ChatTopic string   `json:"chat_topic,omitempty"`
 	UserIDAlt string   `json:"user_id_alt,omitempty"` // Signal UUID etc.
 	ChatIDAlt string   `json:"chat_id_alt,omitempty"` // Signal group internal ID
+	TenantID  string   `json:"tenant_id,omitempty"`
 }
 
 // Description returns a human-readable description of the source.

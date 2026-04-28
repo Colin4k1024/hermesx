@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
+	"github.com/hermes-agent/hermes-agent-go/internal/llm"
 )
 
 // APIServerAdapter implements PlatformAdapter as an OpenAI-compatible API server.
@@ -53,9 +54,12 @@ func (a *APIServerAdapter) Connect(ctx context.Context) error {
 		json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
 	})
 
+	var handler http.Handler = mux
+	handler = gatewayCORS(handler)
+
 	a.server = &http.Server{
 		Addr:         fmt.Sprintf("0.0.0.0:%d", a.port),
-		Handler:      mux,
+		Handler:      handler,
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 300 * time.Second,
 		IdleTimeout:  60 * time.Second,
@@ -116,6 +120,19 @@ func (a *APIServerAdapter) SendDocument(_ context.Context, chatID string, _ stri
 	return a.Send(context.Background(), chatID, "[document]", metadata)
 }
 
+func gatewayCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Hermes-Session-Id, X-Hermes-Tenant-Id")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
 // --- OpenAI-compatible chat completions endpoint ---
 
 type chatCompletionRequest struct {
@@ -170,8 +187,9 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Extract system prompt and last user message
+	// Extract system prompt, conversation history, and last user message.
 	var systemParts []string
+	var history []llm.Message
 	var lastUserMsg string
 	for _, msg := range req.Messages {
 		switch msg.Role {
@@ -179,9 +197,20 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 			if msg.Content != "" {
 				systemParts = append(systemParts, msg.Content)
 			}
-		case "user":
-			lastUserMsg = msg.Content
+		case "user", "assistant":
+			if msg.Role == "user" {
+				lastUserMsg = msg.Content
+			}
+			history = append(history, llm.Message{
+				Role:    msg.Role,
+				Content: msg.Content,
+			})
 		}
+	}
+	// Remove the last user message from history — it will be passed as event.Text
+	// and appended by RunConversation.
+	if len(history) > 0 && history[len(history)-1].Role == "user" {
+		history = history[:len(history)-1]
 	}
 
 	sessionID := r.Header.Get("X-Hermes-Session-Id")
@@ -217,7 +246,9 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 			ChatType: "dm",
 			UserID:   "api",
 			UserName: "api",
+			TenantID: tenantID,
 		},
+		History: history,
 		Metadata: map[string]string{
 			"tenant_id": tenantID,
 		},

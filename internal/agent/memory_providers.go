@@ -60,6 +60,15 @@ func (a *honchoMemoryAdapter) DeleteMemory(k string) error      { return a.inner
 func (a *honchoMemoryAdapter) ReadUserProfile() (string, error) { return a.inner.ReadUserProfile() }
 func (a *honchoMemoryAdapter) SaveUserProfile(c string) error   { return a.inner.SaveUserProfile(c) }
 
+// NewPGMemoryProviderAsToolsProvider creates a tools.MemoryProvider backed by
+// PostgreSQL, scoped to a specific tenant and user. Used by the gateway runner
+// to inject per-agent memory isolation.
+func NewPGMemoryProviderAsToolsProvider(pool *pgxpool.Pool, tenantID, userID string) tools.MemoryProvider {
+	return &pgMemoryAdapter{
+		inner: NewPGMemoryProvider(pool, tenantID, userID),
+	}
+}
+
 func init() {
 	// Register builtin provider.
 	tools.RegisterMemoryProvider("builtin", func() tools.MemoryProvider {

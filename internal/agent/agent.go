@@ -43,6 +43,9 @@ type AIAgent struct {
 	disabledToolsets     []string
 	ephemeralSystemPrompt string
 	skillLoader          skills.SkillLoader
+	tenantID             string
+	userID               string
+	memoryProvider       tools.MemoryProvider
 	skipContextFiles     bool
 	skipMemory           bool
 	persistSession       bool
@@ -589,9 +592,12 @@ func (a *AIAgent) executeSingleTool(tc llm.ToolCall) llm.Message {
 	}
 
 	toolCtx := &tools.ToolContext{
-		SessionID:  a.sessionID,
-		ToolCallID: tc.ID,
-		Platform:   a.platform,
+		SessionID:      a.sessionID,
+		ToolCallID:     tc.ID,
+		Platform:       a.platform,
+		TenantID:       a.tenantID,
+		UserID:         a.userID,
+		MemoryProvider: a.memoryProvider,
 	}
 
 	toolResult := tools.Registry().Dispatch(toolName, args, toolCtx)

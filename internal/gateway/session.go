@@ -266,20 +266,25 @@ func (s *SessionStore) save() {
 }
 
 // BuildSessionKey builds a deterministic session key from a message source.
+// The key includes tenant_id to guarantee cross-tenant isolation.
 func BuildSessionKey(source *SessionSource, groupSessionsPerUser, threadSessionsPerUser bool) string {
 	platform := string(source.Platform)
+	tenant := source.TenantID
+	if tenant == "" {
+		tenant = "default"
+	}
 
 	if source.ChatType == "dm" {
 		if source.ChatID != "" {
 			if source.ThreadID != "" {
-				return fmt.Sprintf("agent:main:%s:dm:%s:%s", platform, source.ChatID, source.ThreadID)
+				return fmt.Sprintf("%s:agent:main:%s:dm:%s:%s", tenant, platform, source.ChatID, source.ThreadID)
 			}
-			return fmt.Sprintf("agent:main:%s:dm:%s", platform, source.ChatID)
+			return fmt.Sprintf("%s:agent:main:%s:dm:%s", tenant, platform, source.ChatID)
 		}
 		if source.ThreadID != "" {
-			return fmt.Sprintf("agent:main:%s:dm:%s", platform, source.ThreadID)
+			return fmt.Sprintf("%s:agent:main:%s:dm:%s", tenant, platform, source.ThreadID)
 		}
-		return fmt.Sprintf("agent:main:%s:dm", platform)
+		return fmt.Sprintf("%s:agent:main:%s:dm", tenant, platform)
 	}
 
 	participantID := source.UserIDAlt
@@ -287,7 +292,7 @@ func BuildSessionKey(source *SessionSource, groupSessionsPerUser, threadSessions
 		participantID = source.UserID
 	}
 
-	parts := []string{"agent:main", platform, source.ChatType}
+	parts := []string{tenant, "agent:main", platform, source.ChatType}
 
 	if source.ChatID != "" {
 		parts = append(parts, source.ChatID)
