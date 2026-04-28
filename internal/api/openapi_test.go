@@ -40,3 +40,126 @@ func TestOpenAPISpec(t *testing.T) {
 		t.Error("missing /v1/usage path")
 	}
 }
+
+func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
+	handler := OpenAPISpec()
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/v1/openapi", nil)
+	handler.ServeHTTP(rec, req)
+
+	var spec map[string]any
+	json.NewDecoder(rec.Body).Decode(&spec)
+	paths := spec["paths"].(map[string]any)
+
+	// All registered paths must be present in the spec.
+	wantPaths := []string{
+		"/v1/health",
+		"/v1/health/live",
+		"/v1/health/ready",
+		"/v1/chat",
+		"/v1/status",
+		"/v1/sessions",
+		"/v1/tenants",
+		"/v1/api-keys",
+		"/v1/audit-logs",
+		"/v1/usage",
+		"/v1/me",
+		"/v1/metrics",
+	}
+
+	for _, p := range wantPaths {
+		if _, ok := paths[p]; !ok {
+			t.Errorf("missing path in spec: %s", p)
+		}
+	}
+}
+
+func TestOpenAPISpec_Structure(t *testing.T) {
+	handler := OpenAPISpec()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/openapi", nil))
+
+	var spec map[string]any
+	json.NewDecoder(rec.Body).Decode(&spec)
+
+	// Verify top-level structure.
+	for _, field := range []string{"openapi", "info", "paths", "components"} {
+		if _, ok := spec[field]; !ok {
+			t.Errorf("missing top-level field: %s", field)
+		}
+	}
+
+	// Info block must have title and version.
+	info := spec["info"].(map[string]any)
+	if info["title"] == "" {
+		t.Error("info.title is empty")
+	}
+	if info["version"] == "" {
+		t.Error("info.version is empty")
+	}
+
+	// Components must have securitySchemes.
+	components := spec["components"].(map[string]any)
+	if _, ok := components["securitySchemes"]; !ok {
+		t.Error("missing components.securitySchemes")
+	}
+
+	// Security field must be set.
+	security, ok := spec["security"].([]any)
+	if !ok || len(security) == 0 {
+		t.Error("spec.security must be a non-empty array")
+	}
+}
+
+func TestOpenAPISpec_EachPathHasOperation(t *testing.T) {
+	handler := OpenAPISpec()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/openapi", nil))
+
+	var spec map[string]any
+	json.NewDecoder(rec.Body).Decode(&spec)
+	paths := spec["paths"].(map[string]any)
+
+	// Each path entry must contain at least one HTTP method operation.
+	for path, v := range paths {
+		pathItem, ok := v.(map[string]any)
+		if !ok {
+			t.Errorf("path %s: expected map, got %T", path, v)
+			continue
+		}
+		hasOp := false
+		for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
+			if _, ok := pathItem[method]; ok {
+				hasOp = true
+				break
+			}
+		}
+		if !hasOp {
+			t.Errorf("path %s: no HTTP operation found", path)
+		}
+	}
+}
+
+func TestOpenAPISpec_PathMethodsHaveResponses(t *testing.T) {
+	handler := OpenAPISpec()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/openapi", nil))
+
+	var spec map[string]any
+	json.NewDecoder(rec.Body).Decode(&spec)
+	paths := spec["paths"].(map[string]any)
+
+	// Each path+method must have a "responses" field.
+	for path, v := range paths {
+		pathItem := v.(map[string]any)
+		for method, op := range pathItem {
+			if method == "summary" || method == "description" {
+				continue
+			}
+			opMap := op.(map[string]any)
+			if _, ok := opMap["responses"]; !ok {
+				t.Errorf("%s (%s): missing responses field", path, method)
+			}
+		}
+	}
+}

@@ -14,7 +14,7 @@ type pgAPIKeyStore struct {
 
 func (s *pgAPIKeyStore) Create(ctx context.Context, key *store.APIKey) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, expires_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, expires_at) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7)`,
 		key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, key.Roles, key.ExpiresAt,
 	)
 	if err != nil {

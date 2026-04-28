@@ -17,6 +17,11 @@ func NewExtractorChain(extractors ...CredentialExtractor) *ExtractorChain {
 	return &ExtractorChain{extractors: extractors}
 }
 
+// Add appends an extractor to the chain.
+func (c *ExtractorChain) Add(e CredentialExtractor) {
+	c.extractors = append(c.extractors, e)
+}
+
 // Extract iterates extractors until one returns a non-nil AuthContext.
 // Returns nil, nil if no extractor matched (anonymous request).
 func (c *ExtractorChain) Extract(r *http.Request) (*AuthContext, error) {

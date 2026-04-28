@@ -14,7 +14,7 @@ type pgTenantStore struct {
 
 func (s *pgTenantStore) Create(ctx context.Context, t *store.Tenant) error {
 	_, err := s.pool.Exec(ctx,
-		`INSERT INTO tenants (id, name, plan, rate_limit_rpm, max_sessions) VALUES ($1, $2, $3, $4, $5)`,
+		`INSERT INTO tenants (id, name, plan, rate_limit_rpm, max_sessions) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5)`,
 		t.ID, t.Name, t.Plan, t.RateLimitRPM, t.MaxSessions,
 	)
 	if err != nil {

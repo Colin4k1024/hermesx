@@ -117,6 +117,47 @@
 - `go build ./...` PASS
 - `go test ./...` 1153 tests PASS, 0 failures, 28 packages
 
+## Phase 6: SaaS Admin SPA（2026-04-28 补充）
+
+| 任务 | 实际 | 偏差 |
+|------|------|------|
+| T23: SaaS Admin SPA | 完成 `internal/dashboard/static/admin.html`，单文件 HTML/JS/CSS，GitHub Dark 风格 | 无偏差 |
+| T24: `/v1/me` endpoint | 完成 `internal/api/me.go`，返回当前身份 + 租户配置 | 无偏差 |
+| T25: API server CORS 支持 | 完成 `AllowedOrigins` 配置字段 + `corsMiddleware` | 无偏差 |
+| T26: API server StaticDir 支持 | 完成 `StaticDir` 配置字段 + SPA 路由 | 无偏差 |
+| T27: OpenAPI spec 补全 | 更新 `openapi.go`，新增 `/v1/me` 路径 | 无偏差 |
+
+### Phase 7: SPA 完善 + 补充测试（2026-04-28 下午补充）
+
+| 任务 | 实际 | 偏差 |
+|------|------|------|
+| T28: SPA index.html | 创建 `internal/dashboard/static/index.html`，301 重定向到 `admin.html` | 无偏差 |
+| T29: SPA multi-select bug | 修复 `openCreateKeyModal()` 中 `key-roles` 赋值方式，使用 `option.selected` 替代 `.value=['user']` | 无偏差 |
+| T30: metrics_test.go | 新增 8 个测试：normalizePath、statusWriter、in-flight gauge、panic 处理 | 无偏差 |
+| T31: server_test.go 扩展 | 新增 CORS 测试 5 个（allowed/wildcard/disallowed/OPTIONS/multiple）、SPA fallback 测试 4 个 | 无偏差 |
+| T32: openapi_test.go 扩展 | 新增 4 个测试：AllPathsPresent、Structure、EachPathHasOperation、PathMethodsHaveResponses | 无偏差 |
+| T33: seedDefaultTenant | `cmd/hermes/saas.go` 修复编译错误，实现幂等租户种子函数 | 无偏差 |
+
+### 新增文件
+- `internal/dashboard/static/index.html` — `/` 路由重定向到 admin.html
+- `internal/middleware/metrics_test.go` — metrics 中间件测试（8 个 cases）
+
+### 修改文件
+- `cmd/hermes/saas.go` — 新增 `seedDefaultTenant` 实现 + `pgx` 导入
+- `internal/dashboard/static/admin.html` — 修复 multi-select 初始化 bug
+- `internal/api/server_test.go` — 新增 9 个集成测试（CORS 5 个 + SPA 4 个）
+- `internal/api/openapi_test.go` — 扩展为 5 个测试（新增 4 个）
+
+
+### 新增文件
+- `internal/dashboard/static/admin.html` — SaaS 管理 SPA（登录页、仪表盘、API Keys、Usage、Audit Logs）
+- `internal/api/me.go` — `GET /v1/me` handler
+- `internal/api/me_test.go` — `/v1/me` 单元测试（5 cases）
+
+### 修改文件
+- `internal/api/server.go` — 新增 CORS middleware、StaticDir 路由、`AllowedOrigins` 字段、`/v1/me` 注册、`0.0.0.0` 绑定地址；修复 `RateLimitConfig` 类型兼容性
+- `internal/api/openapi.go` — 新增 `/v1/me` 路径
+
 ## 未完成项
 
 - Server 挂载 middleware chain（需要 ACP + API server 重构，建议独立 PR）
@@ -124,7 +165,14 @@
 - JWT 公钥配置管理（需要 key rotation 策略）
 - Helm chart 高级配置（Ingress, HPA, PDB, NetworkPolicy）
 - E2E 集成测试（需要 testcontainers PostgreSQL）
-- OpenAPI spec 补全所有 path 的 schema 定义
+- OpenAPI spec schema 定义（路径参数、请求体、响应体 schema 尚未补全）
+
+## 验证
+
+- `go build ./...` ✅ PASS
+- `go test ./...` ✅ 18 个测试包全部 PASS
+- 新增测试：`metrics_test.go` (8 cases) + `server_test.go` (9 cases) + `openapi_test.go` (5 cases)
+
 
 ---
 
