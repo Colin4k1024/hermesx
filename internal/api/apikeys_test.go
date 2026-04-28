@@ -170,14 +170,14 @@ func TestAPIKeyHandler(t *testing.T) {
 			wantStatus: http.StatusNoContent,
 		},
 		{
-			name:     "revoke with wrong tenant returns 403",
+			name:     "revoke with wrong tenant returns 404",
 			method:   http.MethodDelete,
 			path:     "/v1/api-keys/k1",
 			tenantID: "tenant-2",
 			seedData: func(ms *mockAPIKeyStore) {
 				ms.keys["k1"] = &store.APIKey{ID: "k1", TenantID: "tenant-1", Name: "key-1"}
 			},
-			wantStatus: http.StatusForbidden,
+			wantStatus: http.StatusNotFound,
 		},
 	}
 

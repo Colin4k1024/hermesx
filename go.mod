@@ -1,6 +1,6 @@
 module github.com/hermes-agent/hermes-agent-go
 
-go 1.25.0
+go 1.25.9
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.16

@@ -137,7 +137,7 @@ func buildAgentOptions() []agent.AgentOption {
 
 func runInteractiveCLI() error {
 	setupLogging()
-	config.EnsureHermesHome()
+	_ = config.EnsureHermesHome()
 
 	app, err := cli.NewApp(buildAgentOptions()...)
 	if err != nil {
@@ -157,7 +157,7 @@ var chatCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		setupLogging()
-		config.EnsureHermesHome()
+		_ = config.EnsureHermesHome()
 
 		query := strings.Join(args, " ")
 		opts := buildAgentOptions()
@@ -341,7 +341,7 @@ var gatewayCmd = &cobra.Command{
 	Short: "Manage the messaging gateway",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		setupLogging()
-		config.EnsureHermesHome()
+		_ = config.EnsureHermesHome()
 
 		if len(args) == 0 || args[0] == "start" {
 			return runGateway()
@@ -463,7 +463,7 @@ func runGateway() error {
 					slog.Warn("ACP server failed", "error", err)
 				}
 			}()
-			defer acpServer.Stop()
+			defer func() { _ = acpServer.Stop() }()
 			slog.Info("ACP server started", "port", acpPort)
 		}
 	}
@@ -486,7 +486,7 @@ var setupCmd = &cobra.Command{
 	Use:   "setup",
 	Short: "Interactive setup wizard",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config.EnsureHermesHome()
+		_ = config.EnsureHermesHome()
 		cli.RunSetupWizard()
 		return nil
 	},
@@ -537,7 +537,7 @@ var clawMigrateCmd = &cobra.Command{
 	Use:   "migrate",
 	Short: "Migrate settings and data from OpenClaw to Hermes",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		config.EnsureHermesHome()
+		_ = config.EnsureHermesHome()
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
 		return cli.RunClawMigrate(dryRun, overwrite)

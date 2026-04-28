@@ -170,10 +170,10 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		slog.Info("Shutting down...")
 		ctx := context.Background()
 		if acpServer != nil {
-			acpServer.Stop()
+			_ = acpServer.Stop()
 		}
-		saasServer.Shutdown(ctx)
-		dataStore.Close()
+		_ = saasServer.Shutdown(ctx)
+		_ = dataStore.Close()
 		close(done)
 	}()
 
