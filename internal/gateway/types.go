@@ -37,9 +37,10 @@ const (
 
 // MessageEvent represents an incoming message from any platform.
 type MessageEvent struct {
-	Text        string            `json:"text"`
-	MessageType MessageType       `json:"message_type"`
-	Source      SessionSource     `json:"source"`
+	Text         string            `json:"text"`
+	SystemPrompt string            `json:"system_prompt,omitempty"`
+	MessageType  MessageType       `json:"message_type"`
+	Source       SessionSource     `json:"source"`
 	MediaURLs   []string          `json:"media_urls,omitempty"`
 	MediaPaths  []string          `json:"media_paths,omitempty"`
 	ReplyToID   string            `json:"reply_to_id,omitempty"`

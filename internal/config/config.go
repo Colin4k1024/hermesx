@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -35,6 +36,7 @@ type Config struct {
 	// SaaS / Stateless
 	Database DatabaseConfig `yaml:"database"`
 	Redis    RedisConfig    `yaml:"redis"`
+	MinIO    MinIOConfig    `yaml:"minio"`
 
 	// Internal
 	configVersion int `yaml:"_config_version"`
@@ -49,6 +51,15 @@ type DatabaseConfig struct {
 // RedisConfig controls the Redis connection for distributed state.
 type RedisConfig struct {
 	URL string `yaml:"url"`
+}
+
+// MinIOConfig controls the S3-compatible object storage for per-tenant skills.
+type MinIOConfig struct {
+	Endpoint  string `yaml:"endpoint"`
+	AccessKey string `yaml:"access_key"`
+	SecretKey string `yaml:"secret_key"`
+	Bucket    string `yaml:"bucket"`
+	UseSSL    bool   `yaml:"use_ssl"`
 }
 
 // DisplayConfig controls CLI display options.
@@ -186,6 +197,32 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("HERMES_API_MODE"); v != "" {
 		cfg.APIMode = v
+	}
+	if v := os.Getenv("HERMES_MAX_ITERATIONS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.MaxIterations = n
+		}
+	}
+	if v := os.Getenv("HERMES_MAX_TOKENS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.MaxTokens = n
+		}
+	}
+	// MinIO / S3
+	if v := os.Getenv("MINIO_ENDPOINT"); v != "" {
+		cfg.MinIO.Endpoint = v
+	}
+	if v := os.Getenv("MINIO_ACCESS_KEY"); v != "" {
+		cfg.MinIO.AccessKey = v
+	}
+	if v := os.Getenv("MINIO_SECRET_KEY"); v != "" {
+		cfg.MinIO.SecretKey = v
+	}
+	if v := os.Getenv("MINIO_BUCKET"); v != "" {
+		cfg.MinIO.Bucket = v
+	}
+	if v := os.Getenv("MINIO_USE_SSL"); v == "true" {
+		cfg.MinIO.UseSSL = true
 	}
 }
 

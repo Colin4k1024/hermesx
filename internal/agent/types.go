@@ -2,6 +2,7 @@ package agent
 
 import (
 	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/hermes-agent/hermes-agent-go/internal/skills"
 )
 
 // ConversationResult holds the result of a conversation turn.
@@ -92,6 +93,11 @@ func WithBudget(b *IterationBudget) AgentOption {
 // WithSystemPrompt sets an ephemeral system prompt override.
 func WithSystemPrompt(prompt string) AgentOption {
 	return func(a *AIAgent) { a.ephemeralSystemPrompt = prompt }
+}
+
+// WithSkillLoader sets a per-user skill loader (e.g. MinIO-backed).
+func WithSkillLoader(loader skills.SkillLoader) AgentOption {
+	return func(a *AIAgent) { a.skillLoader = loader }
 }
 
 // WithSkipContextFiles skips loading context files.

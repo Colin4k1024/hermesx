@@ -10,6 +10,8 @@ import (
 
 	"github.com/hermes-agent/hermes-agent-go/internal/agent"
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
+	"github.com/hermes-agent/hermes-agent-go/internal/skills"
 	"github.com/hermes-agent/hermes-agent-go/internal/tools"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -34,6 +36,9 @@ type Runner struct {
 
 	// Runtime status tracker.
 	status *RuntimeStatus
+
+	// MinIO client for per-tenant skill loading.
+	minioClient *objstore.MinIOClient
 
 	// Media cache for downloaded files.
 	mediaCache MediaCacher
@@ -69,16 +74,38 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 		slog.Info("Using local session store")
 	}
 
+	cfg := config.Load()
+
+	// Initialize MinIO client if configured.
+	var mc *objstore.MinIOClient
+	if cfg.MinIO.Endpoint != "" {
+		var err error
+		mc, err = objstore.NewMinIOClient(
+			cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
+			cfg.MinIO.Bucket, cfg.MinIO.UseSSL,
+		)
+		if err != nil {
+			slog.Warn("MinIO unavailable, per-tenant skills disabled", "error", err)
+		} else {
+			if err := mc.EnsureBucket(ctx); err != nil {
+				slog.Warn("MinIO bucket check failed", "error", err)
+			} else {
+				slog.Info("MinIO skill store connected", "endpoint", cfg.MinIO.Endpoint, "bucket", cfg.MinIO.Bucket)
+			}
+		}
+	}
+
 	r := &Runner{
 		adapters:      make(map[Platform]PlatformAdapter),
 		sessions:      sessions,
 		pgPool:        pgPool,
-		cfg:           config.Load(),
+		cfg:           cfg,
 		gwCfg:         gwCfg,
 		delivery:      NewDeliveryRouter(),
 		hooks:         NewHookRegistry(),
 		pairing:       NewPairingStore(),
 		status:        NewRuntimeStatus(),
+		minioClient:   mc,
 		mediaCache:    NewMediaCache(),
 		agentCache:    make(map[string]*agent.AIAgent),
 		adapterErrors: make(map[Platform]int),
@@ -465,11 +492,23 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 	r.agentMu.RUnlock()
 
 	// Create a new agent.
-	ag, err := agent.New(
+	opts := []agent.AgentOption{
 		agent.WithPlatform(string(event.Source.Platform)),
 		agent.WithSessionID(session.SessionID),
 		agent.WithQuietMode(true),
-	)
+	}
+	if event.SystemPrompt != "" {
+		opts = append(opts, agent.WithSystemPrompt(event.SystemPrompt))
+	}
+
+	// Per-tenant skill loader from MinIO.
+	if r.minioClient != nil {
+		tenantID := resolveTenantID(event)
+		loader := skills.NewMinIOSkillLoader(r.minioClient, tenantID)
+		opts = append(opts, agent.WithSkillLoader(loader))
+	}
+
+	ag, err := agent.New(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -497,6 +536,16 @@ func (r *Runner) evictCachedAgent(sessionKey string) {
 		ag.Close()
 		delete(r.agentCache, sessionKey)
 	}
+}
+
+// resolveTenantID extracts the tenant ID from the message event metadata.
+func resolveTenantID(event *MessageEvent) string {
+	if event.Metadata != nil {
+		if tid, ok := event.Metadata["tenant_id"]; ok && tid != "" {
+			return tid
+		}
+	}
+	return "default"
 }
 
 // --- Background watchers ---

@@ -1,13 +1,16 @@
 package agent
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/hermes-agent/hermes-agent-go/internal/skills"
 )
 
 const defaultAgentIdentity = `You are Hermes, a helpful AI assistant built by Nous Research.
@@ -52,6 +55,15 @@ var platformHints = map[string]string{
 
 func (a *AIAgent) buildSystemPrompt() string {
 	if a.ephemeralSystemPrompt != "" {
+		if a.skillLoader != nil {
+			loaded, err := a.skillLoader.LoadAll(context.Background())
+			if err != nil {
+				slog.Debug("Failed to load skills from SkillLoader", "error", err)
+			} else if len(loaded) > 0 {
+				skillsText := skills.BuildSkillsPrompt(loaded)
+				return a.ephemeralSystemPrompt + "\n\n## Available Skills\n" + skillsText
+			}
+		}
 		return a.ephemeralSystemPrompt
 	}
 
@@ -88,8 +100,18 @@ func (a *AIAgent) buildSystemPrompt() string {
 		}
 	}
 
-	// Skills guidance
-	skillsPrompt := loadSkillsPrompt()
+	// Skills guidance — use SkillLoader when available, fallback to local filesystem
+	var skillsPrompt string
+	if a.skillLoader != nil {
+		loaded, err := a.skillLoader.LoadAll(context.Background())
+		if err != nil {
+			slog.Debug("Failed to load skills from SkillLoader", "error", err)
+		} else {
+			skillsPrompt = skills.BuildSkillsPrompt(loaded)
+		}
+	} else {
+		skillsPrompt = loadSkillsPrompt()
+	}
 	if skillsPrompt != "" {
 		sb.WriteString("\n\n## Available Skills\n")
 		sb.WriteString(skillsPrompt)

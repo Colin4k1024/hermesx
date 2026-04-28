@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
 	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/hermes-agent/hermes-agent-go/internal/skills"
 	"github.com/hermes-agent/hermes-agent-go/internal/state"
 	"github.com/hermes-agent/hermes-agent-go/internal/tools"
 	"github.com/hermes-agent/hermes-agent-go/internal/toolsets"
@@ -41,6 +42,7 @@ type AIAgent struct {
 	enabledToolsets      []string
 	disabledToolsets     []string
 	ephemeralSystemPrompt string
+	skillLoader          skills.SkillLoader
 	skipContextFiles     bool
 	skipMemory           bool
 	persistSession       bool

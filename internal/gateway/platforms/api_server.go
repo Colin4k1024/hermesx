@@ -8,6 +8,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -169,18 +170,28 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// Extract last user message
+	// Extract system prompt and last user message
+	var systemParts []string
 	var lastUserMsg string
-	for i := len(req.Messages) - 1; i >= 0; i-- {
-		if req.Messages[i].Role == "user" {
-			lastUserMsg = req.Messages[i].Content
-			break
+	for _, msg := range req.Messages {
+		switch msg.Role {
+		case "system":
+			if msg.Content != "" {
+				systemParts = append(systemParts, msg.Content)
+			}
+		case "user":
+			lastUserMsg = msg.Content
 		}
 	}
 
 	sessionID := r.Header.Get("X-Hermes-Session-Id")
 	if sessionID == "" {
 		sessionID = fmt.Sprintf("api_%d", time.Now().UnixNano())
+	}
+
+	tenantID := r.Header.Get("X-Hermes-Tenant-Id")
+	if tenantID == "" {
+		tenantID = "default"
 	}
 
 	// Create response channel
@@ -197,14 +208,18 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 
 	// Emit as gateway message
 	event := &gateway.MessageEvent{
-		Text:        lastUserMsg,
-		MessageType: gateway.MessageTypeText,
+		Text:         lastUserMsg,
+		SystemPrompt: strings.Join(systemParts, "\n\n"),
+		MessageType:  gateway.MessageTypeText,
 		Source: gateway.SessionSource{
 			Platform: gateway.PlatformAPI,
 			ChatID:   sessionID,
 			ChatType: "dm",
 			UserID:   "api",
 			UserName: "api",
+		},
+		Metadata: map[string]string{
+			"tenant_id": tenantID,
 		},
 	}
 	a.EmitMessage(event)
