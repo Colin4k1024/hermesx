@@ -1,4 +1,4 @@
-FROM golang:1.22-bookworm AS builder
+FROM golang:1.25-bookworm AS builder
 
 WORKDIR /app
 COPY go.mod go.sum ./
@@ -26,8 +26,6 @@ COPY --from=builder /hermes /usr/local/bin/hermes
 
 USER hermes
 WORKDIR /home/hermes
-
-RUN mkdir -p /home/hermes/.hermes/{sessions,logs,memories,skills,cron,cache}
 
 ENTRYPOINT ["hermes"]
 CMD ["gateway", "start"]

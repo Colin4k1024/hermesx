@@ -4,11 +4,13 @@ import (
 	"context"
 	"net/http"
 	"regexp"
+
+	"github.com/hermes-agent/hermes-agent-go/internal/auth"
 )
 
-type contextKey string
+type tenantCtxKey string
 
-const tenantKey contextKey = "tenant_id"
+const tenantKey tenantCtxKey = "tenant_id"
 
 var tenantIDPattern = regexp.MustCompile(`^[a-zA-Z0-9_-]{1,64}$`)
 
@@ -23,13 +25,19 @@ func WithTenant(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, tenantKey, tenantID)
 }
 
-// TenantMiddleware extracts tenant_id from X-Tenant-ID header or defaults to "default".
+// TenantMiddleware derives tenant ID from AuthContext (set by auth middleware).
+// Falls back to "default" only when AuthContext is absent (anonymous/dev mode).
+// Never trusts the X-Tenant-ID header for tenant identity.
 func TenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenantID := r.Header.Get("X-Tenant-ID")
-		if tenantID == "" {
-			tenantID = "default"
+		tenantID := "default"
+
+		if ac, ok := auth.FromContext(r.Context()); ok && ac != nil {
+			if ac.TenantID != "" {
+				tenantID = ac.TenantID
+			}
 		}
+
 		if !tenantIDPattern.MatchString(tenantID) {
 			http.Error(w, "invalid tenant ID", http.StatusBadRequest)
 			return

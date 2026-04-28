@@ -1,0 +1,14 @@
+FROM node:20-alpine
+
+RUN apk add --no-cache ca-certificates git curl jq bash
+
+RUN adduser -D -s /bin/bash hermes
+
+COPY hermes-linux /usr/local/bin/hermes
+RUN chmod +x /usr/local/bin/hermes
+
+USER hermes
+WORKDIR /home/hermes
+
+ENTRYPOINT ["hermes"]
+CMD ["gateway", "start"]

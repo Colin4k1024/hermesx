@@ -1,0 +1,6 @@
+apiVersion: v2
+name: hermes-agent
+description: Multi-tenant AI agent platform
+type: application
+version: 0.1.0
+appVersion: "1.0.0"

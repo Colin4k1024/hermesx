@@ -14,12 +14,11 @@ func authToken() string {
 }
 
 // withAuth wraps a handler to require bearer token authentication.
-// If HERMES_ACP_TOKEN is not set, all requests are allowed (dev mode).
 func withAuth(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := authToken()
 		if token == "" {
-			next(w, r)
+			http.Error(w, "server authentication not configured", http.StatusServiceUnavailable)
 			return
 		}
 

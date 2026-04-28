@@ -2,6 +2,7 @@ package platforms
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,8 +141,9 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 	}
 
 	if a.authKey != "" {
-		auth := r.Header.Get("Authorization")
-		if auth != "Bearer "+a.authKey {
+		expected := []byte("Bearer " + a.authKey)
+		actual := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(expected, actual) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

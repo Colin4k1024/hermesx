@@ -8,8 +8,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var migrations = []string{
-	`CREATE TABLE IF NOT EXISTS tenants (
+type migration struct {
+	version int
+	sql     string
+}
+
+var migrations = []migration{
+	{1, `CREATE TABLE IF NOT EXISTS tenants (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		name TEXT NOT NULL,
 		plan TEXT NOT NULL DEFAULT 'free',
@@ -17,9 +22,9 @@ var migrations = []string{
 		max_sessions INT NOT NULL DEFAULT 100,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-	)`,
+	)`},
 
-	`CREATE TABLE IF NOT EXISTS sessions (
+	{2, `CREATE TABLE IF NOT EXISTS sessions (
 		id TEXT PRIMARY KEY,
 		tenant_id UUID NOT NULL REFERENCES tenants(id),
 		platform TEXT NOT NULL,
@@ -39,12 +44,12 @@ var migrations = []string{
 		cache_write_tokens INT DEFAULT 0,
 		estimated_cost_usd NUMERIC(10,6),
 		metadata JSONB DEFAULT '{}'
-	)`,
-	`CREATE INDEX IF NOT EXISTS idx_sessions_tenant ON sessions(tenant_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(tenant_id, user_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_sessions_platform ON sessions(tenant_id, platform)`,
+	)`},
+	{3, `CREATE INDEX IF NOT EXISTS idx_sessions_tenant ON sessions(tenant_id)`},
+	{4, `CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(tenant_id, user_id)`},
+	{5, `CREATE INDEX IF NOT EXISTS idx_sessions_platform ON sessions(tenant_id, platform)`},
 
-	`CREATE TABLE IF NOT EXISTS messages (
+	{6, `CREATE TABLE IF NOT EXISTS messages (
 		id BIGSERIAL PRIMARY KEY,
 		tenant_id UUID NOT NULL REFERENCES tenants(id),
 		session_id TEXT NOT NULL,
@@ -57,13 +62,12 @@ var migrations = []string{
 		timestamp TIMESTAMPTZ NOT NULL DEFAULT now(),
 		token_count INT,
 		finish_reason TEXT
-	)`,
-	`CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(tenant_id, session_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(tenant_id, session_id, timestamp)`,
-	// GIN index for full-text search
-	`CREATE INDEX IF NOT EXISTS idx_messages_fts ON messages USING GIN(to_tsvector('english', coalesce(content, '')))`,
+	)`},
+	{7, `CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(tenant_id, session_id)`},
+	{8, `CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(tenant_id, session_id, timestamp)`},
+	{9, `CREATE INDEX IF NOT EXISTS idx_messages_fts ON messages USING GIN(to_tsvector('english', coalesce(content, '')))`},
 
-	`CREATE TABLE IF NOT EXISTS users (
+	{10, `CREATE TABLE IF NOT EXISTS users (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		tenant_id UUID NOT NULL REFERENCES tenants(id),
 		external_id TEXT NOT NULL,
@@ -72,10 +76,10 @@ var migrations = []string{
 		role TEXT DEFAULT 'user',
 		approved_at TIMESTAMPTZ,
 		metadata JSONB DEFAULT '{}'
-	)`,
-	`CREATE UNIQUE INDEX IF NOT EXISTS idx_users_external ON users(tenant_id, external_id)`,
+	)`},
+	{11, `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_external ON users(tenant_id, external_id)`},
 
-	`CREATE TABLE IF NOT EXISTS audit_logs (
+	{12, `CREATE TABLE IF NOT EXISTS audit_logs (
 		id BIGSERIAL PRIMARY KEY,
 		tenant_id UUID NOT NULL REFERENCES tenants(id),
 		user_id UUID,
@@ -83,10 +87,10 @@ var migrations = []string{
 		action TEXT NOT NULL,
 		detail TEXT,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-	)`,
-	`CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id)`,
+	)`},
+	{13, `CREATE INDEX IF NOT EXISTS idx_audit_tenant ON audit_logs(tenant_id)`},
 
-	`CREATE TABLE IF NOT EXISTS cron_jobs (
+	{14, `CREATE TABLE IF NOT EXISTS cron_jobs (
 		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 		tenant_id UUID NOT NULL REFERENCES tenants(id),
 		name TEXT NOT NULL,
@@ -100,17 +104,78 @@ var migrations = []string{
 		run_count INT DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 		metadata JSONB DEFAULT '{}'
-	)`,
-	`CREATE INDEX IF NOT EXISTS idx_cron_tenant ON cron_jobs(tenant_id)`,
-	`CREATE INDEX IF NOT EXISTS idx_cron_next ON cron_jobs(next_run_at) WHERE enabled = true`,
+	)`},
+	{15, `CREATE INDEX IF NOT EXISTS idx_cron_tenant ON cron_jobs(tenant_id)`},
+	{16, `CREATE INDEX IF NOT EXISTS idx_cron_next ON cron_jobs(next_run_at) WHERE enabled = true`},
+
+	// P1: API keys table
+	{17, `CREATE TABLE IF NOT EXISTS api_keys (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		name TEXT NOT NULL,
+		key_hash TEXT NOT NULL,
+		prefix TEXT NOT NULL,
+		roles TEXT[] DEFAULT '{user}',
+		expires_at TIMESTAMPTZ,
+		revoked_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{18, `CREATE UNIQUE INDEX IF NOT EXISTS idx_apikeys_hash ON api_keys(key_hash)`},
+	{19, `CREATE INDEX IF NOT EXISTS idx_apikeys_tenant ON api_keys(tenant_id)`},
+
+	// P2: Gateway session key + memory tables (v20-v23)
+	{20, `ALTER TABLE sessions ADD COLUMN IF NOT EXISTS session_key TEXT`},
+	{21, `CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_key ON sessions(session_key) WHERE session_key IS NOT NULL`},
+
+	{22, `CREATE TABLE IF NOT EXISTS memories (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		user_id TEXT NOT NULL,
+		key TEXT NOT NULL,
+		content TEXT NOT NULL,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE(tenant_id, user_id, key)
+	)`},
+	{23, `CREATE TABLE IF NOT EXISTS user_profiles (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		user_id TEXT NOT NULL,
+		content TEXT NOT NULL,
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE(tenant_id, user_id)
+	)`},
 }
 
 func runMigrations(ctx context.Context, pool *pgxpool.Pool) error {
-	for i, ddl := range migrations {
-		if _, err := pool.Exec(ctx, ddl); err != nil {
-			return fmt.Errorf("migration %d failed: %w", i, err)
-		}
+	_, err := pool.Exec(ctx, `CREATE TABLE IF NOT EXISTS schema_version (
+		version INT NOT NULL,
+		applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`)
+	if err != nil {
+		return fmt.Errorf("create schema_version table: %w", err)
 	}
-	slog.Info("PG migrations completed", "count", len(migrations))
+
+	var current int
+	err = pool.QueryRow(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_version`).Scan(&current)
+	if err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+
+	applied := 0
+	for _, m := range migrations {
+		if m.version <= current {
+			continue
+		}
+		if _, err := pool.Exec(ctx, m.sql); err != nil {
+			return fmt.Errorf("migration v%d failed: %w", m.version, err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO schema_version (version) VALUES ($1)`, m.version); err != nil {
+			return fmt.Errorf("record migration v%d: %w", m.version, err)
+		}
+		applied++
+	}
+
+	slog.Info("PG migrations completed", "current", current, "applied", applied, "latest", len(migrations))
 	return nil
 }

@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -21,6 +22,9 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway/platforms"
 	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/hermes-agent/hermes-agent-go/internal/store/pg"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 )
 
@@ -383,7 +387,43 @@ func runGateway() error {
 		gwCfg.AllowedUsers = gcf.AllowedUsers
 	}
 
-	runner := gateway.NewRunner(gwCfg)
+	// Create PG store if DATABASE_URL is set; otherwise nil (local fallback).
+	var pgPool *pgxpool.Pool
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		cfg := store.StoreConfig{Driver: "postgres", URL: dbURL}
+		dataStore, err := store.NewStore(context.Background(), cfg)
+		if err != nil {
+			return fmt.Errorf("init postgres store: %w", err)
+		}
+		defer dataStore.Close()
+
+		pgStore, ok := dataStore.(*pg.PGStore)
+		if !ok {
+			return fmt.Errorf("expected PGStore from postgres driver, got %T", dataStore)
+		}
+		pgPool = pgStore.Pool()
+
+		// Configure PG memory provider for agent memory operations.
+		agent.SetPGMemoryPool(pgPool, gateway.DefaultTenantID)
+		slog.Info("PostgreSQL store initialized for gateway")
+	}
+
+	runner := gateway.NewRunner(gwCfg, pgPool)
+
+	// Register API server adapter.
+	if apiPortStr := os.Getenv("HERMES_API_PORT"); apiPortStr != "" {
+		apiPort, err := strconv.Atoi(apiPortStr)
+		if err == nil && apiPort > 0 {
+			apiKey := os.Getenv("HERMES_API_KEY")
+			adapter := platforms.NewAPIServerAdapter(apiPort, apiKey)
+			runner.RegisterAdapter(adapter)
+			// Auto-allow API platform — it has its own Bearer token auth at HTTP layer.
+			runner.Pairing().LoadAllowedUsers(map[string]any{
+				"api": []any{"*"},
+			})
+			slog.Info("API server adapter registered", "port", apiPort)
+		}
+	}
 
 	// Register DMWork adapter.
 	if botToken := os.Getenv("DMWORK_BOT_TOKEN"); botToken != "" {
@@ -395,9 +435,9 @@ func runGateway() error {
 		runner.RegisterAdapter(adapter)
 	}
 
-	if len(runner.ConnectedPlatforms()) == 0 {
+	if len(runner.RegisteredPlatforms()) == 0 {
 		fmt.Println("No messaging platforms configured.")
-		fmt.Println("Set DMWORK_BOT_TOKEN and DMWORK_API_URL in ~/.hermes/.env")
+		fmt.Println("Set HERMES_API_PORT=8080 for API server, or DMWORK_BOT_TOKEN for DMWork")
 		return fmt.Errorf("no platforms configured")
 	}
 

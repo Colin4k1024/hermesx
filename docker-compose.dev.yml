@@ -1,6 +1,7 @@
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: hermes-pg
     environment:
       POSTGRES_DB: hermes
       POSTGRES_USER: hermes
@@ -17,6 +18,7 @@ services:
 
   redis:
     image: redis:7-alpine
+    container_name: hermes-redis
     ports:
       - "6379:6379"
     volumes:
@@ -29,20 +31,31 @@ services:
 
   hermes-gateway:
     build: .
-    command: ["--mode", "gateway"]
+    container_name: hermes-gateway
+    command: ["gateway", "start"]
     environment:
-      DATABASE_DRIVER: postgres
+      # Storage
       DATABASE_URL: postgres://hermes:hermes@postgres:5432/hermes?sslmode=disable
+      DATABASE_DRIVER: postgres
       REDIS_URL: redis://redis:6379
+      # API server
+      HERMES_API_PORT: "8080"
+      HERMES_API_KEY: ${HERMES_API_KEY:-test-secret-key}
+      # LLM credentials (from .env file)
+      HERMES_MODEL: ${HERMES_MODEL:-}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-}
+      HERMES_BASE_URL: ${HERMES_BASE_URL:-}
+      HERMES_API_KEY_LLM: ${HERMES_API_KEY_LLM:-}
+      HERMES_API_MODE: ${HERMES_API_MODE:-}
+      HERMES_MAX_ITERATIONS: ${HERMES_MAX_ITERATIONS:-20}
+      HERMES_MAX_TOKENS: ${HERMES_MAX_TOKENS:-4096}
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "3000-3002:3000"
-    deploy:
-      replicas: 3
+      - "8080:8080"
 
 volumes:
   postgres_data:

@@ -159,8 +159,42 @@ func Load() *Config {
 
 		// Merge file config over defaults
 		mergeConfig(globalConfig, &fileConfig)
+
+		// Env var overrides (highest priority)
+		applyEnvOverrides(globalConfig)
 	})
 	return globalConfig
+}
+
+func applyEnvOverrides(cfg *Config) {
+	if v := os.Getenv("DATABASE_URL"); v != "" {
+		cfg.Database.URL = v
+	}
+	if v := os.Getenv("DATABASE_DRIVER"); v != "" {
+		cfg.Database.Driver = v
+	}
+	if v := os.Getenv("REDIS_URL"); v != "" {
+		cfg.Redis.URL = v
+	}
+	// LLM configuration
+	if v := os.Getenv("HERMES_DEFAULT_MODEL"); v != "" {
+		cfg.Model = v
+	}
+	if v := os.Getenv("HERMES_MODEL"); v != "" {
+		cfg.Model = v
+	}
+	if v := os.Getenv("HERMES_PROVIDER"); v != "" {
+		cfg.Provider = v
+	}
+	if v := os.Getenv("HERMES_BASE_URL"); v != "" {
+		cfg.BaseURL = v
+	}
+	if v := os.Getenv("HERMES_API_KEY_LLM"); v != "" {
+		cfg.APIKey = v
+	}
+	if v := os.Getenv("HERMES_API_MODE"); v != "" {
+		cfg.APIMode = v
+	}
 }
 
 // Reload forces a config reload.
@@ -233,5 +267,18 @@ func mergeConfig(dst, src *Config) {
 	}
 	if src.ProviderRouting != nil {
 		dst.ProviderRouting = src.ProviderRouting
+	}
+	// Database & Redis
+	if src.Database.Driver != "" {
+		dst.Database.Driver = src.Database.Driver
+	}
+	if src.Database.URL != "" {
+		dst.Database.URL = src.Database.URL
+	}
+	if src.Redis.URL != "" {
+		dst.Redis.URL = src.Redis.URL
+	}
+	if src.Memory.Provider != "" {
+		dst.Memory.Provider = src.Memory.Provider
 	}
 }

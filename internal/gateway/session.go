@@ -200,6 +200,15 @@ func (s *SessionStore) ListSessions(activeMinutes int) []*SessionEntry {
 	return entries
 }
 
+// SetMemoryFlushed marks a session's memory as flushed.
+func (s *SessionStore) SetMemoryFlushed(sessionKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if entry, exists := s.entries[sessionKey]; exists {
+		entry.MemoryFlushed = true
+	}
+}
+
 // Close closes the session store and underlying database.
 func (s *SessionStore) Close() {
 	if s.db != nil {

@@ -231,7 +231,7 @@ func TestSessionDeleteNotFound(t *testing.T) {
 // --- Auth ---
 
 func TestAuthMiddleware_NoToken(t *testing.T) {
-	// When HERMES_ACP_TOKEN is not set, all requests pass.
+	// When HERMES_ACP_TOKEN is not set, requests are rejected with 503.
 	handler := withAuth(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -240,8 +240,8 @@ func TestAuthMiddleware_NoToken(t *testing.T) {
 	w := httptest.NewRecorder()
 	handler(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 in dev mode, got %d", w.Code)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503 when token not configured, got %d", w.Code)
 	}
 }
 

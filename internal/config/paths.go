@@ -54,9 +54,23 @@ func EnsureDir(path string) error {
 	return os.MkdirAll(path, 0755)
 }
 
+// UseRemoteStorage returns true when DATABASE_URL is set, indicating
+// the gateway should use PostgreSQL instead of local filesystem for
+// sessions, memories, and other persistent state.
+func UseRemoteStorage() bool {
+	return os.Getenv("DATABASE_URL") != ""
+}
+
 // EnsureHermesHome creates the Hermes home directory structure.
+// When remote storage is configured (DATABASE_URL set), only the
+// minimal base directory is created — storage-specific dirs are skipped.
 func EnsureHermesHome() error {
 	home := HermesHome()
+
+	if UseRemoteStorage() {
+		return os.MkdirAll(home, 0755)
+	}
+
 	dirs := []string{
 		home,
 		filepath.Join(home, "sessions"),

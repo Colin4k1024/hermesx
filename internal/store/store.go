@@ -8,6 +8,9 @@ type Store interface {
 	Sessions() SessionStore
 	Messages() MessageStore
 	Users() UserStore
+	Tenants() TenantStore
+	AuditLogs() AuditLogStore
+	APIKeys() APIKeyStore
 	Close() error
 	Migrate(ctx context.Context) error
 }
@@ -38,6 +41,37 @@ type UserStore interface {
 	Approve(ctx context.Context, tenantID, platform, userID string) error
 	Revoke(ctx context.Context, tenantID, platform, userID string) error
 	ListApproved(ctx context.Context, tenantID, platform string) ([]string, error)
+}
+
+// TenantStore manages tenant CRUD operations.
+type TenantStore interface {
+	Create(ctx context.Context, t *Tenant) error
+	Get(ctx context.Context, id string) (*Tenant, error)
+	Update(ctx context.Context, t *Tenant) error
+	Delete(ctx context.Context, id string) error // soft delete
+	List(ctx context.Context, opts ListOptions) ([]*Tenant, int, error)
+}
+
+// AuditLogStore manages append-only audit trail.
+type AuditLogStore interface {
+	Append(ctx context.Context, log *AuditLog) error
+	List(ctx context.Context, tenantID string, opts AuditListOptions) ([]*AuditLog, int, error)
+}
+
+// AuditListOptions controls pagination for audit log queries.
+type AuditListOptions struct {
+	Action string
+	Limit  int
+	Offset int
+}
+
+// APIKeyStore manages hashed API key lifecycle.
+type APIKeyStore interface {
+	Create(ctx context.Context, key *APIKey) error
+	GetByHash(ctx context.Context, hash string) (*APIKey, error)
+	GetByID(ctx context.Context, id string) (*APIKey, error)
+	List(ctx context.Context, tenantID string) ([]*APIKey, error)
+	Revoke(ctx context.Context, id string) error
 }
 
 // ListOptions controls pagination and filtering for list queries.

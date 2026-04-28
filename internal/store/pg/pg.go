@@ -16,10 +16,13 @@ func init() {
 
 // PGStore implements store.Store backed by PostgreSQL.
 type PGStore struct {
-	pool     *pgxpool.Pool
-	sessions *pgSessionStore
-	messages *pgMessageStore
-	users    *pgUserStore
+	pool      *pgxpool.Pool
+	sessions  *pgSessionStore
+	messages  *pgMessageStore
+	users     *pgUserStore
+	tenants   *pgTenantStore
+	auditLogs *pgAuditLogStore
+	apiKeys   *pgAPIKeyStore
 }
 
 // New creates a PGStore with a connection pool.
@@ -37,12 +40,18 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.sessions = &pgSessionStore{pool: pool}
 	s.messages = &pgMessageStore{pool: pool}
 	s.users = &pgUserStore{pool: pool}
+	s.tenants = &pgTenantStore{pool: pool}
+	s.auditLogs = &pgAuditLogStore{pool: pool}
+	s.apiKeys = &pgAPIKeyStore{pool: pool}
 	return s, nil
 }
 
-func (s *PGStore) Sessions() store.SessionStore { return s.sessions }
-func (s *PGStore) Messages() store.MessageStore { return s.messages }
-func (s *PGStore) Users() store.UserStore       { return s.users }
+func (s *PGStore) Sessions() store.SessionStore   { return s.sessions }
+func (s *PGStore) Messages() store.MessageStore   { return s.messages }
+func (s *PGStore) Users() store.UserStore         { return s.users }
+func (s *PGStore) Tenants() store.TenantStore     { return s.tenants }
+func (s *PGStore) AuditLogs() store.AuditLogStore { return s.auditLogs }
+func (s *PGStore) APIKeys() store.APIKeyStore     { return s.apiKeys }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()
@@ -51,6 +60,16 @@ func (s *PGStore) Close() error {
 
 func (s *PGStore) Migrate(ctx context.Context) error {
 	return runMigrations(ctx, s.pool)
+}
+
+// Pool returns the underlying connection pool for direct use by gateway components.
+func (s *PGStore) Pool() *pgxpool.Pool {
+	return s.pool
+}
+
+// Ping checks database connectivity (used by health probes).
+func (s *PGStore) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
 }
 
 var _ store.Store = (*PGStore)(nil)

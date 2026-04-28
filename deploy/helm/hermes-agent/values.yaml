@@ -1,0 +1,47 @@
+replicaCount: 2
+
+image:
+  repository: hermes-agent
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+env:
+  DATABASE_URL: ""
+  HERMES_ACP_TOKEN: ""
+  REDIS_URL: ""
+
+tls:
+  enabled: false
+  certFile: ""
+  keyFile: ""
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 5
+    periodSeconds: 10
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 10
+    periodSeconds: 15

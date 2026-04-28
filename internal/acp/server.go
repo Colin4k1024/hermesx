@@ -131,6 +131,9 @@ func (s *ACPServer) Start() error {
 		IdleTimeout: 60 * time.Second,
 	}
 
+	if authToken() == "" {
+		slog.Warn("HERMES_ACP_TOKEN is not set — authenticated endpoints will return 503")
+	}
 	slog.Info("ACP server starting", "port", s.port, "auth", authToken() != "")
 
 	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {

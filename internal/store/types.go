@@ -81,3 +81,27 @@ type Tenant struct {
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
 }
+
+// AuditLog represents an immutable audit trail entry.
+type AuditLog struct {
+	ID        int64     `json:"id" db:"id"`
+	TenantID  string    `json:"tenant_id" db:"tenant_id"`
+	UserID    string    `json:"user_id,omitempty" db:"user_id"`
+	SessionID string    `json:"session_id,omitempty" db:"session_id"`
+	Action    string    `json:"action" db:"action"`
+	Detail    string    `json:"detail,omitempty" db:"detail"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// APIKey represents a hashed API key bound to a tenant.
+type APIKey struct {
+	ID        string     `json:"id" db:"id"`
+	TenantID  string     `json:"tenant_id" db:"tenant_id"`
+	Name      string     `json:"name" db:"name"`
+	KeyHash   string     `json:"-" db:"key_hash"` // SHA-256 hash, never exposed
+	Prefix    string     `json:"prefix" db:"prefix"` // first 8 chars for identification
+	Roles     []string   `json:"roles" db:"roles"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty" db:"expires_at"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+}

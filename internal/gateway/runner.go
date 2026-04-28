@@ -11,13 +11,15 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/agent"
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
 	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Runner manages multiple platform adapters and routes messages to the agent.
 type Runner struct {
 	mu       sync.RWMutex
 	adapters map[Platform]PlatformAdapter
-	sessions *SessionStore
+	sessions GatewaySessionManager
+	pgPool   *pgxpool.Pool
 	cfg      *config.Config
 	gwCfg    *GatewayConfig
 
@@ -34,7 +36,7 @@ type Runner struct {
 	status *RuntimeStatus
 
 	// Media cache for downloaded files.
-	mediaCache *MediaCache
+	mediaCache MediaCacher
 
 	// Agent cache to reuse agents per session (preserves prompt cache).
 	agentCache map[string]*agent.AIAgent
@@ -50,12 +52,27 @@ type Runner struct {
 }
 
 // NewRunner creates a new gateway runner.
-func NewRunner(gwCfg *GatewayConfig) *Runner {
+// If pgPool is non-nil, sessions are stored in PostgreSQL; otherwise local SQLite+JSON.
+func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	var sessions GatewaySessionManager
+	if pgPool != nil {
+		pgSessions := NewPGSessionStore(pgPool, DefaultTenantID)
+		if err := pgSessions.EnsureDefaultTenant(ctx); err != nil {
+			slog.Warn("Failed to ensure default tenant", "error", err)
+		}
+		sessions = pgSessions
+		slog.Info("Using PostgreSQL session store")
+	} else {
+		sessions = NewSessionStore(gwCfg)
+		slog.Info("Using local session store")
+	}
 
 	r := &Runner{
 		adapters:      make(map[Platform]PlatformAdapter),
-		sessions:      NewSessionStore(gwCfg),
+		sessions:      sessions,
+		pgPool:        pgPool,
 		cfg:           config.Load(),
 		gwCfg:         gwCfg,
 		delivery:      NewDeliveryRouter(),
@@ -185,8 +202,20 @@ func (r *Runner) Status() *RuntimeStatus {
 }
 
 // MediaCache returns the media cache.
-func (r *Runner) MediaCache() *MediaCache {
+func (r *Runner) MediaCache() MediaCacher {
 	return r.mediaCache
+}
+
+// RegisteredPlatforms returns the list of all registered platforms (connected or not).
+func (r *Runner) RegisteredPlatforms() []Platform {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	var platforms []Platform
+	for p := range r.adapters {
+		platforms = append(platforms, p)
+	}
+	return platforms
 }
 
 // ConnectedPlatforms returns the list of connected platforms.
@@ -616,11 +645,7 @@ func (r *Runner) flushMemoriesForSession(sessionKey string) {
 	}
 
 	// Mark the session as flushed in the session store.
-	r.sessions.mu.Lock()
-	if entry, exists := r.sessions.entries[sessionKey]; exists {
-		entry.MemoryFlushed = true
-	}
-	r.sessions.mu.Unlock()
+	r.sessions.SetMemoryFlushed(sessionKey)
 
 	slog.Info("Flushed memories for session", "session_key", sessionKey, "session_id", sessionID)
 }
