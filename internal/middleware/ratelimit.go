@@ -42,7 +42,7 @@ func RateLimitMiddleware(cfg RateLimitConfig) Middleware {
 				key = "rl:anon:" + ip
 			}
 			limit := cfg.DefaultRPM
-			if cfg.TenantLimitFn != nil {
+			if cfg.TenantLimitFn != nil && ac != nil {
 				if tl := cfg.TenantLimitFn(ac.TenantID); tl > 0 {
 					limit = tl
 				}
