@@ -51,6 +51,12 @@ spec:
               value: {{ .Values.env.HERMES_API_KEY | quote }}
             - name: REDIS_URL
               value: {{ .Values.env.REDIS_URL | quote }}
+            - name: LLM_API_URL
+              value: {{ .Values.env.LLM_API_URL | quote }}
+            - name: LLM_API_KEY
+              value: {{ .Values.env.LLM_API_KEY | quote }}
+            - name: LLM_MODEL
+              value: {{ .Values.env.LLM_MODEL | quote }}
           livenessProbe:
             httpGet:
               path: {{ .Values.probes.liveness.path }}

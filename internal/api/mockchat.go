@@ -1,12 +1,14 @@
 package api
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
+	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,13 +16,13 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
 )
 
-// chatMessage represents a single message in a mock chat session.
+// chatMessage represents a single message in a session.
 type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
 
-// mockChatStore is a thread-safe in-memory store for mock chat sessions.
+// mockChatStore is a thread-safe in-memory store for sessions.
 // Messages are scoped to (tenantID, sessionID).
 type mockChatStore struct {
 	mu       sync.RWMutex
@@ -54,15 +56,38 @@ func (s *mockChatStore) ClearSession(tenantID, sessionID string) {
 	delete(s.messages, s.sessionKey(tenantID, sessionID))
 }
 
-// mockChatHandler handles mock chat requests for multi-tenant isolation testing.
-// It stores messages per (tenant, session) and returns deterministic, tenant-aware
-// mock responses so tests can verify isolation.
+func (s *mockChatStore) ClearAll() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.messages = make(map[string][]chatMessage)
+}
+
+// mockChatHandler handles chat requests. It stores messages per (tenant, session)
+// and calls a real LLM API to generate responses, enabling true multi-tenant
+// isolation testing with actual AI responses.
 type mockChatHandler struct {
-	store *mockChatStore
+	store     *mockChatStore
+	llmURL    string
+	llmAPIKey string
+	llmModel  string
+	httpClient *http.Client
 }
 
 func newMockChatHandler() *mockChatHandler {
-	return &mockChatHandler{store: newMockChatStore()}
+	return &mockChatHandler{
+		store:     newMockChatStore(),
+		llmURL:    getEnvOr("LLM_API_URL", "http://localhost:8000"),
+		llmAPIKey: getEnvOr("LLM_API_KEY", "123456"),
+		llmModel:  getEnvOr("LLM_MODEL", "Qwen3-Coder-Next-4bit"),
+		httpClient: &http.Client{Timeout: 120 * time.Second},
+	}
+}
+
+func getEnvOr(key, fallback string) string {
+	if v := os.Getenv(key); strings.TrimSpace(v) != "" {
+		return v
+	}
+	return fallback
 }
 
 // chatReq / chatResp match the OpenAI /v1/chat/completions format.
@@ -73,12 +98,12 @@ type chatReq struct {
 }
 
 type chatResp struct {
-	ID        string           `json:"id"`
-	Object    string           `json:"object"`
-	Created   int64            `json:"created"`
-	Model     string           `json:"model"`
-	Choices   []chatChoice    `json:"choices"`
-	Usage     chatUsage        `json:"usage"`
+	ID      string           `json:"id"`
+	Object string           `json:"object"`
+	Created int64            `json:"created"`
+	Model   string           `json:"model"`
+	Choices []chatChoice    `json:"choices"`
+	Usage   chatUsage        `json:"usage"`
 }
 
 type chatChoice struct {
@@ -93,46 +118,63 @@ type chatUsage struct {
 	TotalTokens     int `json:"total_tokens"`
 }
 
-// generateMockResponse creates a deterministic, tenant-aware mock response.
-// The response text varies by tenant and conversation to make isolation visible.
-func (h *mockChatHandler) generateMockResponse(tenantID, sessionID string, messages []chatMessage) string {
-	// Count messages to vary response by conversation depth
-	userCount := 0
-	for _, m := range messages {
-		if m.Role == "user" {
-			userCount++
-		}
+func (h *mockChatHandler) callLLM(ctx context.Context, tenantID, sessionID string, messages []chatMessage) (string, error) {
+	// Build system prompt with tenant context
+	// Strip dashes from UUID so the first 8 chars are a compact, unique prefix.
+	tenantCompact := strings.ReplaceAll(tenantID, "-", "")
+	systemPrompt := fmt.Sprintf(
+		"You are a helpful assistant. Your tenant ID is '%s' and session ID is '%s'. "+
+			"Include BOTH in every reply in this exact format: [T:%s S:%s] — then your answer.",
+		tenantID, sessionID, tenantCompact[:8], sessionID,
+	)
+
+	// Prepend system prompt
+	llmMessages := append([]chatMessage{{Role: "system", Content: systemPrompt}}, messages...)
+
+	payload := map[string]any{
+		"model":    h.llmModel,
+		"messages": llmMessages,
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal request: %w", err)
 	}
 
-	// Build a hash of tenant+session for deterministic variation
-	hashed := sha256.Sum256([]byte(tenantID + ":" + sessionID))
-	hashStr := hex.EncodeToString(hashed[:8])
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, h.llmURL+"/v1/chat/completions", bytes.NewReader(body))
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+h.llmAPIKey)
 
-	// Truncate tenant ID for display
-	tenantShort := tenantID
-	if len(tenantID) > 8 {
-		tenantShort = tenantID[:8]
+	resp, err := h.httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("call LLM: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 256))
+		return "", fmt.Errorf("LLM returned HTTP %d: %s", resp.StatusCode, string(b))
 	}
 
-	responses := []string{
-		fmt.Sprintf("[%s] Understood! I'm ready to help. (session: %s, depth: %d, hash: %s)",
-			tenantShort, sessionID[:8], userCount, hashStr),
-		fmt.Sprintf("[%s] Got it! Processing your request. (tenant: %s, messages so far: %d)",
-			tenantShort, tenantID, userCount),
-		fmt.Sprintf("[%s] Roger that! This is a mock response. (session: %s, turn: %d)",
-			tenantShort, sessionID, userCount),
-		fmt.Sprintf("[%s] Acknowledged. I'm a test bot for tenant %s, session %s, turn %d.",
-			tenantShort, tenantID, sessionID[:8], userCount),
-		fmt.Sprintf("[%s] Echo: received your message. (tenant=%s, session=%s, #%d)",
-			tenantShort, tenantID, sessionID[:8], userCount),
+	var llmResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
 	}
-
-	// Deterministic selection based on message count
-	idx := userCount % len(responses)
-	return responses[idx]
+	if err := json.NewDecoder(resp.Body).Decode(&llmResp); err != nil {
+		return "", fmt.Errorf("decode LLM response: %w", err)
+	}
+	if len(llmResp.Choices) == 0 {
+		return "", fmt.Errorf("LLM returned no choices")
+	}
+	return llmResp.Choices[0].Message.Content, nil
 }
 
-// ServeHTTP handles POST /v1/chat/completions (mock).
+// ServeHTTP handles POST /v1/chat/completions.
 func (h *mockChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -151,7 +193,7 @@ func (h *mockChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Session ID from header or generate one.
 	sessionID := r.Header.Get("X-Hermes-Session-Id")
 	if sessionID == "" {
-		sessionID = fmt.Sprintf("mock_%d", time.Now().UnixNano())
+		sessionID = fmt.Sprintf("sess_%d", time.Now().UnixNano())
 	}
 
 	var req chatReq
@@ -171,17 +213,23 @@ func (h *mockChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Get conversation history for context.
 	history := h.store.GetMessages(tenantID, sessionID)
 
-	// Generate response.
-	reply := h.generateMockResponse(tenantID, sessionID, history)
+	// Call real LLM.
+	reply, err := h.callLLM(r.Context(), tenantID, sessionID, history)
+	if err != nil {
+		slog.Warn("LLM call failed, returning error response", "error", err, "tenant", tenantID)
+		http.Error(w, fmt.Sprintf("LLM error: %v", err), http.StatusBadGateway)
+		return
+	}
 
 	// Append assistant response to session store.
 	h.store.AppendMessage(tenantID, sessionID, "assistant", reply)
 
-	slog.Info("mock_chat",
+	slog.Info("chat_completion",
 		"tenant", tenantID,
 		"session", sessionID,
 		"messages", len(history),
 		"auth_method", ac.AuthMethod,
+		"model", h.llmModel,
 	)
 
 	w.Header().Set("Content-Type", "application/json")
@@ -197,21 +245,21 @@ func (h *mockChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}},
 		Usage: chatUsage{
 			PromptTokens:     42,
-			CompletionTokens: 20,
-			TotalTokens:     62,
+			CompletionTokens: len(reply) / 4,
+			TotalTokens:     42 + len(reply)/4,
 		},
 	})
 }
 
 // sessionsResp returns session info for GET /v1/mock-sessions.
 type sessionsResp struct {
-	TenantID string         `json:"tenant_id"`
-	Sessions []sessionInfo  `json:"sessions"`
+	TenantID string        `json:"tenant_id"`
+	Sessions []sessionInfo `json:"sessions"`
 }
 
 type sessionInfo struct {
-	SessionID string `json:"session_id"`
-	Messages  int    `json:"message_count"`
+	SessionID  string `json:"session_id"`
+	MessageCount int  `json:"message_count"`
 }
 
 // handleMockSessionList handles GET /v1/mock-sessions.
@@ -233,8 +281,8 @@ func (h *mockChatHandler) handleSessionList(w http.ResponseWriter, r *http.Reque
 		}
 		sessionID := strings.TrimPrefix(key, prefix)
 		sessions = append(sessions, sessionInfo{
-			SessionID: sessionID,
-			Messages:  len(msgs),
+			SessionID:   sessionID,
+			MessageCount: len(msgs),
 		})
 	}
 
@@ -264,7 +312,7 @@ func (h *mockChatHandler) handleClearSession(w http.ResponseWriter, r *http.Requ
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// MockChatStore returns the underlying store for inspection (used by tests).
+// MockChatStore returns the underlying store for inspection.
 func (h *mockChatHandler) MockChatStore() *mockChatStore {
 	return h.store
 }

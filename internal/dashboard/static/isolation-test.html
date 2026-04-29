@@ -832,14 +832,18 @@ async function runIsolationTest() {
   const dianaReply = d1.value || '';
 
   // All replies should contain their respective tenant IDs
-  const aliceTenant = TENANT_IDS.t1;
-  const charlieTenant = TENANT_IDS.t2;
-  const dianaTenant = TENANT_IDS.t3;
+  const aliceTenant = TENANT_IDS.t1 || '';
+  const charlieTenant = TENANT_IDS.t2 || '';
+  const dianaTenant = TENANT_IDS.t3 || '';
+  // Strip dashes to match compact format from LLM system prompt [T:xxxxxxxx S:ssssssss]
+  const alicePrefix = aliceTenant.replace(/-/g, '').slice(0, 8);
+  const charliePrefix = charlieTenant.replace(/-/g, '').slice(0, 8);
+  const dianaPrefix = dianaTenant.replace(/-/g, '').slice(0, 8);
 
-  const aliceOk = aliceReply.includes(aliceTenant?.slice(0, 8) || 'Tenant-1');
-  const bobOk = bobReply.includes(aliceTenant?.slice(0, 8) || 'Tenant-1'); // Bob also T1
-  const charlieOk = charlieReply.includes(charlieTenant?.slice(0, 8) || 'Tenant-2');
-  const dianaOk = dianaReply.includes(dianaTenant?.slice(0, 8) || 'Tenant-3');
+  const aliceOk = aliceReply.includes(alicePrefix);
+  const bobOk = bobReply.includes(alicePrefix); // Bob also T1
+  const charlieOk = charlieReply.includes(charliePrefix);
+  const dianaOk = dianaReply.includes(dianaPrefix);
 
   const isolationPass = aliceOk && bobOk && charlieOk && dianaOk;
   setTest('isolation', isolationPass ? 'pass' : 'fail',
@@ -849,10 +853,10 @@ async function runIsolationTest() {
   // ── Test 2: Tenant Boundary ───────────────────────
   log('Test 2: Tenant boundary...', 'info');
   // Alice and Bob should have SAME tenant; Charlie and Diana different
-  const aliceTenantOk = aliceReply.includes(aliceTenant?.slice(0,8) || 'Tenant-1') || aliceReply.includes('Tenant-1');
-  const bobTenantOk = bobReply.includes(aliceTenant?.slice(0,8) || 'Tenant-1') || bobReply.includes('Tenant-1');
-  const charlieTenantOk = !charlieReply.includes(aliceTenant?.slice(0,8) || 'Tenant-1');
-  const dianaTenantOk = !dianaReply.includes(charlieTenant?.slice(0,8) || 'Tenant-2');
+  const aliceTenantOk = aliceReply.includes(alicePrefix);
+  const bobTenantOk = bobReply.includes(alicePrefix);
+  const charlieTenantOk = !charlieReply.includes(alicePrefix);
+  const dianaTenantOk = !dianaReply.includes(charliePrefix);
 
   const tenantPass = aliceTenantOk && bobTenantOk && charlieTenantOk && dianaTenantOk;
   setTest('tenant', tenantPass ? 'pass' : 'fail',

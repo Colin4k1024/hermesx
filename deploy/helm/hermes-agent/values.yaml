@@ -39,6 +39,10 @@ env:
   HERMES_API_KEY: "dev-api-key-change-in-production"
   # Optional: Redis URL
   REDIS_URL: ""
+  # LLM API for mock chat (used by isolation test page)
+  LLM_API_URL: ""
+  LLM_API_KEY: ""
+  LLM_MODEL: "Qwen3-Coder-Next-4bit"
 
 tls:
   enabled: false
