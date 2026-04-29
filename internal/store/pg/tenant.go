@@ -13,10 +13,12 @@ type pgTenantStore struct {
 }
 
 func (s *pgTenantStore) Create(ctx context.Context, t *store.Tenant) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO tenants (id, name, plan, rate_limit_rpm, max_sessions) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5)`,
+	err := s.pool.QueryRow(ctx,
+		`INSERT INTO tenants (id, name, plan, rate_limit_rpm, max_sessions)
+		 VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5)
+		 RETURNING id, created_at, updated_at`,
 		t.ID, t.Name, t.Plan, t.RateLimitRPM, t.MaxSessions,
-	)
+	).Scan(&t.ID, &t.CreatedAt, &t.UpdatedAt)
 	if err != nil {
 		return fmt.Errorf("create tenant: %w", err)
 	}

@@ -38,8 +38,9 @@ func (h *APIKeyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type createKeyRequest struct {
-	Name  string   `json:"name"`
-	Roles []string `json:"roles,omitempty"`
+	TenantID string   `json:"tenant_id"`
+	Name    string   `json:"name"`
+	Roles   []string `json:"roles,omitempty"`
 }
 
 type createKeyResponse struct {
@@ -60,7 +61,11 @@ func (h *APIKeyHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tenantID := middleware.TenantFromContext(r.Context())
+	// Admin callers pass tenant_id in body; otherwise use extracted tenant context.
+	tenantID := req.TenantID
+	if tenantID == "" {
+		tenantID = middleware.TenantFromContext(r.Context())
+	}
 	if tenantID == "" {
 		http.Error(w, "tenant context required", http.StatusBadRequest)
 		return
