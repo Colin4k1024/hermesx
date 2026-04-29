@@ -2,7 +2,6 @@ package auth
 
 import (
 	"crypto/subtle"
-	"fmt"
 	"net/http"
 	"strings"
 )
@@ -26,7 +25,7 @@ func (s *StaticTokenExtractor) Extract(r *http.Request) (*AuthContext, error) {
 
 	provided := strings.TrimPrefix(auth, "Bearer ")
 	if subtle.ConstantTimeCompare([]byte(provided), []byte(s.token)) != 1 {
-		return nil, fmt.Errorf("invalid static token")
+		return nil, nil // not this extractor's concern; let chain try other extractors
 	}
 
 	return &AuthContext{

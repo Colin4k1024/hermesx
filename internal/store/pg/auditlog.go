@@ -4,8 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type pgAuditLogStore struct {
@@ -13,9 +15,15 @@ type pgAuditLogStore struct {
 }
 
 func (s *pgAuditLogStore) Append(ctx context.Context, log *store.AuditLog) error {
+	// Pass NULL for user_id if it's empty (e.g., static-token auth uses "static-user" string, not UUID).
+	var userID pgtype.UUID
+	if log.UserID != "" {
+		userID.Valid = true
+		userID.Bytes = uuid.MustParse(log.UserID)
+	}
 	_, err := s.pool.Exec(ctx,
 		`INSERT INTO audit_logs (tenant_id, user_id, session_id, action, detail, request_id, status_code, latency_ms) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-		log.TenantID, log.UserID, log.SessionID, log.Action, log.Detail, log.RequestID, log.StatusCode, log.LatencyMs,
+		log.TenantID, userID, log.SessionID, log.Action, log.Detail, log.RequestID, log.StatusCode, log.LatencyMs,
 	)
 	if err != nil {
 		return fmt.Errorf("append audit log: %w", err)

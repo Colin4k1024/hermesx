@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
 	"github.com/hermes-agent/hermes-agent-go/internal/observability"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
@@ -26,14 +27,17 @@ func AuditMiddleware(auditStore store.AuditLogStore) Middleware {
 				return
 			}
 
+			// Only set UserID if Identity is a valid UUID (API keys use UUID; static tokens use "static-user" string).
 			entry := &store.AuditLog{
 				TenantID:   ac.TenantID,
-				UserID:     ac.Identity,
 				Action:     r.Method + " " + r.URL.Path,
 				Detail:     sanitizeQuery(r.URL.RawQuery),
 				RequestID:  RequestIDFromContext(r.Context()),
 				StatusCode: sw.status,
 				LatencyMs:  int(time.Since(start).Milliseconds()),
+			}
+			if _, err := uuid.Parse(ac.Identity); err == nil {
+				entry.UserID = ac.Identity
 			}
 			if err := auditStore.Append(r.Context(), entry); err != nil {
 				observability.ContextLogger(r.Context()).Warn("audit log write failed", "error", err)

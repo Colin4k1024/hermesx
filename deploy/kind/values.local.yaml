@@ -7,8 +7,9 @@ image:
   pullPolicy: Never
 
 service:
-  type: ClusterIP
+  type: NodePort
   port: 8080
+  nodePort: 30080
 
 args:
   - saas-api

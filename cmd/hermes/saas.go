@@ -119,6 +119,13 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	// ── 5. Rate limit config ─────────────────────────────────
 	rateLimitCfg := middleware.RateLimitConfig{
 		DefaultRPM: 60,
+		TenantLimitFn: func(tenantID string) int {
+			t, err := pgStore.Tenants().Get(context.Background(), tenantID)
+			if err != nil || t == nil {
+				return 0 // fall back to DefaultRPM
+			}
+			return t.RateLimitRPM
+		},
 	}
 
 	// ── 6. Build API server config ───────────────────────────

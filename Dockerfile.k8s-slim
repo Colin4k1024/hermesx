@@ -1,0 +1,21 @@
+FROM debian:bookworm-slim
+
+# Minimal deps for hermes saas-api in k8s
+# Note: ffmpeg removed — only needed for voice_loop / doctor, not for saas-api
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl ripgrep jq python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash hermes
+
+COPY hermes-linux-amd64 /usr/local/bin/hermes
+RUN chmod +x /usr/local/bin/hermes
+
+# Copy SPA static files for admin UI
+COPY internal/dashboard/static /static
+
+USER hermes
+WORKDIR /home/hermes
+
+ENTRYPOINT ["hermes"]
+CMD ["saas-api"]

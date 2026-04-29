@@ -84,11 +84,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		RequestID: middleware.RequestIDMiddleware,
 		Auth:      middleware.AuthMiddleware(cfg.AuthChain, false),
 		Tenant:    middleware.TenantMiddleware,
+		Audit:     middleware.AuditMiddleware(cfg.Store.AuditLogs()),
 		RBAC:      middleware.RBACMiddleware(cfg.RBAC),
 		RateLimit: middleware.RateLimitMiddleware(cfg.RateLimit),
 	})
-
-	auditMW := middleware.AuditMiddleware(cfg.Store.AuditLogs())
 
 	mux := http.NewServeMux()
 
@@ -115,7 +114,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
 
-	mux.Handle("/v1/", auditMW(stack.Wrap(api)))
+	mux.Handle("/v1/", stack.Wrap(api))
 
 	// Static file serving (optional).
 	var spaHandler http.Handler
