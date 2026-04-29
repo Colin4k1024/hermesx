@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${API_URL:-http://127.0.0.1:8080}"
-API_KEY="${API_KEY:-test-secret-key}"
+API_URL="${1:-http://127.0.0.1:8080}"
+API_KEY="${HERMES_ACP_TOKEN:-dev-token-change-in-production}"
 
 PASS=0
 FAIL=0

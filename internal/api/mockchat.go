@@ -335,9 +335,10 @@ func (h *mockChatHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Persist incoming messages (skip empty or system messages).
+	// Persist incoming messages (skip empty only — system messages must be stored
+	// so they appear in history on subsequent turns for multi-turn session continuity).
 	for _, msg := range req.Messages {
-		if msg.Content == "" || msg.Role == "system" {
+		if msg.Content == "" {
 			continue
 		}
 		h.sendMsg(ctx, tenantID, sessionID, msg.Role, msg.Content)
