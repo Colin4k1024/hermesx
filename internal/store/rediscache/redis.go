@@ -87,6 +87,11 @@ func (c *Client) CheckRateLimit(ctx context.Context, tenantID, userID string, wi
 	return count <= int64(maxRequests), count, nil
 }
 
+// Ping checks Redis connectivity (used by health probes).
+func (c *Client) Ping(ctx context.Context) error {
+	return c.rdb.Ping(ctx).Err()
+}
+
 // Allow implements the middleware.RateLimiter interface using a 1-minute sliding window.
 func (c *Client) Allow(key string, limit int) (bool, int, error) {
 	allowed, count, err := c.CheckRateLimit(context.Background(), key, "", 1*time.Minute, limit)

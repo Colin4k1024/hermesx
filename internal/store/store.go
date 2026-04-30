@@ -95,6 +95,12 @@ type MemoryStore interface {
 	DeleteAllByTenant(ctx context.Context, tenantID string) (int64, error)
 }
 
+// MemorySearcher is an optional extension for vector-based memory retrieval.
+// Implementations may use pgvector, Qdrant, or similar backends.
+type MemorySearcher interface {
+	SearchSimilar(ctx context.Context, tenantID, userID, query string, topK int) ([]MemoryEntry, error)
+}
+
 // UserProfileStore manages per-user profile content.
 type UserProfileStore interface {
 	Get(ctx context.Context, tenantID, userID string) (string, error)

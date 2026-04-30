@@ -84,6 +84,18 @@ func (m *MinIOClient) ListObjects(ctx context.Context, prefix string) ([]string,
 	return keys, nil
 }
 
+// Ping checks MinIO connectivity by verifying bucket existence (used by health probes).
+func (m *MinIOClient) Ping(ctx context.Context) error {
+	exists, err := m.client.BucketExists(ctx, m.bucket)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("bucket %s does not exist", m.bucket)
+	}
+	return nil
+}
+
 func (m *MinIOClient) Bucket() string {
 	return m.bucket
 }

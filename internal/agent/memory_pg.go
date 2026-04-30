@@ -31,23 +31,33 @@ func (p *PGMemoryProvider) ReadMemory() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	const maxEntries = 50
+	const maxBytes = 8192
+
 	rows, err := p.pool.Query(ctx,
 		`SELECT key, content FROM memories
 		 WHERE tenant_id = $1 AND user_id = $2
-		 ORDER BY updated_at DESC`,
-		p.tenantID, p.userID)
+		 ORDER BY updated_at DESC
+		 LIMIT $3`,
+		p.tenantID, p.userID, maxEntries)
 	if err != nil {
 		return "", fmt.Errorf("pg read memory: %w", err)
 	}
 	defer rows.Close()
 
 	var parts []string
+	totalBytes := 0
 	for rows.Next() {
 		var key, content string
 		if err := rows.Scan(&key, &content); err != nil {
 			continue
 		}
-		parts = append(parts, fmt.Sprintf("## %s\n%s", key, content))
+		entry := fmt.Sprintf("## %s\n%s", key, content)
+		if totalBytes+len(entry) > maxBytes {
+			break
+		}
+		parts = append(parts, entry)
+		totalBytes += len(entry)
 	}
 	if err := rows.Err(); err != nil {
 		return "", fmt.Errorf("pg iterate memories: %w", err)

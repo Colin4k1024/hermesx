@@ -226,6 +226,23 @@ var migrations = []migration{
 		duration_ms INT DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	)`},
+
+	// P4-S1: Schema governance — UNIQUE + CHECK constraints.
+	{57, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uk_schema_version_version') THEN
+			ALTER TABLE schema_version ADD CONSTRAINT uk_schema_version_version UNIQUE (version);
+		END IF;
+	END $$`},
+	{58, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_tenant_plan') THEN
+			ALTER TABLE tenants ADD CONSTRAINT ck_tenant_plan CHECK (plan IN ('free','pro','enterprise'));
+		END IF;
+	END $$`},
+	{59, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'ck_user_role') THEN
+			ALTER TABLE users ADD CONSTRAINT ck_user_role CHECK (role IN ('user','admin','operator','viewer','billing'));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

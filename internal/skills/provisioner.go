@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
@@ -114,6 +115,14 @@ func validateTenantID(id string) error {
 }
 
 func NewProvisioner(minio *objstore.MinIOClient, bundledDir string) *Provisioner {
+	if envDir := os.Getenv("HERMES_SKILLS_DIR"); envDir != "" {
+		bundledDir = envDir
+	}
+	if bundledDir != "" && !filepath.IsAbs(bundledDir) {
+		if abs, err := filepath.Abs(bundledDir); err == nil {
+			bundledDir = abs
+		}
+	}
 	return &Provisioner{minio: minio, bundledDir: bundledDir}
 }
 
@@ -208,18 +217,53 @@ func (p *Provisioner) ProvisionSkills(ctx context.Context, tenantID string) erro
 	return nil
 }
 
+// SyncAllTenants provisions all tenants with paginated listing and bounded concurrency.
 func (p *Provisioner) SyncAllTenants(ctx context.Context, tenantStore store.TenantStore) error {
-	tenants, _, err := tenantStore.List(ctx, store.ListOptions{Limit: 1000})
-	if err != nil {
-		return fmt.Errorf("list tenants: %w", err)
+	const pageSize = 100
+	const maxConcurrency = 10
+
+	sem := make(chan struct{}, maxConcurrency)
+	var total, failed int
+	offset := 0
+
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		tenants, _, err := tenantStore.List(ctx, store.ListOptions{Limit: pageSize, Offset: offset})
+		if err != nil {
+			return fmt.Errorf("list tenants (offset=%d): %w", offset, err)
+		}
+		if len(tenants) == 0 {
+			break
+		}
+
+		var wg sync.WaitGroup
+		for _, t := range tenants {
+			if ctx.Err() != nil {
+				break
+			}
+			wg.Add(1)
+			sem <- struct{}{}
+			go func(tenantID string) {
+				defer wg.Done()
+				defer func() { <-sem }()
+				if err := p.Provision(ctx, tenantID); err != nil {
+					slog.Error("sync tenant failed", "tenant", tenantID, "error", err)
+					failed++
+				}
+			}(t.ID)
+		}
+		wg.Wait()
+		total += len(tenants)
+
+		if len(tenants) < pageSize {
+			break
+		}
+		offset += pageSize
 	}
 
-	slog.Info("starting tenant sync", "count", len(tenants))
-	for _, t := range tenants {
-		if err := p.Provision(ctx, t.ID); err != nil {
-			slog.Error("sync tenant failed", "tenant", t.ID, "error", err)
-		}
-	}
-	slog.Info("tenant sync complete", "count", len(tenants))
+	slog.Info("tenant sync complete", "total", total, "failed", failed)
 	return nil
 }

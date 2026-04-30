@@ -14,12 +14,17 @@ type DBPinger interface {
 
 // HealthHandler serves enhanced health probes.
 type HealthHandler struct {
-	db DBPinger
+	db    DBPinger
+	redis DBPinger
+	minio DBPinger
 }
 
 func NewHealthHandler(db DBPinger) *HealthHandler {
 	return &HealthHandler{db: db}
 }
+
+func (h *HealthHandler) WithRedis(p DBPinger) *HealthHandler  { h.redis = p; return h }
+func (h *HealthHandler) WithMinIO(p DBPinger) *HealthHandler   { h.minio = p; return h }
 
 // LiveHandler returns 200 if the process is alive (Kubernetes liveness).
 func (h *HealthHandler) LiveHandler() http.HandlerFunc {
@@ -43,6 +48,28 @@ func (h *HealthHandler) ReadyHandler() http.HandlerFunc {
 				healthy = false
 			} else {
 				checks["database"] = "ok"
+			}
+		}
+
+		if h.redis != nil {
+			ctx2, cancel2 := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel2()
+			if err := h.redis.Ping(ctx2); err != nil {
+				checks["redis"] = "unhealthy: " + err.Error()
+				healthy = false
+			} else {
+				checks["redis"] = "ok"
+			}
+		}
+
+		if h.minio != nil {
+			ctx3, cancel3 := context.WithTimeout(r.Context(), 2*time.Second)
+			defer cancel3()
+			if err := h.minio.Ping(ctx3); err != nil {
+				checks["minio"] = "unhealthy: " + err.Error()
+				healthy = false
+			} else {
+				checks["minio"] = "ok"
 			}
 		}
 
