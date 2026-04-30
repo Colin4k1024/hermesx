@@ -36,7 +36,7 @@ type APIServerConfig struct {
 type APIServer struct {
 	cfg      APIServerConfig
 	server   *http.Server
-	MockChat *chatHandler // accessible for testing/debugging
+	AgentChat *chatHandler
 }
 
 // spaFallback wraps the API mux: serves index.html for root "/" and admin.html,
@@ -121,19 +121,18 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
 
-	// Mock chat endpoints for multi-tenant isolation testing.
-	mockChat := NewMockChatHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)
-	api.HandleFunc("POST /v1/chat/completions", mockChat.ServeHTTP)
-	api.HandleFunc("GET /v1/mock-sessions", mockChat.handleSessionList)
-	api.HandleFunc("DELETE /v1/mock-sessions/", mockChat.handleClearSession)
+	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
+	chatH := NewChatHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)
+	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
+	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
 
 	// Memory management API (per-user long-term memory).
-	api.HandleFunc("GET /v1/memories", mockChat.handleListMemories)
-	api.HandleFunc("DELETE /v1/memories/", mockChat.handleDeleteMemory)
+	api.HandleFunc("GET /v1/memories", chatH.handleListMemories)
+	api.HandleFunc("DELETE /v1/memories/", chatH.handleDeleteMemory)
 
 	// Session history API (per-user session and message history).
-	api.HandleFunc("GET /v1/sessions", mockChat.handleListUserSessions)
-	api.HandleFunc("GET /v1/sessions/", mockChat.handleGetSessionMessages)
+	api.HandleFunc("GET /v1/sessions", chatH.handleListUserSessions)
+	api.HandleFunc("GET /v1/sessions/", chatH.handleGetSessionMessages)
 
 	// Per-tenant skills management API.
 	if cfg.SkillsClient != nil {
@@ -173,12 +172,12 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	s := &APIServer{
 		cfg:      cfg,
-		MockChat: mockChat,
+		AgentChat: chatH,
 		server: &http.Server{
 			Addr:         fmt.Sprintf("0.0.0.0:%d", cfg.Port),
 			Handler:      handler,
 			ReadTimeout:  30 * time.Second,
-			WriteTimeout: 60 * time.Second,
+			WriteTimeout: 150 * time.Second,
 			IdleTimeout:  120 * time.Second,
 		},
 	}

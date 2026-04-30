@@ -3,7 +3,7 @@ VERSION=0.7.0
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-.PHONY: all build test clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s
+.PHONY: all build test clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown
 
 all: build
 
@@ -91,3 +91,28 @@ test-k8s: ## Run E2E tests against a remote deployment (set K8S_BASE_URL)
 teardown: ## Stop and remove all quickstart containers and volumes
 	docker compose -f docker-compose.quickstart.yml down -v
 	@echo "✅ All quickstart resources removed."
+
+# ─── WebUI (Docker, with UI) ─────────────────────────────────────────────────
+
+webui: ## One-click: start infra + bootstrap + WebUI at http://localhost:3000
+	@if [ ! -f .env ]; then \
+		cp .env.example .env; \
+		echo ""; \
+		echo "⚠️  .env created from .env.example"; \
+		echo "   Edit .env with your LLM credentials, then run 'make webui' again."; \
+		echo ""; \
+		exit 1; \
+	fi
+	@mkdir -p tests/fixtures
+	docker compose -f docker-compose.webui.yml up -d --build
+	@echo "⏳ Waiting for bootstrap to complete..."
+	docker compose -f docker-compose.webui.yml wait bootstrap
+	@echo ""
+	@echo "✅ WebUI ready at http://localhost:3000"
+	@echo "   API endpoint: http://localhost:8080"
+	@echo "   Admin token: $${HERMES_ACP_TOKEN:-dev-bootstrap-token}"
+	@echo ""
+
+webui-teardown: ## Stop and remove webui containers and volumes
+	docker compose -f docker-compose.webui.yml down -v
+	@echo "✅ All webui resources removed."
