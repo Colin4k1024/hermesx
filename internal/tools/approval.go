@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strings"
 	"sync"
@@ -20,7 +21,8 @@ const (
 )
 
 // DefaultApprovalTimeout is the default time to wait for user approval.
-const DefaultApprovalTimeout = 60 * time.Second
+// 5 minutes gives users enough time on messaging platforms (Telegram, Discord, Slack).
+const DefaultApprovalTimeout = 5 * time.Minute
 
 // ApprovalRequest contains details about a command needing approval.
 type ApprovalRequest struct {
@@ -185,8 +187,9 @@ func GlobalApprovalStore() *ApprovalStore { return globalApprovalStore }
 // --- Gateway Approval Queue (channel-based blocking) ---
 
 type pendingApproval struct {
-	Request  ApprovalRequest
-	ResultCh chan ApprovalResult
+	Request   ApprovalRequest
+	ResultCh  chan ApprovalResult
+	CreatedAt time.Time
 }
 
 // GatewayApprovalQueue manages pending approvals for gateway sessions.
@@ -208,8 +211,9 @@ func (q *GatewayApprovalQueue) Submit(sessionKey string, req ApprovalRequest) <-
 
 	q.mu.Lock()
 	pa := &pendingApproval{
-		Request:  req,
-		ResultCh: ch,
+		Request:   req,
+		ResultCh:  ch,
+		CreatedAt: time.Now(),
 	}
 	q.queues[sessionKey] = append(q.queues[sessionKey], pa)
 	q.mu.Unlock()
@@ -284,6 +288,66 @@ func (q *GatewayApprovalQueue) ClearSession(sessionKey string) {
 		close(pa.ResultCh)
 	}
 	delete(q.queues, sessionKey)
+}
+
+// TotalPendingCount returns the total number of pending approvals across all sessions.
+func (q *GatewayApprovalQueue) TotalPendingCount() int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+	total := 0
+	for _, queue := range q.queues {
+		total += len(queue)
+	}
+	return total
+}
+
+// ReapStale auto-denies pending approvals older than maxAge and returns the count reaped.
+func (q *GatewayApprovalQueue) ReapStale(maxAge time.Duration) int {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	cutoff := time.Now().Add(-maxAge)
+	reaped := 0
+
+	for sessionKey, queue := range q.queues {
+		var remaining []*pendingApproval
+		for _, pa := range queue {
+			if pa.CreatedAt.Before(cutoff) {
+				select {
+				case pa.ResultCh <- ApprovalResult{Approved: false, Scope: ApproveDeny}:
+				default:
+				}
+				close(pa.ResultCh)
+				reaped++
+			} else {
+				remaining = append(remaining, pa)
+			}
+		}
+		if len(remaining) == 0 {
+			delete(q.queues, sessionKey)
+		} else {
+			q.queues[sessionKey] = remaining
+		}
+	}
+	return reaped
+}
+
+// StartReaper starts a background goroutine that periodically reaps stale approvals.
+func (q *GatewayApprovalQueue) StartReaper(ctx context.Context, maxAge time.Duration) {
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				if n := q.ReapStale(maxAge); n > 0 {
+					slog.Warn("reaped stale approvals", "count", n, "max_age", maxAge)
+				}
+			}
+		}
+	}()
 }
 
 var globalGatewayQueue = NewGatewayApprovalQueue()
