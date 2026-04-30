@@ -86,6 +86,7 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 // NewAPIServer creates and configures the API server with all routes and middleware.
 func NewAPIServer(cfg APIServerConfig) *APIServer {
 	stack := middleware.NewStack(middleware.StackConfig{
+		Tracing:   middleware.TracingMiddleware,
 		Metrics:   middleware.MetricsMiddleware,
 		RequestID: middleware.RequestIDMiddleware,
 		Auth:      middleware.AuthMiddleware(cfg.AuthChain, false, cfg.Store.AuditLogs()),

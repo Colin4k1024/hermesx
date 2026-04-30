@@ -13,8 +13,11 @@ func TestNormalizePath(t *testing.T) {
 		want string
 	}{
 		{"short path unchanged", "/v1/me", "/v1/me"},
-		{"exact 64 chars unchanged", "/v1/tenants/12345678-1234-1234-1234-123456789012", "/v1/tenants/12345678-1234-1234-1234-123456789012"},
-		{"long path truncated to 64", "/v1/sessions/12345678-1234-1234-1234-1234567890123456789012345678901234567890", "/v1/sessions/12345678-1234-1234-1234-123456789012345678901234567"},
+		{"UUID normalized", "/v1/tenants/12345678-1234-1234-1234-123456789012", "/v1/tenants/:id"},
+		{"session ID normalized", "/v1/sessions/sess_abcdef0123456789abcdef0123456789", "/v1/sessions/:id"},
+		{"numeric ID normalized", "/v1/messages/12345", "/v1/messages/:id"},
+		{"health unchanged", "/health/ready", "/health/ready"},
+		{"nested UUIDs both normalized", "/v1/tenants/12345678-1234-1234-1234-123456789012/keys/87654321-4321-4321-4321-210987654321", "/v1/tenants/:id/keys/:id"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -2,7 +2,9 @@ package middleware
 
 import (
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
@@ -80,10 +82,26 @@ func (sw *statusWriter) Write(b []byte) (int, error) {
 	return sw.ResponseWriter.Write(b)
 }
 
-// normalizePath collapses path segments with IDs to reduce cardinality.
+var (
+	uuidRe    = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	numericRe = regexp.MustCompile(`^[0-9]+$`)
+	hexIDRe   = regexp.MustCompile(`^[0-9a-fA-F]{16,}$`)
+	sessIDRe  = regexp.MustCompile(`^sess_[0-9a-f]+$`)
+)
+
+// normalizePath collapses path segments with IDs to reduce Prometheus label cardinality.
 func normalizePath(p string) string {
-	if len(p) > 64 {
-		p = p[:64]
+	if len(p) > 128 {
+		p = p[:128]
 	}
-	return p
+	parts := strings.Split(p, "/")
+	for i, part := range parts {
+		if part == "" {
+			continue
+		}
+		if uuidRe.MatchString(part) || numericRe.MatchString(part) || hexIDRe.MatchString(part) || sessIDRe.MatchString(part) {
+			parts[i] = ":id"
+		}
+	}
+	return strings.Join(parts, "/")
 }
