@@ -1,0 +1,1141 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Agent 多租户平台架构图 — 完整版</title>
+<style>
+/* ============================================================
+   DESIGN SYSTEM — Hermes Arch PPT
+   风格: 极简技术风 · 深色底 + 冷调蓝 + 网格线
+   ============================================================ */
+:root {
+  --bg: #080c14;
+  --bg2: #0d1421;
+  --bg3: #111927;
+  --bg-card: #0f1a2a;
+  --border: #1e2d45;
+  --border-bright: #2a4060;
+  --primary: #3b82f6;
+  --primary-dim: #1d4ed8;
+  --accent: #06b6d4;
+  --accent2: #8b5cf6;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-muted: #475569;
+  --mono-bg: #06101a;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* Stage & Deck */
+.stage {
+  width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+}
+.deck {
+  position: relative;
+  width: 1920px; height: 1080px;
+  transform-origin: top left;
+  flex-shrink: 0;
+}
+
+/* Navigation */
+.nav {
+  position: fixed;
+  bottom: 28px; right: 40px;
+  display: flex; gap: 12px; z-index: 100;
+}
+.nav button {
+  width: 52px; height: 52px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg2);
+  color: var(--text);
+  border-radius: 8px; cursor: pointer;
+  font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, background .2s;
+}
+.nav button:hover { border-color: var(--primary); background: var(--bg3); }
+.nav button:disabled { opacity: .3; cursor: default; }
+.counter {
+  position: fixed; bottom: 40px; left: 40px;
+  font-family: var(--font-mono); font-size: 14px;
+  color: var(--text-muted); letter-spacing: .1em;
+}
+
+/* Page-footer */
+.page-footer {
+  position: absolute; bottom: 40px; left: 60px; right: 60px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px; color: var(--text-muted);
+  font-family: var(--font-mono);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+/* Grid lines background (shared) */
+.bg-grid {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* ============================================================ SLIDES ============================================================ */
+.slide {
+  position: absolute; inset: 0;
+  display: none; flex-direction: column;
+  padding: 80px 80px 100px;
+  opacity: 0; transition: opacity .4s ease;
+}
+.slide.active { display: flex; opacity: 1; }
+.slide:not(.active) { display: none !important; }
+
+/* ─── COVER ─── */
+.s-cover {
+  justify-content: center; align-items: flex-start;
+  padding-left: 120px;
+  background:
+    radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59,130,246,.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(6,182,212,.05) 0%, transparent 60%),
+    var(--bg);
+}
+.s-cover .eyebrow {
+  font-family: var(--font-mono); font-size: 13px;
+  letter-spacing: .2em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 24px;
+}
+.s-cover .title {
+  font-size: 88px; font-weight: 700; line-height: 1.05;
+  letter-spacing: -.02em; color: var(--text);
+  max-width: 1100px; margin-bottom: 32px;
+}
+.s-cover .title em { font-style: normal; color: var(--primary); }
+.s-cover .subtitle {
+  font-size: 22px; color: var(--text-dim);
+  max-width: 640px; line-height: 1.65; margin-bottom: 56px;
+}
+.s-cover .meta { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; }
+.tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px; border: 1px solid var(--border-bright);
+  border-radius: 100px; font-size: 12px;
+  font-family: var(--font-mono); color: var(--text-dim);
+}
+.tag .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); }
+
+/* Cluster mini-diagram */
+.cluster-box {
+  position: absolute; right: 60px; top: 50%;
+  transform: translateY(-50%);
+  width: 580px;
+}
+.cb { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; }
+.cb-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+.cb-icon { width: 28px; height: 28px; border-radius: 6px; background: var(--primary-dim); display: flex; align-items: center; justify-content: center; font-size: 14px; color: var(--text); }
+.cb-label { font-size: 13px; font-family: var(--font-mono); color: var(--text-dim); }
+.node-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.node { flex: 1; height: 52px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; display: flex; align-items: center; gap: 8px; padding: 0 12px; font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); }
+.node.cp { border-color: rgba(139,92,246,.4); background: rgba(139,92,246,.06); }
+.nd-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+.node.cp .nd-dot { background: var(--accent2); }
+.node:not(.cp) .nd-dot { background: var(--border-bright); }
+.node-arrow { width: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-muted); }
+.svc-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 16px; }
+.svc { background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px; }
+.svc-name { color: var(--text-dim); font-size: 11px; }
+.svc-port { color: var(--accent); }
+
+/* ─── GENERIC CONTENT SLIDE ─── */
+.slide-title {
+  font-size: 56px; font-weight: 700; color: var(--text); margin-bottom: 8px;
+}
+.slide-sub {
+  font-size: 14px; font-family: var(--font-mono);
+  color: var(--text-muted); margin-bottom: 40px; letter-spacing: .05em;
+}
+.slide-body { flex: 1; min-height: 0; }
+
+/* Cards */
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+.card-title { font-size: 11px; font-family: var(--font-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); padding-bottom: 12px; border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+.row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; font-family: var(--font-mono); color: var(--text-dim); }
+.row .ld { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; background: var(--primary); }
+.row.api .ld { background: var(--accent); }
+.row.mw .ld { background: var(--accent2); }
+.row.db .ld { background: var(--green); }
+.row.warn .ld { background: var(--yellow); }
+.row.sec .ld { background: var(--red); }
+.row + .row { margin-top: 8px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+.grid4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; }
+
+/* Mono block */
+.mono-block { background: var(--mono-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); line-height: 1.7; white-space: pre; overflow-x: auto; }
+.mono-block .k { color: var(--accent); }
+.mono-block .v { color: var(--primary); }
+.mono-block .c { color: var(--text-muted); }
+.mono-block .ok { color: var(--green); }
+.mono-block .warn { color: var(--yellow); }
+
+/* Flow connectors */
+.flow-row { display: flex; align-items: center; gap: 0; margin: 12px 0; }
+.flow-step { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 12px; font-family: var(--font-mono); color: var(--text-dim); white-space: nowrap; flex-shrink: 0; }
+.flow-step.num { border-color: var(--primary); color: var(--primary); }
+.flow-arrow { flex: 1; height: 1px; background: var(--border-bright); position: relative; margin: 0 4px; }
+.flow-arrow::after { content: "→"; position: absolute; right: -2px; top: 50%; transform: translateY(-50%); font-size: 14px; color: var(--text-muted); }
+
+/* Section label */
+.sec-label { display: inline-block; font-size: 10px; font-family: var(--font-mono); letter-spacing: .15em; text-transform: uppercase; color: var(--accent); border: 1px solid var(--accent); padding: 2px 10px; border-radius: 4px; margin-bottom: 20px; }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; padding: 2px 10px; border-radius: 4px; font-size: 11px; font-family: var(--font-mono); }
+.badge.blue { background: rgba(59,130,246,.15); color: var(--primary); border: 1px solid rgba(59,130,246,.3); }
+.badge.cyan { background: rgba(6,182,212,.15); color: var(--accent); border: 1px solid rgba(6,182,212,.3); }
+.badge.green { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+.badge.purple { background: rgba(139,92,246,.15); color: var(--accent2); border: 1px solid rgba(139,92,246,.3); }
+.badge.yellow { background: rgba(245,158,11,.15); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+.badge.red { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+
+/* Table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--font-mono); }
+.tbl th { text-align: left; color: var(--text-muted); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.tbl td { padding: 10px 12px; border-bottom: 1px solid var(--border); color: var(--text-dim); vertical-align: top; }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl .mono { font-family: var(--font-mono); font-size: 11px; }
+
+/* Divider line */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* Spacer */
+.sp { flex: 1; }
+
+/* 2col layout */
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; height: 100%; }
+.cols-left, .cols-right { display: flex; flex-direction: column; gap: 14px; }
+
+/* Code flow vertical */
+.flow-v { display: flex; flex-direction: column; gap: 0; }
+.flow-v-item { display: flex; gap: 16px; align-items: flex-start; }
+.flow-v-num { width: 28px; height: 28px; border-radius: 50%; background: var(--primary-dim); color: var(--text); font-size: 12px; font-family: var(--font-mono); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.flow-v-content { flex: 1; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; font-size: 12px; font-family: var(--font-mono); color: var(--text-dim); line-height: 1.7; }
+.flow-v-content strong { color: var(--accent); }
+.flow-v-conn { width: 1px; height: 16px; background: var(--border-bright); margin-left: 13px; }
+
+/* API table specific */
+.endpoint { display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; }
+.endpoint .method { font-size: 10px; font-family: var(--font-mono); font-weight: 700; padding: 2px 8px; border-radius: 4px; flex-shrink: 0; min-width: 48px; text-align: center; }
+.method.get { background: rgba(16,185,129,.15); color: var(--green); border: 1px solid rgba(16,185,129,.3); }
+.method.post { background: rgba(59,130,246,.15); color: var(--primary); border: 1px solid rgba(59,130,246,.3); }
+.method.delete { background: rgba(239,68,68,.15); color: var(--red); border: 1px solid rgba(239,68,68,.3); }
+.method.put { background: rgba(245,158,11,.15); color: var(--yellow); border: 1px solid rgba(245,158,11,.3); }
+.endpoint .path { font-size: 11px; font-family: var(--font-mono); color: var(--text-dim); }
+.endpoint + .endpoint { margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="deck" id="deck">
+
+<!-- ═══════════════════════ SLIDE 1: 封面 ═══════════════════════ -->
+<div class="slide s-cover bg-grid active" id="slide-1">
+  <div class="eyebrow">v2026-04-30 · 技术评审版</div>
+  <h1 class="title">Hermes Agent<br><em>多租户平台</em>架构图</h1>
+  <p class="subtitle">基于 saas-api 模式，完整覆盖认证隔离、租户会话、Agent 工厂、<br>数据存储与部署拓扑的端到端架构说明文档。</p>
+  <div class="meta">
+    <span class="tag"><span class="dot"></span>kind cluster · k8s</span>
+    <span class="tag"><span class="dot"></span>多租户 · Multi-Tenant</span>
+    <span class="tag"><span class="dot"></span>PostgreSQL + MinIO + Redis</span>
+    <span class="tag"><span class="dot"></span>OpenAI-compatible API</span>
+  </div>
+
+  <div class="cluster-box">
+    <div class="cb">
+      <div class="cb-header">
+        <div class="cb-icon">⟨⟩</div>
+        <span class="cb-label">kind cluster · desktop</span>
+      </div>
+      <div class="node-row">
+        <div class="node cp"><span class="nd-dot"></span>desktop-control-plane</div>
+      </div>
+      <div class="node-row">
+        <div class="node-arrow">↕</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker2</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker3</div>
+      </div>
+      <div class="svc-row">
+        <div class="svc"><span class="svc-name">hermes-agent</span><span class="svc-port">:8080 :8081</span></div>
+        <div class="svc"><span class="svc-name">postgres</span><span class="svc-port">:5432</span></div>
+        <div class="svc"><span class="svc-name">redis</span><span class="svc-port">:6379</span></div>
+        <div class="svc"><span class="svc-name">minio</span><span class="svc-port">:9000</span></div>
+        <div class="svc"><span class="svc-name">prometheus</span><span class="svc-port">metrics</span></div>
+        <div class="svc"><span class="svc-name">llm-api</span><span class="svc-port">:8000</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span>
+    <span>技术评审 · 2026-04-30</span>
+    <span>1 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 2: 全局架构 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-2">
+  <h2 class="slide-title">系统全局架构</h2>
+  <p class="slide-sub">// FIGURE 1 — Kubernetes Namespace: hermes</p>
+  <div class="slide-body">
+
+    <div style="display:grid; grid-template-columns: 200px 40px 1fr; gap:0; flex:1; min-height:0; align-items:stretch;">
+      <div class="card">
+        <div class="card-title">接入层</div>
+        <div class="row api"><span class="ld"></span>OpenAI SDK / HTTP</div>
+        <div class="row api"><span class="ld"></span>平台适配器</div>
+        <div class="row api"><span class="ld"></span>Admin SPA</div>
+        <div class="row api"><span class="row api"><span class="ld"></span>k8s API</span></div>
+      </div>
+      <div style="display:flex; flex-direction:column; justify-content:center; align-items:center;">
+        <div style="width:1px; flex:1; background:linear-gradient(to bottom,var(--primary),var(--accent));"></div>
+      </div>
+      <div class="card">
+        <div class="card-title">hermes-agent Deployment (saas-api)</div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px;">
+          <div>
+            <div class="row mw"><span class="ld"></span>Middleware Stack (9层)</div>
+            <div class="row mw"><span class="ld"></span>Chat Handler</div>
+            <div class="row mw"><span class="ld"></span>Admin Handlers</div>
+          </div>
+          <div>
+            <div class="row mw"><span class="ld"></span>Gateway Runner</div>
+            <div class="row mw"><span class="ld"></span>Per-Tenant Agent Factory</div>
+            <div class="row mw"><span class="ld"></span>Delivery Router</div>
+          </div>
+        </div>
+        <div class="divider"></div>
+        <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:14px;">
+          <div class="row db" style="background:var(--mono-bg);"><span class="ld"></span>PostgreSQL — 租户数据</div>
+          <div class="row db" style="background:var(--mono-bg);"><span class="ld"></span>MinIO — SOUL/SKILL</div>
+          <div class="row db" style="background:var(--mono-bg);"><span class="ld"></span>Redis — session cache</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:14px; margin-top:14px;">
+      <div class="card" style="background:var(--mono-bg);">
+        <div class="card-title">PostgreSQL Schema</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted); line-height:1.9;">
+          tenants · sessions · messages<br>
+          users · api_keys · memories<br>
+          audit_logs<br>
+          <span style="color:var(--green);">tenant_id FK on EVERY table</span>
+        </div>
+      </div>
+      <div class="card" style="background:var(--mono-bg);">
+        <div class="card-title">MinIO Object Storage</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted); line-height:1.9;">
+          bucket: hermes-skills<br>
+          {tenantID}/SOUL.md<br>
+          {tenantID}/{skill}/SKILL.md<br>
+          <span style="color:var(--accent);">ListObjects(prefix=tenantID)</span>
+        </div>
+      </div>
+      <div class="card" style="background:var(--mono-bg);">
+        <div class="card-title">Redis + LLM External</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted); line-height:1.9;">
+          Session cache · Rate limit<br>
+          LLM: Qwen3 / GPT-4 / Claude<br>
+          <span style="color:var(--primary);">OpenAI-compatible API</span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>2 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 3: 认证与隔离 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-3">
+  <h2 class="slide-title">认证与租户隔离</h2>
+  <p class="slide-sub">// FIGURE 2 — Auth Extractor Chain + Middleware Stack</p>
+  <div class="slide-body">
+    <div class="cols">
+      <div class="cols-left">
+        <div class="sec-label">认证凭证</div>
+        <div class="card">
+          <div class="card-title">Extractor Chain (短路模型)</div>
+          <div class="flow-v">
+            <div class="flow-v-item">
+              <div class="flow-v-num" style="background:var(--green);">1</div>
+              <div class="flow-v-content">StaticTokenExtractor<br><strong>验证静态 Bearer Token → 固定 tenant_id</strong><br><span style="color:var(--text-muted);">适用于: 开发 / 单租户模式</span></div>
+            </div>
+            <div class="flow-v-conn"></div>
+            <div class="flow-v-item">
+              <div class="flow-v-num" style="background:var(--yellow);">2</div>
+              <div class="flow-v-content">JWTExtractor<br><strong>解析 RS256 JWT → tenant_id from claims</strong><br><span style="color:var(--text-muted);">支持: 角色和权限声明</span></div>
+            </div>
+            <div class="flow-v-conn"></div>
+            <div class="flow-v-item">
+              <div class="flow-v-num" style="background:var(--primary);">3</div>
+              <div class="flow-v-content">APIKeyExtractor<br><strong>SHA-256 校验 PostgreSQL 存储的 Key</strong><br><span style="color:var(--green);">tenant_id 从 DB 记录获取 ★</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-color:rgba(239,68,68,.3); background:rgba(239,68,68,.04);">
+          <div class="card-title" style="color:var(--red);">TenantMiddleware 隔离逻辑</div>
+          <div class="mono-block">
+<span class="k">func</span> TenantMiddleware(next):
+  tenantID = <span class="k">""</span>
+  <span class="k">if</span> AuthContext exists:
+    tenantID = AuthContext.TenantID   <span class="c">// ★ 来自凭证, 不信赖 X-Tenant-ID</span>
+  <span class="k">else</span>:
+    tenantID = <span class="v">"default"</span>
+  ctx = WithTenant(ctx, tenantID)       <span class="c">// 注入请求上下文</span>
+  next.ServeHTTP(ctx)
+
+<span class="ok">★ 即使伪造 X-Tenant-ID header, 也无法跨租户访问</span></div>
+        </div>
+      </div>
+
+      <div class="cols-right">
+        <div class="sec-label">Middleware 执行顺序</div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">9 层 Middleware Stack</div>
+          <div class="row warn"><span class="ld"></span>① TracingMiddleware — Trace ID 注入</div>
+          <div class="row warn"><span class="ld"></span>② MetricsMiddleware — Prometheus 采集</div>
+          <div class="row warn"><span class="ld"></span>③ RequestIDMiddleware — X-Request-ID</div>
+          <div class="row" style="border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.06);"><span class="ld"></span>④ <strong style="color:var(--primary);">AuthMiddleware</strong> — 凭证提取</div>
+          <div class="row sec"><span class="ld"></span>⑤ <strong style="color:var(--red);">TenantMiddleware</strong> — tenant_id 注入 ★</div>
+          <div class="row"><span class="ld"></span>⑥ LoggingMiddleware — 结构化日志</div>
+          <div class="row"><span class="ld"></span>⑦ AuditMiddleware — 操作审计</div>
+          <div class="row api"><span class="ld"></span>⑧ RBACMiddleware — 角色权限</div>
+          <div class="row api"><span class="ld"></span>⑨ RateLimitMiddleware — RPM 限流</div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">RBAC 角色</div>
+          <table class="tbl">
+            <tr><th>角色</th><th>可访问端点</th></tr>
+            <tr><td><span class="badge red">admin</span></td><td class="mono">/v1/tenants/**, /v1/api-keys/**, /v1/audit-logs/**</td></tr>
+            <tr><td><span class="badge blue">user</span></td><td class="mono">/v1/sessions/**, /v1/memories/**, /v1/me</td></tr>
+            <tr><td><span class="badge yellow">operator</span></td><td class="mono">/v1/usage, /v1/status</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>3 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 4: 全链路对话 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-4">
+  <h2 class="slide-title">对话全链路流程</h2>
+  <p class="slide-sub">// FIGURE 3 — Full Agent Flow: 请求 → Agent → LLM → 响应 → 持久化</p>
+  <div class="slide-body">
+    <div class="flow-v" style="gap:0;">
+
+      <div style="display:grid; grid-template-columns:160px 1fr; gap:16px; align-items:start;">
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--accent); padding-top:12px;">① 客户端</div>
+        <div class="card" style="border-color:rgba(59,130,246,.3);">
+          <div class="card-title">POST /v1/chat/completions</div>
+          <div class="mono-block" style="font-size:10px;">
+Authorization: <span class="v">Bearer &lt;api-key&gt;</span>
+X-Hermes-Session-Id: <span class="v">session-001</span>
+X-Hermes-Tenant-Id: <span class="v">00000000-...</span>
+<span class="k">POST</span> body: { model, messages[] }
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-v-conn" style="margin-left:76px; margin-top:0; margin-bottom:0;"></div>
+
+      <div style="display:grid; grid-template-columns:160px 1fr; gap:16px; align-items:start;">
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--accent); padding-top:12px;">② API Adapter</div>
+        <div class="card">
+          <div class="card-title">APIServerAdapter.handleChatCompletions</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">
+            <div>验证 Bearer Token</div>
+            <div>解析 Session/TenantId</div>
+            <div>构造 MessageEvent</div>
+            <div>提取 system/history</div>
+            <div>创建 pending channel</div>
+            <div>EmitMessage → Runner</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-v-conn" style="margin-left:76px; margin-top:0; margin-bottom:0;"></div>
+
+      <div style="display:grid; grid-template-columns:160px 1fr; gap:16px; align-items:start;">
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--accent); padding-top:12px;">③ Agent Factory</div>
+        <div class="card">
+          <div class="card-title">getOrCreateAgent() — Per-Tenant Agent</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px;">
+            <div class="row db"><span class="ld"></span>PGMemoryProvider<br><small style="color:var(--text-muted);">tenant_id + user_id 隔离</small></div>
+            <div class="row mw"><span class="ld"></span>MinIOSkillLoader<br><small style="color:var(--text-muted);">prefix={tenantID}/</small></div>
+            <div class="row api"><span class="ld"></span>SOUL.md 加载<br><small style="color:var(--text-muted);">MinIO → 系统提示词</small></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-v-conn" style="margin-left:76px; margin-top:0; margin-bottom:0;"></div>
+
+      <div style="display:grid; grid-template-columns:160px 1fr; gap:16px; align-items:start;">
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--accent); padding-top:12px;">④ LLM 调用</div>
+        <div class="card" style="border-color:rgba(139,92,246,.3); background:rgba(139,92,246,.04);">
+          <div class="card-title" style="color:var(--accent2);">POST http://10.191.110.127:8000/v1/chat/completions</div>
+          <div class="mono-block">
+<span class="c"># 系统提示词 = Soul + Skills + Memory + History + User Message</span>
+{ <span class="k">"model"</span>: <span class="v">"Qwen3-Coder-Next-4bit"</span>,
+  <span class="k">"messages"</span>: [Soul, Skills, Memory, <span class="k">...</span>, User] }
+<span class="ok">→ LLM 响应 → 文本生成结果</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="flow-v-conn" style="margin-left:76px; margin-top:0; margin-bottom:0;"></div>
+
+      <div style="display:grid; grid-template-columns:160px 1fr; gap:16px; align-items:start;">
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--accent); padding-top:12px;">⑤ 响应 + 持久化</div>
+        <div class="card">
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+            <div class="row api"><span class="ld"></span>DeliveryRouter → pending channel → HTTP 200</div>
+            <div class="row db"><span class="ld"></span>INSERT messages (tenant_id, session_id, role, content)</div>
+          </div>
+          <div class="mono-block" style="margin-top:10px; font-size:10px;">
+<span class="k">Response</span>: {
+  <span class="k">"id"</span>: <span class="v">"session-001"</span>,
+  <span class="k">"choices"</span>: [{<span class="k">"message"</span>: {<span class="k">"content"</span>: <span class="v">"..."</span>}}]
+}
+<span class="ok">OpenAI-compatible 格式返回</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>4 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 5: MinIO 存储 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-5">
+  <h2 class="slide-title">MinIO 租户数据存储</h2>
+  <p class="slide-sub">// FIGURE 4 — hermes-skills bucket · prefix-per-tenant 隔离</p>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; height:100%;">
+
+      <div class="card">
+        <div class="card-title">Bucket 存储布局</div>
+        <div class="mono-block" style="flex:1; font-size:12px; line-height:2;">
+hermes-skills/
+│
+├── {tenant-A-uuid}/               <span class="c">← Tenant A 完全隔离</span>
+│   ├── SOUL.md                   <span class="c">AI 人格 / 指令定义</span>
+│   ├── coding-expert/
+│   │   └── SKILL.md
+│   ├── code-reviewer/
+│   │   └── SKILL.md
+│   └── docs-assistant/
+│       └── SKILL.md
+│
+├── {tenant-B-uuid}/               <span class="c">← Tenant B 独立命名空间</span>
+│   ├── SOUL.md                   <span class="warn">B 的人格与 A 不同!</span>
+│   └── pirate-helper/
+│       └── SKILL.md
+│
+└── {tenant-C-uuid}/               <span class="c">← Tenant C</span>
+    └── SOUL.md
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">隔离机制</div>
+          <div class="row sec"><span class="ld"></span>ListObjects(prefix="{tenantID}/") — 只列出自己租户的文件</div>
+          <div class="row sec"><span class="ld"></span>每个 Tenant 只能访问自己 prefix 下的文件</div>
+          <div class="row warn"><span class="ld"></span>SOUL.md 在会话启动时加载，注入 LLM 系统提示词</div>
+          <div class="row warn"><span class="ld"></span>技能按需加载，session cache 复用 agent 实例</div>
+        </div>
+
+        <div class="card" style="border-color:rgba(16,185,129,.3); background:rgba(16,185,129,.04);">
+          <div class="card-title" style="color:var(--green);">Tenant Provisioner</div>
+          <div class="mono-block" style="font-size:10px;">
+Provision(ctx, tenantID):
+  minio.PutObject(
+    <span class="v">"{tenantID}/SOUL.md"</span>,
+    defaultSoulContent
+  )
+  <span class="k">for each</span> bundled SKILL.md:
+    key = <span class="v">"{tenantID}/{skill}/SKILL.md"</span>
+    minio.PutObject(key, data)
+
+<span class="ok">新租户创建时自动初始化 SOUL + SKILLS</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title">接入配置</div>
+          <div class="mono-block" style="font-size:10px;">
+MINIO_ENDPOINT:  <span class="v">minio:9000</span>
+MINIO_ACCESS_KEY: <span class="v">hermes-minio</span>
+MINIO_SECRET_KEY: <span class="v">hermes-minio-password</span>
+MINIO_BUCKET:     <span class="v">hermes-skills</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>5 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 6: PostgreSQL 数据模型 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-6">
+  <h2 class="slide-title">PostgreSQL 数据模型</h2>
+  <p class="slide-sub">// FIGURE 5 — hermes DB · tenant_id FK on EVERY table</p>
+  <div class="slide-body">
+    <div class="cols">
+
+      <div class="cols-left">
+        <div class="card">
+          <div class="card-title">ER — 表关系</div>
+          <div class="mono-block" style="flex:1; font-size:11px; line-height:2;">
+<span style="color:var(--accent);">tenants</span> (PK: id, UUID)
+│
+├── sessions      (FK: tenant_id)
+├── messages     (FK: tenant_id)
+├── users        (FK: tenant_id)
+├── api_keys     (FK: tenant_id)
+├── memories     (FK: tenant_id)
+└── audit_logs   (FK: tenant_id)
+
+<span class="c">-- 强制隔离索引</span>
+<span class="k">CREATE INDEX</span> idx_{table}_tenant
+  <span class="k">ON</span> {table}(tenant_id);
+
+<span class="ok">★ 租户删除 → CASCADE 全部关联数据 (GDPR)</span>
+          </div>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title">sessions 表结构</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+            <tr><td class="mono">tenant_id</td><td class="mono">UUID FK</td><td>★ 租户隔离</td></tr>
+            <tr><td class="mono">user_id</td><td class="mono">TEXT</td><td>外部用户标识</td></tr>
+            <tr><td class="mono">platform</td><td class="mono">TEXT</td><td>api / telegram 等</td></tr>
+            <tr><td class="mono">chat_id</td><td class="mono">TEXT</td><td>平台会话ID</td></tr>
+            <tr><td class="mono">session_key</td><td class="mono">TEXT PK</td><td>(platform,chat_id,tenant_id)</td></tr>
+            <tr><td class="mono">message_count</td><td class="mono">INT</td><td>消息计数</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <div class="cols-right">
+        <div class="card">
+          <div class="card-title">messages 表结构</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+            <tr><td class="mono">tenant_id</td><td class="mono">UUID FK</td><td>★ 租户隔离</td></tr>
+            <tr><td class="mono">session_id</td><td class="mono">TEXT</td><td>会话标识</td></tr>
+            <tr><td class="mono">role</td><td class="mono">TEXT</td><td>user / assistant / system</td></tr>
+            <tr><td class="mono">content</td><td class="mono">TEXT</td><td>消息内容</td></tr>
+            <tr><td class="mono">tokens</td><td class="mono">INT</td><td>token 计数</td></tr>
+            <tr><td class="mono">model</td><td class="mono">TEXT</td><td>使用的模型</td></tr>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:14px;">
+          <div class="card-title">api_keys 表结构</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>字段</th><th>类型</th><th>说明</th></tr>
+            <tr><td class="mono">tenant_id</td><td class="mono">UUID FK</td><td>★ 绑定租户</td></tr>
+            <tr><td class="mono">key_hash</td><td class="mono">TEXT</td><td>SHA-256 hash</td></tr>
+            <tr><td class="mono">roles</td><td class="mono">TEXT[]</td><td>[user] / [admin]</td></tr>
+            <tr><td class="mono">name</td><td class="mono">TEXT</td><td>Key 名称</td></tr>
+            <tr><td class="mono">revoked_at</td><td class="mono">TIMESTAMPTZ</td><td>撤销时间 (null=有效)</td></tr>
+            <tr><td class="mono">expires_at</td><td class="mono">TIMESTAMPTZ</td><td>过期时间</td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>6 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 7: 接入模式 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-7">
+  <h2 class="slide-title">多用户多租户接入模式</h2>
+  <p class="slide-sub">// FIGURE 6 — SDK / Client 集成方式矩阵</p>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:16px; margin-bottom:16px;">
+      <div class="card">
+        <div class="card-title">OpenAI-compatible API</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim); margin-bottom:12px; line-height:1.8;">
+          <span class="badge cyan" style="margin-bottom:8px;">推荐生产环境</span><br>
+          认证: API Key 存于 PostgreSQL<br>
+          隔离: tenant_id 绑定在 DB 记录<br>
+          适用: 开发者 / 应用直接集成<br>
+          Client SDK 无需改造
+        </div>
+        <div class="mono-block" style="font-size:10px;">
+<span class="k">from</span> openai <span class="k">import</span> OpenAI
+client = OpenAI(
+  api_key=<span class="v">"pk-xxx-tenant-A"</span>,
+  base_url=<span class="v">"http://hermes:8081/v1"</span>
+)
+resp = client.chat.completions.create(
+  model=<span class="v">"Qwen3-Coder-Next-4bit"</span>,
+  messages=[...]
+)
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">SaaS REST API</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim); margin-bottom:12px; line-height:1.8;">
+          <span class="badge yellow" style="margin-bottom:8px;">管理平面</span><br>
+          认证: Static Token (dev)<br>
+          &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;JWT (production)<br>
+          适用: 后台管理 / 内部工具<br>
+          RBAC / API Key 发行 / 审计
+        </div>
+        <div class="mono-block" style="font-size:10px;">
+<span class="k">curl</span> -X POST http://hermes:8080/v1/chat \
+  -H <span class="v">"Authorization: Bearer dev-token"</span> \
+  -H <span class="v">"Content-Type: application/json"</span> \
+  -d '{...}'
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">平台适配器 (IM 集成)</div>
+        <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim); margin-bottom:12px; line-height:1.8;">
+          <span class="badge purple" style="margin-bottom:8px;">即时通讯</span><br>
+          飞书 · Discord · Telegram<br>
+          Slack · 企业微信 · Matrix 等<br>
+          认证: 平台原生 + X-Tenant-Id<br>
+          配对: /pair &lt;code&gt; 授权
+        </div>
+        <div class="mono-block" style="font-size:10px;">
+<span class="k">curl</span> -X POST http://hermes:8081/v1/chat \
+  -H <span class="v">"X-Hermes-Tenant-Id: &lt;uuid&gt;"</span> \
+  -H <span class="v">"X-Hermes-Session-Id: &lt;id&gt;"</span> \
+  -d '{...}'
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">接入路径对照</div>
+      <table class="tbl">
+        <tr><th>场景</th><th>端点</th><th>端口</th><th>认证方式</th><th>Tenant 来源</th></tr>
+        <tr>
+          <td>开发者集成</td>
+          <td class="mono">/v1/chat/completions</td>
+          <td class="mono">:8081</td>
+          <td><span class="badge cyan">API Key</span></td>
+          <td class="mono">from DB row ★</td>
+        </tr>
+        <tr>
+          <td>管理后台</td>
+          <td class="mono">/v1/tenants/**</td>
+          <td class="mono">:8080</td>
+          <td><span class="badge yellow">Token / JWT</span></td>
+          <td class="mono">from token claims</td>
+        </tr>
+        <tr>
+          <td>即时通讯</td>
+          <td class="mono">平台适配器</td>
+          <td class="mono">:8081</td>
+          <td><span class="badge purple">Platform native</span></td>
+          <td class="mono">X-Hermes-Tenant-Id hdr</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>7 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 8: 部署拓扑 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-8">
+  <h2 class="slide-title">部署拓扑</h2>
+  <p class="slide-sub">// FIGURE 7 — kind (desktop) cluster · hermes namespace</p>
+  <div class="slide-body">
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+      <div class="card">
+        <div class="card-title">hermes-agent Deployment</div>
+        <div class="mono-block" style="font-size:10px;">
+image:        <span class="v">hermes-agent-saas:local</span>
+args:         <span class="v">["saas-api"]</span>
+replicaCount: <span class="v">1</span>
+service.type: <span class="v">NodePort</span>  →  <span class="v">:30472</span>
+
+<span class="c"># 环境变量</span>
+DATABASE_URL:      <span class="v">postgres://...@postgres-postgresql:5432/hermes</span>
+REDIS_URL:         <span class="v">redis://redis-master:6379</span>
+MINIO_ENDPOINT:    <span class="v">minio:9000</span>
+HERMES_BASE_URL:   <span class="v">http://10.191.110.127:8000/v1</span>
+HERMES_MODEL:      <span class="v">Qwen3-Coder-Next-4bit</span>
+SAAS_API_PORT:     <span class="v">8080</span>
+HERMES_API_PORT:   <span class="v">8081</span>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">Service Mesh</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>Service</th><th>类型</th><th>端口</th><th>说明</th></tr>
+            <tr><td class="mono">hermes-agent</td><td class="mono">NodePort</td><td class="mono">30472:8080</td><td>SaaS API</td></tr>
+            <tr><td class="mono">postgres-postgresql</td><td class="mono">ClusterIP</td><td class="mono">5432</td><td>Helm bitnami/postgresql</td></tr>
+            <tr><td class="mono">redis-master</td><td class="mono">ClusterIP</td><td class="mono">6379</td><td>Helm bitnami/redis</td></tr>
+            <tr><td class="mono">minio</td><td class="mono">ClusterIP</td><td class="mono">9000</td><td>StatefulSet</td></tr>
+          </table>
+        </div>
+        <div class="card">
+          <div class="card-title">外部访问</div>
+          <div class="row api"><span class="ld"></span>kubectl port-forward -n hermes svc/hermes-agent 8080:8080</div>
+          <div class="row api"><span class="ld"></span>SaaS API → http://localhost:8080</div>
+          <div class="row api"><span class="ld"></span>Gateway API → http://localhost:8081</div>
+          <div class="row warn"><span class="ld"></span>长期暴露: 改 service 为 LoadBalancer</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">健康检查</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:16px;">
+        <div class="endpoint"><span class="method get">GET</span><span class="path">/health/live — 进程存活</span></div>
+        <div class="endpoint"><span class="method get">GET</span><span class="path">/health/ready — DB 就绪</span></div>
+        <div class="endpoint"><span class="method get">GET</span><span class="path">/metrics — Prometheus</span></div>
+        <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/openapi — API 规范</span></div>
+      </div>
+    </div>
+
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>8 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 10: 关键设计原则 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-10">
+  <h2 class="slide-title">关键设计原则总结</h2>
+  <p class="slide-sub">// FIGURE 9 — Security & Isolation Design Matrix</p>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; height:100%;">
+
+      <div>
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">身份 & 数据隔离</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>维度</th><th>实现机制</th><th>安全保证</th></tr>
+            <tr>
+              <td><span class="badge blue">租户身份</span></td>
+              <td class="mono">API Key → DB 查询<br>JWT → claims 提取</td>
+              <td><span class="ok" style="color:var(--green);">TenantID 来自凭证, 不信赖 header</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge blue">数据隔离</span></td>
+              <td class="mono">tenant_id FK + 索引</td>
+              <td><span class="ok" style="color:var(--green);">查询自动按租户过滤</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge cyan">技能隔离</span></td>
+              <td class="mono">MinIO prefix="{tenantID}/"</td>
+              <td><span class="ok" style="color:var(--green);">ListObjects 限定 prefix</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge cyan">记忆隔离</span></td>
+              <td class="mono">WHERE tid=? AND uid=?</td>
+              <td><span class="ok" style="color:var(--green);">上下文不跨租户</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge cyan">会话隔离</span></td>
+              <td class="mono">(platform, chat_id, tenant)</td>
+              <td><span class="ok" style="color:var(--green);">session key 三元组唯一</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge cyan">人格隔离</span></td>
+              <td class="mono">{tenantID}/SOUL.md</td>
+              <td><span class="ok" style="color:var(--green);">AI 行为因租户而异</span></td>
+            </tr>
+          </table>
+        </div>
+
+        <div class="card">
+          <div class="card-title">运维 & 合规</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>维度</th><th>实现机制</th><th>安全保证</th></tr>
+            <tr>
+              <td><span class="badge purple">认证</span></td>
+              <td class="mono">Extractor Chain<br>(Static / JWT / APIKey)</td>
+              <td><span class="ok" style="color:var(--green);">短路模式, 任一成功即终止</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge purple">权限</span></td>
+              <td class="mono">RBACMiddleware<br>admin / user / operator</td>
+              <td><span class="ok" style="color:var(--green);">API Key roles[] 控制</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge yellow">限流</span></td>
+              <td class="mono">RateLimitMiddleware<br>RPM 租户级限流</td>
+              <td><span class="ok" style="color:var(--green);">动态按 tenants.rate_limit_rpm</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge red">审计</span></td>
+              <td class="mono">AuditMiddleware<br>+ audit_logs 表</td>
+              <td><span class="ok" style="color:var(--green);">记录 tenant_id + user_id + action</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge green">Agent 缓存</span></td>
+              <td class="mono">per-session agent pool</td>
+              <td><span class="ok" style="color:var(--green);">prompt cache 复用 agent 实例</span></td>
+            </tr>
+            <tr>
+              <td><span class="badge green">GDPR</span></td>
+              <td class="mono">CASCADE DELETE<br>/gdpr/export</td>
+              <td><span class="ok" style="color:var(--green);">租户删除时全量数据清除</span></td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <div>
+        <div class="card" style="border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.04); margin-bottom:14px;">
+          <div class="card-title" style="color:var(--primary);">核心安全承诺</div>
+          <div class="mono-block" style="font-size:11px; line-height:2.2;">
+<span class="ok">✓</span> TenantID <span style="color:var(--yellow);">绝不</span> 从请求 header 获取
+<span class="ok">✓</span> 所有 PostgreSQL 查询强制包含 tenant_id
+<span class="ok">✓</span> MinIO ListObjects 限定 prefix = tenantID
+<span class="ok">✓</span> API Key hash 存储, SHA-256 校验
+<span class="ok">✓</span> 租户删除 CASCADE 所有关联数据
+<span class="ok">✓</span> 每次操作均写入 audit_logs
+<span class="ok">✓</span> 限流基于租户级 RPM 配置
+          </div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">多层防护架构</div>
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; flex-shrink:0; font-size:10px; font-family:var(--font-mono); color:var(--text-muted);">网络层</div>
+              <div style="flex:1; height:32px; background:var(--bg2); border:1px solid var(--border); border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:11px; font-family:var(--font-mono); color:var(--text-dim);">
+                k8s NetworkPolicy · Service Type · Port Isolation
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; flex-shrink:0; font-size:10px; font-family:var(--font-mono); color:var(--text-muted);">接入层</div>
+              <div style="flex:1; height:32px; background:var(--bg2); border:1px solid rgba(59,130,246,.3); border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:11px; font-family:var(--font-mono); color:var(--primary);">
+                9-Layer Middleware Stack · RBAC · RateLimit
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; flex-shrink:0; font-size:10px; font-family:var(--font-mono); color:var(--text-muted);">数据层</div>
+              <div style="flex:1; height:32px; background:var(--bg2); border:1px solid rgba(139,92,246,.3); border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:11px; font-family:var(--font-mono); color:var(--accent2);">
+                tenant_id FK · prefix-per-tenant · CASCADE DELETE
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; flex-shrink:0; font-size:10px; font-family:var(--font-mono); color:var(--text-muted);">存储层</div>
+              <div style="flex:1; height:32px; background:var(--bg2); border:1px solid rgba(16,185,129,.3); border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:11px; font-family:var(--font-mono); color:var(--green);">
+                MinIO object lock · Redis AUTH · PG TLS
+              </div>
+            </div>
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:80px; flex-shrink:0; font-size:10px; font-family:var(--font-mono); color:var(--text-muted);">审计层</div>
+              <div style="flex:1; height:32px; background:var(--bg2); border:1px solid rgba(239,68,68,.3); border-radius:6px; display:flex; align-items:center; padding:0 12px; font-size:11px; font-family:var(--font-mono); color:var(--red);">
+                audit_logs · 操作溯源 · GDPR Export
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card" style="border-color:rgba(16,185,129,.3); background:rgba(16,185,129,.04);">
+          <div class="card-title" style="color:var(--green);">设计原则</div>
+          <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-dim); line-height:2;">
+            <span style="color:var(--accent);">01</span> 纵深防御 — 每层独立生效, 单点失效不穿透<br>
+            <span style="color:var(--accent);">02</span> 零信任 — 不信赖任何外部输入, 全部来自凭证<br>
+            <span style="color:var(--accent);">03</span> 默认安全 — 隔离优于权限, 权限优于日志<br>
+            <span style="color:var(--accent);">04</span> 可审计 — 所有操作均可溯源到 tenant + user
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>10 / 10</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════ SLIDE 9: API 端点一览 ═══════════════════════ -->
+<div class="slide bg-grid" id="slide-9">
+  <h2 class="slide-title">API 端点一览</h2>
+  <p class="slide-sub">// FIGURE 8 — SaaS API (:8080) + Gateway API (:8081)</p>
+  <div class="slide-body">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+
+      <div>
+        <div class="sec-label" style="margin-bottom:12px;">SaaS API — :8080</div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted); margin-bottom:6px;">公共 (无需认证)</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/health/live</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/health/ready</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/metrics</span></div>
+        </div>
+
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted); margin-bottom:6px;">认证用户</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/me — 当前用户身份</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/chat/completions</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/sessions — 当前租户下所有会话</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/sessions/:id — 会话历史</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/memories — 用户记忆</span></div>
+          <div class="endpoint"><span class="method delete">DEL</span><span class="path">/v1/memories/:id</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/usage — 用量统计</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/openapi — OpenAPI 规范</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/admin.html — Admin SPA</span></div>
+        </div>
+
+        <div>
+          <div style="font-size:10px; font-family:var(--font-mono); color:var(--red); margin-bottom:6px;">Admin 角色</div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/tenants — 租户列表</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/tenants — 创建租户</span></div>
+          <div class="endpoint"><span class="method put">PUT</span><span class="path">/v1/tenants/:id — 更新租户</span></div>
+          <div class="endpoint"><span class="method delete">DEL</span><span class="path">/v1/tenants/:id — 删除 (CASCADE)</span></div>
+          <div class="endpoint"><span class="method post">POST</span><span class="path">/v1/api-keys — 创建 API Key</span></div>
+          <div class="endpoint"><span class="method delete">DEL</span><span class="path">/v1/api-keys/:id — 撤销 Key</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/audit-logs — 审计日志</span></div>
+          <div class="endpoint"><span class="method get">GET</span><span class="path">/v1/gdpr/export — 数据导出</span></div>
+          <div class="endpoint"><span class="method delete">DEL</span><span class="path">/v1/gdpr/data — 数据删除</span></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="sec-label" style="margin-bottom:12px;">Gateway API — :8081 (Full Agent)</div>
+
+        <div class="card" style="border-color:rgba(59,130,246,.3); background:rgba(59,130,246,.04); margin-bottom:14px;">
+          <div class="card-title" style="color:var(--primary);">★ Full Agent Mode — OpenAI-compatible</div>
+          <div class="endpoint" style="border-color:rgba(59,130,246,.3);"><span class="method post">POST</span><span class="path">/v1/chat/completions — 走 Gateway Runner + AIAgent</span></div>
+        </div>
+
+        <div class="card" style="margin-bottom:14px;">
+          <div class="card-title">Headers</div>
+          <div class="mono-block" style="font-size:10px;">
+Authorization:     <span class="v">Bearer &lt;hermes-api-key&gt;</span>
+X-Hermes-Session-Id: <span class="v">&lt;session-id&gt;</span>      <span class="c">// 可选, 自动生成</span>
+X-Hermes-Tenant-Id: <span class="v">&lt;tenant-uuid&gt;</span>   <span class="c">// 可选, 默认 "default"</span>
+Content-Type:       <span class="v">application/json</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">关键设计原则</div>
+          <table class="tbl" style="font-size:11px;">
+            <tr><th>维度</th><th>隔离机制</th><th>安全保证</th></tr>
+            <tr><td>租户身份</td><td class="mono">API Key → DB 查 tenant_id</td><td class="ok">不信赖 header</td></tr>
+            <tr><td>数据隔离</td><td class="mono">tenant_id FK + 索引</td><td class="ok">查询强制过滤</td></tr>
+            <tr><td>技能隔离</td><td class="mono">MinIO prefix=tenantID</td><td class="ok">ListObjects 限定</td></tr>
+            <tr><td>记忆隔离</td><td class="mono">WHERE tid=? AND uid=?</td><td class="ok">上下文不跨租户</td></tr>
+            <tr><td>会话隔离</td><td class="mono">(platform,chat,tenant)</td><td class="ok">session key 三元组</td></tr>
+            <tr><td>人格隔离</td><td class="mono">{tenantID}/SOUL.md</td><td class="ok">AI 行为因租户异</td></tr>
+            <tr><td>Agent 缓存</td><td class="mono">per-session agent pool</td><td class="ok">prompt cache 复用</td></tr>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span><span>技术评审 · 2026-04-30</span><span>9 / 10</span>
+  </div>
+</div>
+
+</div><!-- .deck -->
+</div><!-- .stage -->
+
+<!-- Navigation -->
+<div class="nav">
+  <button id="prevBtn" onclick="prevSlide()">←</button>
+  <button id="nextBtn" onclick="nextSlide()">→</button>
+</div>
+<div class="counter" id="counter">01 / 10</div>
+
+<script>
+const deck = document.getElementById('deck');
+const W = 1920, H = 1080;
+
+function resize() {
+  const sx = (window.innerWidth - 0) / W;
+  const sy = (window.innerHeight - 0) / H;
+  deck.style.transform = `scale(${Math.min(sx, sy)})`;
+  deck.style.width = W + 'px';
+  deck.style.height = H + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+const slides = Array.from(document.querySelectorAll('.slide'));
+const total = slides.length;
+let current = 0;
+const counter = document.getElementById('counter');
+const prevBtn = document.getElementById('prevBtn');
+const nextBtn = document.getElementById('nextBtn');
+
+function goTo(n) {
+  slides[current].classList.remove('active');
+  current = ((n % total) + total) % total;
+  slides[current].classList.add('active');
+  counter.textContent = String(current + 1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+  prevBtn.disabled = current === 0;
+  nextBtn.disabled = current === total - 1;
+  localStorage.setItem('hermes-arch-slide', current);
+}
+function nextSlide() { goTo(current + 1); }
+function prevSlide() { goTo(current - 1); }
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+  if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+  if (e.key === 'End') { e.preventDefault(); goTo(total - 1); }
+});
+
+const saved = localStorage.getItem('hermes-arch-slide');
+if (saved !== null) goTo(parseInt(saved));
+goTo(0);
+</script>
+</body>
+</html>

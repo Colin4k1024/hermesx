@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Agent 多租户平台架构 — 风格预览</title>
+<style>
+/* ============================================================
+   DESIGN SYSTEM — Hermes Arch PPT
+   风格: 极简技术风 · 深色底 + 冷调蓝 + 网格线
+   ============================================================ */
+:root {
+  --bg: #080c14;
+  --bg2: #0d1421;
+  --bg3: #111927;
+  --bg-card: #0f1a2a;
+  --border: #1e2d45;
+  --border-bright: #2a4060;
+  --primary: #3b82f6;
+  --primary-dim: #1d4ed8;
+  --accent: #06b6d4;
+  --accent2: #8b5cf6;
+  --text: #e2e8f0;
+  --text-dim: #94a3b8;
+  --text-muted: #475569;
+  --mono-bg: #06101a;
+  --green: #10b981;
+  --yellow: #f59e0b;
+  --red: #ef4444;
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  overflow: hidden;
+}
+
+/* ── Stage & Deck ── */
+.stage {
+  width: 100vw; height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg);
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  background-position: center center;
+}
+.deck {
+  position: relative;
+  width: 1920px; height: 1080px;
+  transform-origin: top left;
+  flex-shrink: 0;
+}
+
+/* Navigation */
+.nav {
+  position: fixed;
+  bottom: 28px; right: 40px;
+  display: flex; gap: 12px; z-index: 100;
+}
+.nav button {
+  width: 52px; height: 52px;
+  border: 1px solid var(--border-bright);
+  background: var(--bg2);
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 22px;
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color .2s, background .2s;
+}
+.nav button:hover { border-color: var(--primary); background: var(--bg3); }
+.nav .counter {
+  position: fixed; bottom: 40px; left: 40px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-muted);
+  letter-spacing: .1em;
+}
+
+/* Page-footer */
+.page-footer {
+  position: absolute; bottom: 40px; left: 60px; right: 60px;
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+/* ============================================================
+   SLIDES
+   ============================================================ */
+.slide {
+  position: absolute; inset: 0;
+  display: none;
+  flex-direction: column;
+  padding: 80px 80px 100px;
+  opacity: 0;
+  transition: opacity .4s ease;
+}
+.slide:not(.active) { display: none !important; }
+.slide.active { display: flex; opacity: 1; }
+
+/* ── Cover Slide ── */
+.s-cover {
+  justify-content: center; align-items: flex-start;
+  padding-left: 120px;
+  background:
+    radial-gradient(ellipse 60% 50% at 80% 50%, rgba(59,130,246,.08) 0%, transparent 70%),
+    radial-gradient(ellipse 40% 30% at 20% 80%, rgba(6,182,212,.05) 0%, transparent 60%),
+    var(--bg);
+}
+.s-cover .eyebrow {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 24px;
+}
+.s-cover .title {
+  font-size: 88px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -.02em;
+  color: var(--text);
+  max-width: 1100px;
+  margin-bottom: 32px;
+}
+.s-cover .title em {
+  font-style: normal;
+  color: var(--primary);
+}
+.s-cover .subtitle {
+  font-size: 22px;
+  color: var(--text-dim);
+  max-width: 700px;
+  line-height: 1.6;
+  margin-bottom: 64px;
+}
+.s-cover .meta {
+  display: flex; gap: 32px; align-items: center;
+}
+.s-cover .tag {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 16px;
+  border: 1px solid var(--border-bright);
+  border-radius: 100px;
+  font-size: 13px;
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+.s-cover .tag .dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--green);
+}
+
+/* Cover Right — cluster node diagram */
+.s-cover .right-panel {
+  position: absolute;
+  right: 60px; top: 50%;
+  transform: translateY(-50%);
+  width: 580px;
+}
+.s-cover .cluster-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px;
+}
+.s-cover .cluster-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.s-cover .cluster-icon {
+  width: 28px; height: 28px; border-radius: 6px;
+  background: var(--primary-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px;
+}
+.s-cover .cluster-label {
+  font-size: 14px; font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+.s-cover .node-row {
+  display: flex; gap: 8px; align-items: center;
+  margin-bottom: 10px;
+}
+.s-cover .node {
+  flex: 1; height: 52px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  font-size: 11px; font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+.s-cover .node.cp { border-color: var(--accent2); background: rgba(139,92,246,.08); }
+.s-cover .node .nd-dot {
+  width: 8px; height: 8px; border-radius: 2px;
+}
+.s-cover .node.cp .nd-dot { background: var(--accent2); }
+.s-cover .node:not(.cp) .nd-dot { background: var(--border-bright); }
+.s-cover .node-arrow { width: 20px; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text-muted); }
+.s-cover .service-row {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px; margin-top: 16px;
+}
+.s-cover .svc {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 6px; padding: 10px 12px;
+  font-family: var(--font-mono); font-size: 10px;
+  color: var(--text-muted);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.s-cover .svc .svc-name { color: var(--text-dim); font-size: 11px; }
+.s-cover .svc .svc-port { color: var(--accent); }
+
+/* ── Content Slide: Architecture Overview ── */
+.s-arch {
+  background:
+    radial-gradient(ellipse 50% 60% at 50% 50%, rgba(59,130,246,.05) 0%, transparent 70%),
+    var(--bg);
+}
+.s-arch .slide-title {
+  font-size: 56px; font-weight: 700; color: var(--text);
+  margin-bottom: 8px;
+}
+.s-arch .slide-sub {
+  font-size: 16px; font-family: var(--font-mono);
+  color: var(--text-muted); margin-bottom: 48px;
+  letter-spacing: .05em;
+}
+.s-arch .layer-grid {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  gap: 0;
+  flex: 1; min-height: 0;
+  align-content: stretch;
+}
+.s-arch .layer {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.s-arch .layer-title {
+  font-size: 11px; font-family: var(--font-mono);
+  letter-spacing: .12em; text-transform: uppercase;
+  color: var(--accent);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+.s-arch .comp {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 12px; font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+.s-arch .comp .c-dot {
+  width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
+  background: var(--primary);
+}
+.s-arch .comp.api .c-dot { background: var(--accent); }
+.s-arch .comp.mw .c-dot { background: var(--accent2); }
+.s-arch .comp.db .c-dot { background: var(--green); }
+.s-arch .layer-connector {
+  display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px;
+}
+.s-arch .conn-line {
+  width: 1px; flex: 1;
+  background: linear-gradient(to bottom, var(--primary), var(--accent), var(--green));
+  border-radius: 1px;
+}
+.s-arch .conn-arrow {
+  font-size: 18px; color: var(--primary);
+}
+
+/* ============================================================
+   .slide:not(.active) { display: none !important; }
+   ============================================================ */
+</style>
+</head>
+<body>
+<div class="stage">
+<div class="deck" id="deck">
+
+<!-- ═══════════════════════════════════════════ SLIDE 1: 封面 ══ -->
+<div class="slide s-cover active" id="slide-1">
+  <div class="eyebrow">v2026-04-30 · 技术评审版</div>
+  <h1 class="title">Hermes Agent<br><em>多租户平台</em>架构图</h1>
+  <p class="subtitle">基于 saas-api 模式，完整覆盖认证隔离、租户会话、Agent 工厂、数据存储与部署拓扑的端到端架构说明文档。</p>
+  <div class="meta">
+    <span class="tag"><span class="dot"></span>kind cluster · k8s</span>
+    <span class="tag">多租户 · Multi-Tenant</span>
+    <span class="tag">PostgreSQL + MinIO + Redis</span>
+  </div>
+
+  <!-- Cluster mini-diagram -->
+  <div class="right-panel">
+    <div class="cluster-box">
+      <div class="cluster-header">
+        <div class="cluster-icon">⟨⟩</div>
+        <span class="cluster-label">kind cluster · desktop</span>
+      </div>
+      <div class="node-row">
+        <div class="node cp"><span class="nd-dot"></span>desktop-control-plane</div>
+      </div>
+      <div class="node-row" style="margin-bottom:16px">
+        <div class="node-arrow">↕</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker2</div>
+        <div class="node"><span class="nd-dot"></span>desktop-worker3</div>
+      </div>
+      <div class="service-row">
+        <div class="svc"><span class="svc-name">hermes-agent</span><span class="svc-port">:8080 :8081</span></div>
+        <div class="svc"><span class="svc-name">postgres</span><span class="svc-port">:5432</span></div>
+        <div class="svc"><span class="svc-name">redis</span><span class="svc-port">:6379</span></div>
+        <div class="svc"><span class="svc-name">minio</span><span class="svc-port">:9000</span></div>
+        <div class="svc"><span class="svc-name">prometheus</span><span class="svc-port">metrics</span></div>
+        <div class="svc"><span class="svc-name">llm-api</span><span class="svc-port">:8000</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span>
+    <span>技术评审 · 2026-04-30</span>
+    <span>1 / 9</span>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ SLIDE 2: 全局架构 ══ -->
+<div class="slide s-arch" id="slide-2">
+  <h2 class="slide-title">系统全局架构</h2>
+  <p class="slide-sub">// FIGURE 1 — KUBERNETES NAMESPACE: hermes</p>
+
+  <div class="layer-grid">
+    <!-- Layer 1: Ingress / Clients -->
+    <div class="layer">
+      <div class="layer-title">接入层</div>
+      <div class="comp api"><span class="c-dot"></span>OpenAI SDK / HTTP Client</div>
+      <div class="comp api"><span class="c-dot"></span>平台适配器 (飞书/Telegram/Discord)</div>
+      <div class="comp api"><span class="c-dot"></span>Admin SPA (dashboard)</div>
+      <div class="comp api"><span class="c-dot"></span>kubectl / k8s API</div>
+    </div>
+
+    <!-- Connector -->
+    <div class="layer-connector">
+      <div class="conn-line" style="flex:.4"></div>
+      <div class="conn-arrow">→</div>
+      <div class="conn-line" style="flex:.4"></div>
+    </div>
+
+    <!-- Layer 2: hermes-agent Deployment -->
+    <div class="layer">
+      <div class="layer-title">hermes-agent (saas-api)</div>
+      <div class="comp mw"><span class="c-dot"></span>Middleware Stack (9层)</div>
+      <div class="comp mw"><span class="c-dot"></span>Chat Handler</div>
+      <div class="comp mw"><span class="c-dot"></span>Admin Handlers (/v1/tenants 等)</div>
+      <div class="comp mw"><span class="c-dot"></span>Gateway Runner + API Adapter</div>
+      <div class="comp mw"><span class="c-dot"></span>Per-Tenant Agent Factory</div>
+      <div class="comp mw"><span class="c-dot"></span>Delivery Router</div>
+      <div class="comp mw"><span class="c-dot"></span>Skill Provisioner</div>
+    </div>
+  </div>
+
+  <!-- Sub-row: data stores -->
+  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-top:16px;">
+    <div class="layer" style="background:var(--mono-bg);">
+      <div class="layer-title">PostgreSQL</div>
+      <div class="comp db"><span class="c-dot"></span>tenants · sessions · messages</div>
+      <div class="comp db"><span class="c-dot"></span>users · api_keys · memories</div>
+      <div class="comp db"><span class="c-dot"></span>audit_logs</div>
+      <div style="margin-top:8px; font-size:11px; font-family:var(--font-mono); color:var(--text-muted);">tenant_id FK on EVERY table</div>
+    </div>
+    <div class="layer" style="background:var(--mono-bg);">
+      <div class="layer-title">MinIO</div>
+      <div class="comp db"><span class="c-dot"></span>{tenantID}/SOUL.md</div>
+      <div class="comp db"><span class="c-dot"></span>{tenantID}/{skill}/SKILL.md</div>
+      <div class="comp db"><span class="c-dot"></span>ListObjects(prefix=tenantID)</div>
+      <div style="margin-top:8px; font-size:11px; font-family:var(--font-mono); color:var(--text-muted);">bucket: hermes-skills</div>
+    </div>
+    <div class="layer" style="background:var(--mono-bg);">
+      <div class="layer-title">Redis + LLM</div>
+      <div class="comp db"><span class="c-dot"></span>Session cache</div>
+      <div class="comp db"><span class="c-dot"></span>Rate limit (RPM)</div>
+      <div class="comp db"><span class="c-dot"></span>Qwen3 / GPT-4 / Claude</div>
+      <div style="margin-top:8px; font-size:11px; font-family:var(--font-mono); color:var(--text-muted);">OpenAI-compatible API</div>
+    </div>
+  </div>
+
+  <div class="page-footer">
+    <span>Hermes Agent SaaS Platform</span>
+    <span>技术评审 · 2026-04-30</span>
+    <span>2 / 9</span>
+  </div>
+</div>
+
+</div><!-- .deck -->
+</div><!-- .stage -->
+
+<!-- ═══════════════════════════════════════════ NAVIGATION ══ -->
+<div class="nav">
+  <button id="prevBtn" onclick="prevSlide()">←</button>
+  <button id="nextBtn" onclick="nextSlide()">→</button>
+</div>
+<div class="counter" id="counter">01 / 09</div>
+
+<script>
+// ── Scale deck to fit viewport ──
+const deck = document.getElementById('deck');
+const W = 1920, H = 1080;
+function resize() {
+  const sx = (window.innerWidth - 0) / W;
+  const sy = (window.innerHeight - 0) / H;
+  const scale = Math.min(sx, sy);
+  deck.style.transform = `scale(${scale})`;
+  deck.style.width = W + 'px';
+  deck.style.height = H + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Slide navigation ──
+const slides = Array.from(document.querySelectorAll('.slide'));
+const total = slides.length;
+let current = 0;
+const counter = document.getElementById('counter');
+
+function goTo(n) {
+  slides[current].classList.remove('active');
+  current = ((n % total) + total) % total;
+  slides[current].classList.add('active');
+  counter.textContent = String(current + 1).padStart(2,'0') + ' / ' + String(total).padStart(2,'0');
+  localStorage.setItem('hermes-arch-slide', current);
+}
+function nextSlide() { goTo(current + 1); }
+function prevSlide() { goTo(current - 1); }
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); nextSlide(); }
+  if (e.key === 'ArrowLeft') { e.preventDefault(); prevSlide(); }
+});
+
+// Restore position
+const saved = localStorage.getItem('hermes-arch-slide');
+if (saved !== null) goTo(parseInt(saved));
+</script>
+</body>
+</html>
