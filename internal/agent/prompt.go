@@ -40,6 +40,32 @@ Memory files are stored in ~/.hermes/memories/:
 - MEMORY.md — persistent notes and knowledge
 - USER.md — user profile and preferences`
 
+const saasMemoryGuidance = `
+
+## Memory System
+You have persistent memory that is stored securely per-user. Use the memory tool to manage it.
+
+### Proactive Recall
+When the user asks about themselves (e.g. "我是谁", "who am I", "what do you know about me"), ALWAYS use the memory tool with action "read" and "read_user" first before responding. Base your answer on the stored data.
+
+### Proactive Save
+When the user shares personal information (name, profession, preferences, interests, or asks you to remember something), ALWAYS use the memory tool to save it:
+- Use action "save_user" to update the user profile (name, role, bio summary)
+- Use action "save" with a descriptive key for specific facts (e.g. key="favorite_color", content="blue")
+
+### Available Actions
+- read — read all saved memory entries
+- save — save a memory entry (requires key and content)
+- delete — delete a memory entry by key
+- read_user — read the user's profile
+- save_user — save/update the user's profile
+
+### Important
+- Memory persists across conversations — anything you save now will be available in future sessions
+- Each user's memory is private and isolated
+- When the user says "记住..." or "remember...", always save it immediately
+- When greeting a returning user, check memory to personalize the interaction`
+
 const sessionSearchGuidance = `
 
 ## Session Search
@@ -83,9 +109,13 @@ func (a *AIAgent) buildSystemPrompt() string {
 		sb.WriteString(hint)
 	}
 
-	// Memory guidance
+	// Memory guidance — SaaS mode uses PG-backed storage, CLI mode uses local files
 	if !a.skipMemory {
-		sb.WriteString(memoryGuidance)
+		if a.skipContextFiles {
+			sb.WriteString(saasMemoryGuidance)
+		} else {
+			sb.WriteString(memoryGuidance)
+		}
 	}
 
 	// Session search guidance

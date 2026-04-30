@@ -24,11 +24,16 @@ var (
 	reRememberEN = regexp.MustCompile(`(?i)remember[:\s]+(.+)`)
 	reRememberZH = regexp.MustCompile(`(?:记住|请记住)[：:\s]+(.+)`)
 	reMyNameEN   = regexp.MustCompile(`(?i)my name is\s+(\S+(?:\s+\S+)?)`)
-	reMyNameZH   = regexp.MustCompile(`我(?:的名字)?叫\s*(\S+)`)
+	reMyNameZH   = regexp.MustCompile(`我(?:的名字)?叫\s*([^\s，,。！？、]+)`)
 	reMyXIsYEN   = regexp.MustCompile(`(?i)my\s+(favorite\s+\w+|name|age|job|city|email|phone|hobby|language)\s+is\s+(.+?)(?:\.|,|!|\?|$)`)
 	reMyXIsYZH   = regexp.MustCompile(`我(?:最喜欢的|的)\s*(\S+?)\s*(?:是|为)\s*(.+?)(?:[。，！？\s]|$)`)
 	reFavEN      = regexp.MustCompile(`(?i)(?:i (?:like|love|prefer|enjoy))\s+(.+?)(?:\s+(?:the most|a lot|very much))?(?:\.|,|!|\?|$)`)
 	reCallMeEN   = regexp.MustCompile(`(?i)(?:call me|you can call me)\s+(\S+)`)
+
+	reIdentityZH   = regexp.MustCompile(`我(?:的身份|的职业|的工作)(?:是|为)\s*(.+?)(?:[。，！？\s]|$)`)
+	reIAmAEN       = regexp.MustCompile(`(?i)i\s+am\s+(?:a |an )?(\w+(?:\s+\w+){0,3})(?:\.|,|!|\?|$)`)
+	reProfessionZH = regexp.MustCompile(`我是(?:一个|一名|一位)?\s*(.+?)(?:[。，！？\s]|$)`)
+	reFavZH        = regexp.MustCompile(`我(?:喜欢|偏好|爱好)\s*(.+?)(?:[。，！？\s]|$)`)
 )
 
 func (e *memoryExtractor) extract(userMessage string) []extractedMemory {
@@ -76,6 +81,34 @@ func (e *memoryExtractor) extract(userMessage string) []extractedMemory {
 		content := strings.TrimSpace(m[1])
 		if content != "" && !strings.Contains(strings.ToLower(content), "you") {
 			results = append(results, extractedMemory{Key: "preference", Content: "likes " + content})
+		}
+	}
+
+	if m := reIdentityZH.FindStringSubmatch(userMessage); len(m) > 1 {
+		content := strings.TrimSpace(m[1])
+		if content != "" {
+			results = append(results, extractedMemory{Key: "profession", Content: content})
+		}
+	}
+
+	if m := reIAmAEN.FindStringSubmatch(userMessage); len(m) > 1 {
+		content := strings.TrimSpace(m[1])
+		if content != "" && len(content) < 50 {
+			results = append(results, extractedMemory{Key: "identity", Content: content})
+		}
+	}
+
+	if m := reProfessionZH.FindStringSubmatch(userMessage); len(m) > 1 {
+		content := strings.TrimSpace(m[1])
+		if content != "" && len(content) < 30 && !strings.Contains(content, "谁") {
+			results = append(results, extractedMemory{Key: "identity", Content: content})
+		}
+	}
+
+	if m := reFavZH.FindStringSubmatch(userMessage); len(m) > 1 {
+		content := strings.TrimSpace(m[1])
+		if content != "" {
+			results = append(results, extractedMemory{Key: "preference_zh", Content: "喜欢" + content})
 		}
 	}
 

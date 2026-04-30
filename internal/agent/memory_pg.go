@@ -137,18 +137,18 @@ func (p *PGMemoryProvider) SaveUserProfile(content string) error {
 func (p *PGMemoryProvider) SystemPromptBlock() string {
 	var parts []string
 
-	memory, err := p.ReadMemory()
-	if err != nil {
-		slog.Warn("PG: failed to read memory for system prompt", "error", err)
-	} else if memory != "" {
-		parts = append(parts, "## Agent Memory\n"+memory)
-	}
-
 	profile, err := p.ReadUserProfile()
 	if err != nil {
 		slog.Warn("PG: failed to read user profile for system prompt", "error", err)
 	} else if profile != "" {
-		parts = append(parts, "## User Profile\n"+profile)
+		parts = append(parts, "## Known User Profile\nThe following is what you already know about this user. Use it to personalize responses.\n"+profile)
+	}
+
+	memory, err := p.ReadMemory()
+	if err != nil {
+		slog.Warn("PG: failed to read memory for system prompt", "error", err)
+	} else if memory != "" {
+		parts = append(parts, "## Saved Memory\nThe following facts have been saved from previous conversations with this user.\n"+memory)
 	}
 
 	return strings.Join(parts, "\n\n")
