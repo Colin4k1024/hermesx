@@ -23,8 +23,8 @@ func NewHealthHandler(db DBPinger) *HealthHandler {
 	return &HealthHandler{db: db}
 }
 
-func (h *HealthHandler) WithRedis(p DBPinger) *HealthHandler  { h.redis = p; return h }
-func (h *HealthHandler) WithMinIO(p DBPinger) *HealthHandler   { h.minio = p; return h }
+func (h *HealthHandler) WithRedis(p DBPinger) *HealthHandler { h.redis = p; return h }
+func (h *HealthHandler) WithMinIO(p DBPinger) *HealthHandler { h.minio = p; return h }
 
 // LiveHandler returns 200 if the process is alive (Kubernetes liveness).
 func (h *HealthHandler) LiveHandler() http.HandlerFunc {

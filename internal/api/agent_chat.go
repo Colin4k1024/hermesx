@@ -307,4 +307,3 @@ type sseChunkContent struct {
 	Role    string `json:"role,omitempty"`
 	Content string `json:"content,omitempty"`
 }
-

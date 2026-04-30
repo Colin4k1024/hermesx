@@ -17,11 +17,11 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
 	"github.com/hermes-agent/hermes-agent-go/internal/gateway/platforms"
 	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/observability"
-	"github.com/hermes-agent/hermes-agent-go/internal/store/rediscache"
 	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
+	"github.com/hermes-agent/hermes-agent-go/internal/observability"
 	"github.com/hermes-agent/hermes-agent-go/internal/skills"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/hermes-agent/hermes-agent-go/internal/store/rediscache"
 	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
 )

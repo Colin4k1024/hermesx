@@ -68,16 +68,16 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	return s, nil
 }
 
-func (s *PGStore) Sessions() store.SessionStore   { return s.sessions }
-func (s *PGStore) Messages() store.MessageStore   { return s.messages }
-func (s *PGStore) Users() store.UserStore         { return s.users }
-func (s *PGStore) Tenants() store.TenantStore     { return s.tenants }
-func (s *PGStore) AuditLogs() store.AuditLogStore { return s.auditLogs }
+func (s *PGStore) Sessions() store.SessionStore         { return s.sessions }
+func (s *PGStore) Messages() store.MessageStore         { return s.messages }
+func (s *PGStore) Users() store.UserStore               { return s.users }
+func (s *PGStore) Tenants() store.TenantStore           { return s.tenants }
+func (s *PGStore) AuditLogs() store.AuditLogStore       { return s.auditLogs }
 func (s *PGStore) APIKeys() store.APIKeyStore           { return s.apiKeys }
-func (s *PGStore) Memories() store.MemoryStore           { return s.memories }
-func (s *PGStore) UserProfiles() store.UserProfileStore  { return s.userProfiles }
-func (s *PGStore) CronJobs() store.CronJobStore          { return s.cronJobs }
-func (s *PGStore) Roles() store.RoleStore                { return s.roles }
+func (s *PGStore) Memories() store.MemoryStore          { return s.memories }
+func (s *PGStore) UserProfiles() store.UserProfileStore { return s.userProfiles }
+func (s *PGStore) CronJobs() store.CronJobStore         { return s.cronJobs }
+func (s *PGStore) Roles() store.RoleStore               { return s.roles }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()
