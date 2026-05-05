@@ -27,13 +27,14 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 
 | Metric | Value |
 |--------|-------|
-| Go source files | 126 |
-| Lines of code | 29,441 |
+| Go source files | 273 |
+| Lines of code | 49,875 |
 | Registered tools | 50 (36 core + 14 extended) |
 | Platform adapters | 15 |
 | Terminal backends | 7 |
-| Bundled skills | 77 |
-| Test files | 28 |
+| Bundled skills | 81 |
+| Test files | 108 |
+| Version | v1.1.0 (production-ready) |
 
 ### Features
 
@@ -45,7 +46,9 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 - **Session persistence**: SQLite with FTS5 full-text search
 - **Context compression**: automatic summarization when approaching token limits
 - **Smart model routing**: route simple queries to cheaper models
-- **Fallback chain**: automatic model switching on API failures
+- **LLM Fallback Router**: automatic primary→fallback provider switching on 5xx/timeout/circuit-breaker-open (Anthropic→OpenAI)
+- **Retry with backoff**: exponential backoff + ±25% jitter for transient LLM errors (configurable max retries, delay caps)
+- **Circuit breaker**: per-model circuit breaker with configurable failure thresholds
 - **Subagent delegation**: parallel task execution via goroutines (max 8 concurrent)
 - **Cron scheduling**: scheduled tasks with multi-platform delivery
 - **MCP integration**: Model Context Protocol client (stdio + SSE transport)
@@ -54,11 +57,26 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 - **ACP server**: editor integration for VS Code, Zed, JetBrains
 - **Batch mode**: parallel trajectory generation for RL training
 
+#### Enterprise SaaS Platform (v1.1.0)
+
+- **Multi-tenant isolation**: PostgreSQL Row-Level Security (RLS) enforced on all tenant tables
+- **API Key scopes**: fine-grained `read`/`write`/`admin`/`sandbox` scope authorization
+- **Redis rate limiting**: ZSET sliding-window with atomic Lua script (no race conditions)
+- **Token usage metering**: async batch persistence with cost calculation per model
+- **Admin API**: tenant sandbox policy CRUD, API key lifecycle (create/rotate/revoke), audit log query
+- **GDPR compliance**: full-chain tenant data export and transactional deletion
+- **Distributed tracing**: OpenTelemetry spans on LLM calls, PostgreSQL queries, Redis operations
+- **Prometheus metrics**: rate limiting, active sessions, LLM latency by provider/status
+- **PG PITR backup**: pgBackRest with RPO < 5min, RTO < 1h
+- **Multi-replica ready**: verified with 3 replicas + Nginx ip_hash load balancer
+- **CI integration tests**: full pipeline with PG 16, Redis 7, MinIO service containers
+- **Docker sandbox**: per-tenant code execution isolation with network/resource limits
+
 ### Installation
 
 #### From Source (recommended)
 
-Requirements: Go 1.22+
+Requirements: Go 1.23+
 
 ```bash
 git clone https://github.com/MLT-OSS/hermes-agent-go.git
@@ -209,22 +227,43 @@ hermes-agent-go/
 ├── internal/
 │   ├── agent/               Core agent loop, streaming, prompts, pricing
 │   ├── acp/                 ACP editor integration server
+│   ├── api/                 HTTP API server + handlers
+│   │   └── admin/           Admin API (sandbox policy, API keys, audit)
+│   ├── auth/                Authentication (API key, JWT, scopes, RBAC)
 │   ├── batch/               Batch trajectory generation
 │   ├── cli/                 Interactive TUI, commands, skins, setup wizard
 │   ├── config/              Config loading, profiles, env, migration
 │   ├── cron/                Scheduler and job persistence
 │   ├── gateway/             Multi-platform messaging gateway
 │   │   └── platforms/       15 platform adapters
-│   ├── llm/                 LLM client (OpenAI + Anthropic)
+│   ├── llm/                 LLM client, FallbackRouter, RetryTransport, circuit breaker
+│   ├── metering/            Token usage recording, batch flush, cost calculation
+│   ├── middleware/          Rate limiting, scope check, tenant injection, tracing
+│   ├── observability/       OTel tracing (LLM, PG, Redis), Prometheus metrics
 │   ├── plugins/             Plugin discovery and loading
+│   ├── secrets/             Secret management
 │   ├── skills/              Skill loading, parsing, hub, security
 │   ├── state/               SQLite session database + export
+│   ├── store/               PostgreSQL store (RLS, migrations, multi-tenant)
+│   │   ├── pg/              PG implementations (sessions, messages, memories, etc.)
+│   │   └── rediscache/      Redis cache layer (rate limit, sessions, context)
 │   ├── tools/               50 tool implementations
-│   │   └── environments/    7 terminal backends
+│   │   └── environments/    7 terminal backends (+ Docker sandbox)
 │   ├── toolsets/            Tool grouping and resolution
 │   └── utils/               Shared utilities
-├── skills/                  77 bundled skills
+├── deploy/
+│   ├── docker-compose.multi-replica.yml   3-replica + Nginx LB
+│   ├── nginx-lb.conf                      ip_hash load balancer config
+│   └── pitr/                              pgBackRest PITR backup setup
+├── tests/
+│   ├── integration/         Go integration tests (PG/Redis/MinIO)
+│   └── fixtures/            Test skill fixtures
+├── scripts/
+│   ├── verify-multi-replica.sh   Multi-replica verification
+│   └── pitr-drill.sh             Backup recovery drill
+├── skills/                  81 bundled skills
 ├── optional-skills/         Official optional skills
+├── docker-compose.test.yml  Test infrastructure (PG/Redis/MinIO)
 ├── Makefile
 ├── Dockerfile
 └── go.mod
@@ -233,12 +272,64 @@ hermes-agent-go/
 ### Testing
 
 ```bash
+# Unit tests (no external dependencies)
 go test ./...              # Run all tests
 go test ./... -v           # Verbose output
 go test ./... -cover       # With coverage
 go test -race ./...        # Race condition detection
 make test                  # Via Makefile
+
+# Integration tests (requires Docker)
+make test-infra-up         # Start PG/Redis/MinIO containers
+make test-integration      # Run integration test suite
+make test-infra-down       # Teardown containers
+
+# Or all-in-one:
+make test-integration      # Starts infra, runs tests, tears down
 ```
+
+#### Test Coverage
+
+| Layer | Tests | What's covered |
+|-------|-------|---------------|
+| Unit | 108 files | Tools, agent loop, LLM client, skills, config, auth, metering |
+| Integration | 7 suites | Tenant/user/session/skills isolation, sandbox, GDPR cascade |
+| Race detection | CI job | Agent, tools, gateway packages with `-race` flag |
+| Multi-replica | Script | Rate limit consistency, session visibility, failover |
+
+### Deployment
+
+#### SaaS Multi-Tenant (Production)
+
+```bash
+# Full stack with PostgreSQL, Redis, MinIO
+docker compose -f docker-compose.saas.yml up -d
+
+# Multi-replica with load balancer
+docker compose -f deploy/docker-compose.multi-replica.yml up -d
+
+# Verify multi-replica setup
+./scripts/verify-multi-replica.sh
+```
+
+#### Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | Yes | PostgreSQL connection string |
+| `REDIS_URL` | Yes | Redis connection URL |
+| `LLM_API_KEY` | Yes | Primary LLM provider API key |
+| `LLM_FALLBACK_API_KEY` | No | Fallback LLM provider API key |
+| `MINIO_ENDPOINT` | No | S3-compatible storage for skills |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | OpenTelemetry collector endpoint |
+
+#### Infrastructure Requirements
+
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| PostgreSQL | 14+ | 16 (with RLS) |
+| Redis | 6+ | 7 (for Lua script support) |
+| Go | 1.23+ | 1.25 |
 
 ### License
 
@@ -269,13 +360,14 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 
 | 指标 | 数值 |
 |------|------|
-| Go 源文件 | 126 个 |
-| 代码行数 | 29,441 行 |
+| Go 源文件 | 273 个 |
+| 代码行数 | 49,875 行 |
 | 注册工具 | 50 个（36 核心 + 14 扩展） |
 | 平台适配器 | 15 个 |
 | 终端后端 | 7 个 |
-| 内置技能 | 77 个 |
-| 测试文件 | 28 个 |
+| 内置技能 | 81 个 |
+| 测试文件 | 108 个 |
+| 版本 | v1.1.0（生产就绪） |
 
 ### 主要功能
 
@@ -287,7 +379,9 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 - **会话持久化**：SQLite + FTS5 全文搜索
 - **上下文压缩**：接近 token 上限时自动摘要
 - **智能路由**：简单查询自动路由到便宜模型
-- **回退链**：API 故障时自动切换模型
+- **LLM 双路由回退**：主 Provider 故障（5xx/超时/熔断）时自动切换到备用 Provider（Anthropic→OpenAI）
+- **指数退避重试**：可配置最大重试次数、退避基础时延、±25% 抖动
+- **熔断器**：按模型独立的断路器，可配置失败阈值
 - **子 Agent 并行**：goroutine 池最多 8 并发
 - **定时调度**：支持多平台投递的 Cron 任务
 - **MCP 集成**：支持 stdio + SSE 传输层
@@ -295,6 +389,21 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 - **插件系统**：用户和项目级插件发现
 - **编辑器集成**：ACP 服务器支持 VS Code/Zed/JetBrains
 - **批量模式**：并行轨迹生成用于 RL 训练
+
+#### 企业级 SaaS 平台功能（v1.1.0）
+
+- **多租户隔离**：PostgreSQL 行级安全（RLS）强制所有租户表隔离
+- **API Key 作用域**：细粒度 `read`/`write`/`admin`/`sandbox` 权限控制
+- **Redis 限流**：ZSET 滑动窗口 + Lua 脚本原子操作（无竞态条件）
+- **Token 用量计量**：异步批量持久化 + 按模型成本计算
+- **Admin API**：租户沙箱策略管理、API Key 生命周期（创建/轮换/吊销）、审计日志查询
+- **GDPR 合规**：全链路租户数据导出 + 事务性删除
+- **分布式追踪**：OpenTelemetry 接入 LLM 调用、PostgreSQL 查询、Redis 操作
+- **Prometheus 指标**：限流、活跃会话、LLM 延迟（按 Provider/状态维度）
+- **PG PITR 备份**：pgBackRest 实现 RPO < 5min, RTO < 1h
+- **多副本就绪**：3 副本 + Nginx ip_hash 负载均衡验证
+- **CI 集成测试**：完整 Pipeline，PG 16、Redis 7、MinIO 服务容器
+- **Docker 沙箱**：按租户隔离的代码执行环境，支持网络/资源限制
 
 ### 安装
 
@@ -411,6 +520,54 @@ docker run -it --rm \
 - Tinker-Atropos RL 训练环境（RL 工具为 stub，提供安装说明）
 - WhatsApp Node.js 桥接脚本（Go 适配器使用 HTTP 桥接 API）
 - 文档网站（website/ 目录）
+
+### 部署
+
+#### SaaS 多租户部署（生产环境）
+
+```bash
+# 完整 SaaS 栈：PostgreSQL + Redis + MinIO
+docker compose -f docker-compose.saas.yml up -d
+
+# 多副本 + 负载均衡
+docker compose -f deploy/docker-compose.multi-replica.yml up -d
+
+# 验证多副本一致性
+./scripts/verify-multi-replica.sh
+```
+
+#### 环境变量
+
+| 变量 | 必需 | 说明 |
+|------|------|------|
+| `DATABASE_URL` | 是 | PostgreSQL 连接字符串 |
+| `REDIS_URL` | 是 | Redis 连接地址 |
+| `LLM_API_KEY` | 是 | 主 LLM Provider API Key |
+| `LLM_FALLBACK_API_KEY` | 否 | 备用 LLM Provider API Key |
+| `MINIO_ENDPOINT` | 否 | S3 兼容存储（用于 Skills） |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | 否 | OpenTelemetry 收集器端点 |
+
+#### 基础设施要求
+
+| 组件 | 最低版本 | 推荐版本 |
+|------|----------|----------|
+| PostgreSQL | 14+ | 16（支持 RLS） |
+| Redis | 6+ | 7（Lua 脚本支持） |
+| Go | 1.23+ | 1.25 |
+
+### 测试
+
+```bash
+# 单元测试（无外部依赖）
+go test ./...              # 运行全部测试
+make test                  # 通过 Makefile
+
+# 集成测试（需要 Docker）
+make test-integration      # 启动容器 → 执行测试 → 清理
+
+# 竞态检测
+go test -race ./internal/agent/... ./internal/tools/... ./internal/gateway/...
+```
 
 ### 许可证
 
