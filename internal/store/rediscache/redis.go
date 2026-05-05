@@ -7,7 +7,13 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var redisTracer = otel.Tracer("hermes-redis")
 
 // Client wraps a Redis connection for distributed state.
 type Client struct {
@@ -36,9 +42,22 @@ func (c *Client) Close() error { return c.rdb.Close() }
 // AcquireSessionLock attempts to acquire a distributed lock for a session.
 // Returns the lock token (for owner-verified release) and whether acquisition succeeded.
 func (c *Client) AcquireSessionLock(ctx context.Context, tenantID, sessionID string, ttl time.Duration) (string, bool, error) {
+	ctx, span := redisTracer.Start(ctx, "redis.AcquireSessionLock",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+		),
+	)
+	defer span.End()
+
 	key := fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
 	token := fmt.Sprintf("%d", time.Now().UnixNano())
 	ok, err := c.rdb.SetNX(ctx, key, token, ttl).Result()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.SetAttributes(attribute.Bool("lock.acquired", ok))
 	return token, ok, err
 }
 
@@ -53,8 +72,20 @@ end
 
 // ReleaseSessionLock releases a session lock only if the caller holds it (owner-verified).
 func (c *Client) ReleaseSessionLock(ctx context.Context, tenantID, sessionID, token string) error {
+	ctx, span := redisTracer.Start(ctx, "redis.ReleaseSessionLock",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+		),
+	)
+	defer span.End()
+
 	key := fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
 	_, err := releaseScript.Run(ctx, c.rdb, []string{key}, token).Result()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return err
 }
 
@@ -73,6 +104,14 @@ func (c *Client) ExtendSessionLock(ctx context.Context, tenantID, sessionID, tok
 
 // CheckRateLimit increments and checks a rate limit counter. Returns (allowed, current count).
 func (c *Client) CheckRateLimit(ctx context.Context, tenantID, userID string, window time.Duration, maxRequests int) (bool, int64, error) {
+	ctx, span := redisTracer.Start(ctx, "redis.CheckRateLimit",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("user.id", userID),
+		),
+	)
+	defer span.End()
+
 	key := fmt.Sprintf("ratelimit:%s:%s:%.0f", tenantID, userID, window.Seconds())
 
 	pipe := c.rdb.Pipeline()
@@ -80,11 +119,15 @@ func (c *Client) CheckRateLimit(ctx context.Context, tenantID, userID string, wi
 	pipe.Expire(ctx, key, window)
 	_, err := pipe.Exec(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return false, 0, err // fail closed
 	}
 
 	count := incr.Val()
-	return count <= int64(maxRequests), count, nil
+	allowed := count <= int64(maxRequests)
+	span.SetAttributes(attribute.Bool("ratelimit.allowed", allowed))
+	return allowed, count, nil
 }
 
 // Ping checks Redis connectivity (used by health probes).
@@ -94,7 +137,19 @@ func (c *Client) Ping(ctx context.Context) error {
 
 // Allow implements the middleware.RateLimiter interface using a 1-minute sliding window.
 func (c *Client) Allow(key string, limit int) (bool, int, error) {
-	allowed, count, err := c.CheckRateLimit(context.Background(), key, "", 1*time.Minute, limit)
+	ctx, span := redisTracer.Start(context.Background(), "redis.Allow",
+		trace.WithAttributes(
+			attribute.String("ratelimit.key", key),
+			attribute.Int("ratelimit.limit", limit),
+		),
+	)
+	defer span.End()
+
+	allowed, count, err := c.CheckRateLimit(ctx, key, "", 1*time.Minute, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
 	return allowed, int(int64(limit) - count), err
 }
 
@@ -102,16 +157,41 @@ func (c *Client) Allow(key string, limit int) (bool, int, error) {
 
 // SetContextCache caches agent context summary for a session.
 func (c *Client) SetContextCache(ctx context.Context, tenantID, sessionID, summary string, ttl time.Duration) error {
+	ctx, span := redisTracer.Start(ctx, "redis.SetContextCache",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+		),
+	)
+	defer span.End()
+
 	key := fmt.Sprintf("agent:cache:%s:%s", tenantID, sessionID)
-	return c.rdb.Set(ctx, key, summary, ttl).Err()
+	err := c.rdb.Set(ctx, key, summary, ttl).Err()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 // GetContextCache retrieves cached context summary.
 func (c *Client) GetContextCache(ctx context.Context, tenantID, sessionID string) (string, error) {
+	ctx, span := redisTracer.Start(ctx, "redis.GetContextCache",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+		),
+	)
+	defer span.End()
+
 	key := fmt.Sprintf("agent:cache:%s:%s", tenantID, sessionID)
 	val, err := c.rdb.Get(ctx, key).Result()
 	if err == redis.Nil {
 		return "", nil
+	}
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 	}
 	return val, err
 }

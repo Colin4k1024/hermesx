@@ -69,6 +69,20 @@ func (s *pgAuditLogStore) List(ctx context.Context, tenantID string, opts store.
 		argIdx++
 	}
 
+	if opts.From != nil {
+		query += fmt.Sprintf(` AND created_at >= $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND created_at >= $%d`, argIdx)
+		args = append(args, *opts.From)
+		argIdx++
+	}
+
+	if opts.To != nil {
+		query += fmt.Sprintf(` AND created_at < $%d`, argIdx)
+		countQuery += fmt.Sprintf(` AND created_at < $%d`, argIdx)
+		args = append(args, *opts.To)
+		argIdx++
+	}
+
 	var total int
 	if err := s.pool.QueryRow(ctx, countQuery, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count audit logs: %w", err)

@@ -76,15 +76,26 @@ type SearchResult struct {
 }
 
 // Tenant represents a SaaS tenant.
+// SandboxPolicy defines per-tenant sandbox execution constraints.
+type SandboxPolicy struct {
+	Enabled         bool     `json:"enabled"`
+	MaxTimeout      int      `json:"max_timeout_seconds"`
+	AllowedTools    []string `json:"allowed_tools,omitempty"`
+	AllowDocker     bool     `json:"allow_docker"`
+	RestrictNetwork bool     `json:"restrict_network"`
+	MaxStdoutKB     int      `json:"max_stdout_kb"`
+}
+
 type Tenant struct {
-	ID           string     `json:"id" db:"id"`
-	Name         string     `json:"name" db:"name"`
-	Plan         string     `json:"plan" db:"plan"` // free / pro / enterprise
-	RateLimitRPM int        `json:"rate_limit_rpm" db:"rate_limit_rpm"`
-	MaxSessions  int        `json:"max_sessions" db:"max_sessions"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt    time.Time  `json:"updated_at" db:"updated_at"`
-	DeletedAt    *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+	ID            string         `json:"id" db:"id"`
+	Name          string         `json:"name" db:"name"`
+	Plan          string         `json:"plan" db:"plan"` // free / pro / enterprise
+	RateLimitRPM  int            `json:"rate_limit_rpm" db:"rate_limit_rpm"`
+	MaxSessions   int            `json:"max_sessions" db:"max_sessions"`
+	SandboxPolicy *SandboxPolicy `json:"sandbox_policy,omitempty" db:"sandbox_policy"`
+	CreatedAt     time.Time      `json:"created_at" db:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at" db:"updated_at"`
+	DeletedAt     *time.Time     `json:"deleted_at,omitempty" db:"deleted_at"`
 }
 
 // AuditLog represents an immutable audit trail entry.
@@ -170,6 +181,7 @@ type APIKey struct {
 	KeyHash   string     `json:"-" db:"key_hash"`    // SHA-256 hash, never exposed
 	Prefix    string     `json:"prefix" db:"prefix"` // first 8 chars for identification
 	Roles     []string   `json:"roles" db:"roles"`
+	Scopes    []string   `json:"scopes" db:"scopes"` // fine-grained scopes; empty = legacy (role-only)
 	ExpiresAt *time.Time `json:"expires_at,omitempty" db:"expires_at"`
 	RevokedAt *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`

@@ -1,0 +1,150 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: hermes-mr-pg
+    environment:
+      POSTGRES_DB: hermes
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: hermes-mr-redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: hermes-mr-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: hermes
+      MINIO_ROOT_PASSWORD: hermespass
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hermes-1:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: hermes-mr-1
+    command: ["gateway", "start"]
+    environment: &hermes_env
+      DATABASE_URL: postgres://hermes:hermes@postgres:5432/hermes?sslmode=disable
+      DATABASE_DRIVER: postgres
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: hermes
+      MINIO_SECRET_KEY: hermespass
+      MINIO_BUCKET: hermes-skills
+      HERMES_API_PORT: "8080"
+      HERMES_API_KEY: ${HERMES_API_KEY:-test-secret-key}
+      HERMES_MODEL: ${HERMES_MODEL:-}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-}
+      HERMES_BASE_URL: ${HERMES_BASE_URL:-}
+      HERMES_API_KEY_LLM: ${HERMES_API_KEY_LLM:-}
+      HERMES_API_MODE: ${HERMES_API_MODE:-}
+      HERMES_MAX_ITERATIONS: ${HERMES_MAX_ITERATIONS:-20}
+      HERMES_MAX_TOKENS: ${HERMES_MAX_TOKENS:-4096}
+      HERMES_INSTANCE_ID: hermes-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  hermes-2:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: hermes-mr-2
+    command: ["gateway", "start"]
+    environment:
+      <<: *hermes_env
+      HERMES_INSTANCE_ID: hermes-2
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  hermes-3:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: hermes-mr-3
+    command: ["gateway", "start"]
+    environment:
+      <<: *hermes_env
+      HERMES_INSTANCE_ID: hermes-3
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8080/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  nginx:
+    image: nginx:alpine
+    container_name: hermes-mr-nginx
+    volumes:
+      - ./nginx-lb.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "8080:80"
+    depends_on:
+      hermes-1:
+        condition: service_healthy
+      hermes-2:
+        condition: service_healthy
+      hermes-3:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  pg_data:
+  redis_data:
+  minio_data:

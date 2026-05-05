@@ -243,6 +243,34 @@ var migrations = []migration{
 			ALTER TABLE users ADD CONSTRAINT ck_user_role CHECK (role IN ('user','admin','operator','viewer','billing'));
 		END IF;
 	END $$`},
+
+	{60, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'tenants' AND column_name = 'sandbox_policy') THEN
+			ALTER TABLE tenants ADD COLUMN sandbox_policy JSONB DEFAULT NULL;
+		END IF;
+	END $$`},
+
+	// API key scopes for fine-grained permission control.
+	{61, `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS scopes TEXT[] DEFAULT '{}'`},
+
+	// P5: Usage metering table for async token recording.
+	{62, `CREATE TABLE IF NOT EXISTS usage_records (
+		id BIGSERIAL PRIMARY KEY,
+		tenant_id TEXT NOT NULL,
+		session_id TEXT NOT NULL,
+		user_id TEXT NOT NULL DEFAULT '',
+		model TEXT NOT NULL,
+		provider TEXT NOT NULL,
+		input_tokens INT NOT NULL DEFAULT 0,
+		output_tokens INT NOT NULL DEFAULT 0,
+		cache_read_tokens INT NOT NULL DEFAULT 0,
+		cache_write_tokens INT NOT NULL DEFAULT 0,
+		cost_usd NUMERIC(10,6) DEFAULT 0,
+		degraded BOOLEAN DEFAULT FALSE,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`},
+	{63, `CREATE INDEX IF NOT EXISTS idx_usage_records_tenant_date ON usage_records(tenant_id, created_at)`},
+	{64, `CREATE INDEX IF NOT EXISTS idx_usage_records_session ON usage_records(tenant_id, session_id)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

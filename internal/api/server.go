@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hermes-agent/hermes-agent-go/internal/api/admin"
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
 	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
 	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
@@ -144,6 +145,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	mux.Handle("/v1/", stack.Wrap(api))
 
+	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
+	adminH := admin.NewAdminHandler(cfg.Store, nil)
+	mux.Handle("/admin/", stack.Wrap(adminH.Handler()))
+
 	// Static file serving (optional).
 	var spaHandler http.Handler
 	if cfg.StaticDir != "" {
@@ -192,6 +197,11 @@ func (s *APIServer) Start() error {
 		return fmt.Errorf("api server: %w", err)
 	}
 	return nil
+}
+
+// Handler returns the root HTTP handler for use with httptest or custom listeners.
+func (s *APIServer) Handler() http.Handler {
+	return s.server.Handler
 }
 
 // Shutdown gracefully stops the server.

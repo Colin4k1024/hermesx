@@ -13,7 +13,13 @@ import (
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
 	"github.com/hermes-agent/hermes-agent-go/internal/observability"
 	openai "github.com/sashabaranov/go-openai"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var llmTracer = otel.Tracer("hermes-llm")
 
 type llmTenantKey struct{}
 
@@ -206,6 +212,7 @@ type ChatResponse struct {
 	FinishReason string
 	Reasoning    string
 	Usage        Usage
+	Degraded     bool // true when served by fallback provider
 }
 
 // Usage tracks token usage.
@@ -228,6 +235,14 @@ type StreamDelta struct {
 
 // CreateChatCompletion sends a non-streaming chat completion request.
 func (c *Client) CreateChatCompletion(ctx context.Context, req ChatRequest) (*ChatResponse, error) {
+	ctx, span := llmTracer.Start(ctx, "llm.Chat",
+		trace.WithAttributes(
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.provider", c.provider),
+		),
+	)
+	defer span.End()
+
 	start := time.Now()
 	resp, err := c.transport.Chat(ctx, req)
 	elapsed := time.Since(start)
@@ -236,6 +251,8 @@ func (c *Client) CreateChatCompletion(ctx context.Context, req ChatRequest) (*Ch
 	errMsg := ""
 	if err != nil {
 		errMsg = err.Error()
+		span.RecordError(err)
+		span.SetStatus(codes.Error, errMsg)
 	}
 
 	attrs := []any{
@@ -250,10 +267,18 @@ func (c *Client) CreateChatCompletion(ctx context.Context, req ChatRequest) (*Ch
 			"output_tokens", resp.Usage.CompletionTokens,
 			"cache_read_tokens", resp.Usage.CacheReadTokens,
 		)
-		llmTokensTotal.WithLabelValues(c.model, tenantID, "input").Add(float64(resp.Usage.PromptTokens))
-		llmTokensTotal.WithLabelValues(c.model, tenantID, "output").Add(float64(resp.Usage.CompletionTokens))
+		span.SetAttributes(
+			attribute.Int("llm.tokens.input", resp.Usage.PromptTokens),
+			attribute.Int("llm.tokens.output", resp.Usage.CompletionTokens),
+		)
+		llmTokensTotal.WithLabelValues(c.provider, c.model, "input", tenantID).Add(float64(resp.Usage.PromptTokens))
+		llmTokensTotal.WithLabelValues(c.provider, c.model, "output", tenantID).Add(float64(resp.Usage.CompletionTokens))
 	}
-	llmRequestDuration.WithLabelValues(c.model, tenantID).Observe(elapsed.Seconds())
+	status := "success"
+	if err != nil {
+		status = "error"
+	}
+	llmRequestDuration.WithLabelValues(c.provider, c.model, status, tenantID).Observe(elapsed.Seconds())
 	observability.ContextLogger(ctx).Info("llm_call", attrs...)
 
 	return resp, err
@@ -262,11 +287,19 @@ func (c *Client) CreateChatCompletion(ctx context.Context, req ChatRequest) (*Ch
 // CreateChatCompletionStream sends a streaming chat completion request.
 // Wraps the underlying transport stream with timing and token metrics.
 func (c *Client) CreateChatCompletionStream(ctx context.Context, req ChatRequest) (<-chan StreamDelta, <-chan error) {
+	ctx, span := llmTracer.Start(ctx, "llm.ChatStream",
+		trace.WithAttributes(
+			attribute.String("llm.model", c.model),
+			attribute.String("llm.provider", c.provider),
+		),
+	)
+
 	start := time.Now()
 	tenantID := tenantIDFromContext(ctx)
 	deltaCh, errCh := c.transport.ChatStream(ctx, req)
 
 	if deltaCh == nil && errCh == nil {
+		span.End()
 		ch := make(chan StreamDelta)
 		close(ch)
 		ech := make(chan error)
@@ -282,6 +315,7 @@ func (c *Client) CreateChatCompletionStream(ctx context.Context, req ChatRequest
 	wrappedErr := make(chan error, 1)
 
 	go func() {
+		defer span.End()
 		defer close(wrappedDelta)
 		defer close(wrappedErr)
 		var lastErr error
@@ -297,7 +331,16 @@ func (c *Client) CreateChatCompletionStream(ctx context.Context, req ChatRequest
 			}
 		}
 		elapsed := time.Since(start)
-		llmRequestDuration.WithLabelValues(c.model, tenantID).Observe(elapsed.Seconds())
+		streamStatus := "success"
+		if lastErr != nil {
+			streamStatus = "error"
+		}
+		llmRequestDuration.WithLabelValues(c.provider, c.model, streamStatus, tenantID).Observe(elapsed.Seconds())
+
+		if lastErr != nil {
+			span.RecordError(lastErr)
+			span.SetStatus(codes.Error, lastErr.Error())
+		}
 
 		errMsg := ""
 		if lastErr != nil {

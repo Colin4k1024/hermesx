@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
@@ -38,11 +39,31 @@ func (h *AuditHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		limit = 50
 	}
 
-	logs, total, err := h.store.List(r.Context(), tenantID, store.AuditListOptions{
+	opts := store.AuditListOptions{
 		Action: action,
 		Limit:  limit,
 		Offset: offset,
-	})
+	}
+
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
+		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			opts.From = &t
+		} else {
+			http.Error(w, "invalid 'from' parameter: use RFC3339 format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if toStr := r.URL.Query().Get("to"); toStr != "" {
+		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+			opts.To = &t
+		} else {
+			http.Error(w, "invalid 'to' parameter: use RFC3339 format", http.StatusBadRequest)
+			return
+		}
+	}
+
+	logs, total, err := h.store.List(r.Context(), tenantID, opts)
 	if err != nil {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return

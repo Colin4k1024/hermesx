@@ -9,6 +9,16 @@ import (
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var activeSessionsGauge = promauto.NewGaugeVec(
+	prometheus.GaugeOpts{
+		Name: "hermes_active_sessions",
+		Help: "Number of currently active sessions.",
+	},
+	[]string{"tenant_id"},
 )
 
 // PlatformState represents the connection state of a platform.
@@ -105,6 +115,7 @@ func (rs *RuntimeStatus) SetActiveSessions(count int) {
 
 	rs.ActiveSessions = count
 	rs.LastUpdated = time.Now().Format(time.RFC3339)
+	activeSessionsGauge.WithLabelValues("all").Set(float64(count))
 }
 
 // ReadRuntimeStatus loads the runtime status from disk.

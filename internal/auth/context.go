@@ -10,6 +10,7 @@ type AuthContext struct {
 	Identity   string   // user ID or API key ID
 	TenantID   string   // derived from credential, not from header
 	Roles      []string // e.g. ["user"], ["admin"], ["operator"]
+	Scopes     []string // fine-grained scopes; empty = legacy (role-only check)
 	AuthMethod string   // "static_token", "jwt", "api_key"
 }
 
@@ -29,4 +30,14 @@ func WithContext(ctx context.Context, ac *AuthContext) context.Context {
 // HasRole reports whether the AuthContext contains the given role.
 func (ac *AuthContext) HasRole(role string) bool {
 	return slices.Contains(ac.Roles, role)
+}
+
+// HasScope reports whether the AuthContext contains the given scope.
+// Legacy keys (empty scopes) are allowed read/write access but NOT admin access.
+func (ac *AuthContext) HasScope(scope string) bool {
+	if len(ac.Scopes) == 0 {
+		// Legacy keys only get read/write; admin requires explicit scope grant.
+		return scope != "admin"
+	}
+	return slices.Contains(ac.Scopes, scope)
 }

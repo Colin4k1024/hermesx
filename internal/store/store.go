@@ -69,9 +69,11 @@ type AuditLogStore interface {
 	DeleteByTenant(ctx context.Context, tenantID string) (int64, error)
 }
 
-// AuditListOptions controls pagination for audit log queries.
+// AuditListOptions controls pagination and filtering for audit log queries.
 type AuditListOptions struct {
 	Action string
+	From   *time.Time // inclusive lower bound on created_at
+	To     *time.Time // exclusive upper bound on created_at
 	Limit  int
 	Offset int
 }

@@ -7,6 +7,10 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var pgxQueryDuration = promauto.NewHistogramVec(
@@ -18,11 +22,14 @@ var pgxQueryDuration = promauto.NewHistogramVec(
 	[]string{"sql_prefix"},
 )
 
+var pgxTracer = otel.Tracer("hermes-pgx")
+
 type pgxTracerStartKey struct{}
 
 type pgxStartData struct {
 	start     time.Time
 	sqlPrefix string
+	span      trace.Span
 }
 
 // PGXTracer implements pgx.QueryTracer for distributed tracing and slow-query logging.
@@ -30,9 +37,16 @@ type PGXTracer struct{}
 
 func (t *PGXTracer) TraceQueryStart(ctx context.Context, _ *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
 	prefix := sqlPrefix(data.SQL)
+	ctx, span := pgxTracer.Start(ctx, "store.Query",
+		trace.WithAttributes(
+			attribute.String("db.system", "postgresql"),
+			attribute.String("db.statement", prefix),
+		),
+	)
 	return context.WithValue(ctx, pgxTracerStartKey{}, &pgxStartData{
 		start:     time.Now(),
 		sqlPrefix: prefix,
+		span:      span,
 	})
 }
 
@@ -43,6 +57,13 @@ func (t *PGXTracer) TraceQueryEnd(ctx context.Context, _ *pgx.Conn, data pgx.Tra
 	}
 	elapsed := time.Since(sd.start)
 	pgxQueryDuration.WithLabelValues(sd.sqlPrefix).Observe(elapsed.Seconds())
+
+	if data.Err != nil {
+		sd.span.RecordError(data.Err)
+		sd.span.SetStatus(codes.Error, data.Err.Error())
+	}
+	sd.span.SetAttributes(attribute.Int64("db.duration_ms", elapsed.Milliseconds()))
+	sd.span.End()
 
 	if elapsed > 500*time.Millisecond {
 		ContextLogger(ctx).Warn("slow_query",

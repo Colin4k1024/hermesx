@@ -10,6 +10,16 @@ import (
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
 	"github.com/hermes-agent/hermes-agent-go/internal/observability"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var rateLimitRejectedTotal = promauto.NewCounterVec(
+	prometheus.CounterOpts{
+		Name: "hermes_rate_limit_rejected_total",
+		Help: "Total requests rejected by rate limiting.",
+	},
+	[]string{"tenant_id"},
 )
 
 // RateLimiter checks whether a request should be allowed.
@@ -67,6 +77,11 @@ func RateLimitMiddleware(cfg RateLimitConfig) Middleware {
 			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
 
 			if !allowed {
+				tenantLabel := "anonymous"
+				if ac != nil && ac.TenantID != "" {
+					tenantLabel = ac.TenantID
+				}
+				rateLimitRejectedTotal.WithLabelValues(tenantLabel).Inc()
 				w.Header().Set("Retry-After", "60")
 				http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
 				return

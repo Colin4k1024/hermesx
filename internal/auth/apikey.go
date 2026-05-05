@@ -47,6 +47,7 @@ func (a *APIKeyExtractor) Extract(r *http.Request) (*AuthContext, error) {
 		Identity:   key.ID,
 		TenantID:   key.TenantID,
 		Roles:      key.Roles,
+		Scopes:     key.Scopes,
 		AuthMethod: "api_key",
 	}, nil
 }

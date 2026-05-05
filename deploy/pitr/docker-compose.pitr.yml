@@ -1,0 +1,64 @@
+# PostgreSQL PITR Backup Verification Stack
+# Targets: RPO < 5 min, RTO < 1 hour
+#
+# Usage:
+#   docker compose -f docker-compose.pitr.yml up -d
+#   docker compose -f docker-compose.pitr.yml exec pg pgbackrest --stanza=hermes stanza-create
+#   docker compose -f docker-compose.pitr.yml exec pg pgbackrest --stanza=hermes backup --type=full
+
+services:
+  pg:
+    image: postgres:16-bookworm
+    container_name: hermes-pg-pitr
+    environment:
+      POSTGRES_USER: hermes
+      POSTGRES_PASSWORD: hermes_secret
+      POSTGRES_DB: hermes
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgresql.conf.pitr:/etc/postgresql/conf.d/pitr.conf:ro
+      - ./pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+      - pgbackrest_spool:/var/spool/pgbackrest
+    # Append PITR config to the default postgresql.conf
+    command: >
+      postgres
+        -c config_file=/var/lib/postgresql/data/postgresql.conf
+        -c include_dir=/etc/postgresql/conf.d
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # pgBackRest is installed inside the pg container for simplicity.
+  # This init service bootstraps pgBackRest after PG is ready.
+  pgbackrest-init:
+    image: postgres:16-bookworm
+    container_name: hermes-pgbackrest-init
+    depends_on:
+      pg:
+        condition: service_healthy
+    volumes:
+      - ./pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro
+      - pgbackrest_repo:/var/lib/pgbackrest
+      - pgbackrest_spool:/var/spool/pgbackrest
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        apt-get update -qq && apt-get install -y -qq pgbackrest > /dev/null 2>&1
+        pgbackrest --stanza=hermes stanza-create || true
+        pgbackrest --stanza=hermes check
+        echo "pgBackRest stanza ready."
+    profiles:
+      - init
+
+volumes:
+  pg_data:
+    driver: local
+  pgbackrest_repo:
+    driver: local
+  pgbackrest_spool:
+    driver: local

@@ -22,6 +22,10 @@ type SkillMeta struct {
 	Prerequisites []string `yaml:"prerequisites" json:"prerequisites,omitempty"`
 	MinVersion    string   `yaml:"min_version" json:"min_version,omitempty"`
 
+	Sandbox      string   `yaml:"sandbox" json:"sandbox,omitempty"`
+	SandboxTools []string `yaml:"sandbox_tools" json:"sandbox_tools,omitempty"`
+	Timeout      int      `yaml:"timeout" json:"timeout,omitempty"`
+
 	// Path to the SKILL.md file (set by loader, not from frontmatter).
 	Path string `json:"path"`
 }
@@ -97,6 +101,16 @@ func parseSimpleFrontmatter(yamlContent string, meta *SkillMeta) {
 			meta.Platforms = parseCommaSeparated(value)
 		case "prerequisites":
 			meta.Prerequisites = parseCommaSeparated(value)
+		case "sandbox":
+			meta.Sandbox = value
+		case "sandbox_tools":
+			meta.SandboxTools = parseCommaSeparated(value)
+		case "timeout":
+			if v := strings.TrimSpace(value); v != "" {
+				var t int
+				fmt.Sscanf(v, "%d", &t)
+				meta.Timeout = t
+			}
 		}
 	}
 }

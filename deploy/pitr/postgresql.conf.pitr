@@ -1,0 +1,20 @@
+# PostgreSQL PITR Configuration
+# Include this via: include_dir = '/etc/postgresql/conf.d'
+#
+# These settings enable continuous WAL archiving via pgBackRest.
+# Target RPO: < 5 minutes (archive_timeout = 300s)
+
+# --- WAL Archiving ---
+wal_level = replica
+archive_mode = on
+archive_command = 'pgbackrest --stanza=hermes archive-push %p'
+archive_timeout = 300
+
+# --- WAL Settings ---
+# Ensure enough WAL for active workloads between archives
+max_wal_senders = 3
+max_wal_size = 1GB
+min_wal_size = 80MB
+
+# --- Recovery Target (used during restore, ignored in normal operation) ---
+# restore_command = 'pgbackrest --stanza=hermes archive-get %f "%p"'

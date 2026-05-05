@@ -16,14 +16,17 @@ import (
 const gdprExportMaxSessions = 1000
 
 var gdprAllowedTables = map[string]struct{}{
-	"messages":      {},
-	"sessions":      {},
-	"memories":      {},
-	"user_profiles": {},
-	"api_keys":      {},
-	"cron_jobs":     {},
-	"users":         {},
-	"audit_logs":    {},
+	"messages":         {},
+	"sessions":         {},
+	"memories":         {},
+	"user_profiles":    {},
+	"api_keys":         {},
+	"cron_jobs":        {},
+	"users":            {},
+	"audit_logs":       {},
+	"usage_records":    {},
+	"roles":            {},
+	"purge_audit_logs": {},
 }
 
 // GDPRHandler serves data export and deletion endpoints.
@@ -183,9 +186,12 @@ func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) error {
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
+	// Order matters: child tables first (role_permissions cascades from roles via FK),
+	// usage_records and purge_audit_logs before tenants.
 	cascadeTables := []string{
 		"messages", "sessions", "memories", "user_profiles",
-		"api_keys", "cron_jobs", "users", "audit_logs",
+		"api_keys", "cron_jobs", "usage_records", "purge_audit_logs",
+		"roles", "users", "audit_logs",
 	}
 	for _, table := range cascadeTables {
 		if _, ok := gdprAllowedTables[table]; !ok {
@@ -202,7 +208,9 @@ func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) error {
 }
 
 // deleteViaStore performs deletions through the store interface (fallback when pool is nil).
+// Covers all tenant-scoped tables accessible via the store interface.
 func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *slog.Logger) error {
+	// Delete sessions (messages cascade via session delete in most implementations).
 	sessions, _, _ := h.store.Sessions().List(ctx, tenantID, store.ListOptions{Limit: gdprExportMaxSessions})
 	for _, sess := range sessions {
 		if err := h.store.Sessions().Delete(ctx, tenantID, sess.ID); err != nil {
@@ -210,9 +218,38 @@ func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *
 			return err
 		}
 	}
+
+	// Delete memories for all users in tenant.
+	if memStore := h.store.Memories(); memStore != nil {
+		if _, err := memStore.DeleteAllByTenant(ctx, tenantID); err != nil {
+			log.Error("gdpr delete: memories failed", "error", err)
+			return err
+		}
+	}
+
+	// Delete API keys.
+	if keyStore := h.store.APIKeys(); keyStore != nil {
+		keys, _ := keyStore.List(ctx, tenantID)
+		for _, k := range keys {
+			_ = keyStore.Revoke(ctx, tenantID, k.ID)
+		}
+	}
+
+	// Delete cron jobs.
+	if cronStore := h.store.CronJobs(); cronStore != nil {
+		jobs, _ := cronStore.List(ctx, tenantID)
+		for _, j := range jobs {
+			_ = cronStore.Delete(ctx, tenantID, j.ID)
+		}
+	}
+
+	// Delete audit logs.
 	if _, err := h.store.AuditLogs().DeleteByTenant(ctx, tenantID); err != nil {
 		log.Error("gdpr delete: audit_logs failed", "error", err)
 		return err
 	}
+
+	log.Warn("gdpr deleteViaStore: user_profiles, usage_records, roles, users require pool for complete deletion",
+		"tenant_id", tenantID)
 	return nil
 }

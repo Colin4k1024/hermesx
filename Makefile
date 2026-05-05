@@ -3,7 +3,7 @@ VERSION=0.7.0
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-.PHONY: all build test clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown
+.PHONY: all build test clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown test-infra-up test-infra-down test-integration
 
 all: build
 
@@ -116,3 +116,17 @@ webui: ## One-click: start infra + bootstrap + WebUI at http://localhost:3000
 webui-teardown: ## Stop and remove webui containers and volumes
 	docker compose -f docker-compose.webui.yml down -v
 	@echo "✅ All webui resources removed."
+
+# ─── Integration Tests (real PG/Redis/MinIO) ────────────────────────────────
+
+test-infra-up: ## Start isolated test infrastructure (PG 5433, Redis 6380, MinIO 9002)
+	docker compose -f docker-compose.test.yml up -d --wait
+	@echo "✅ Test infrastructure ready."
+
+test-infra-down: ## Stop and remove test infrastructure
+	docker compose -f docker-compose.test.yml down -v
+	@echo "✅ Test infrastructure removed."
+
+test-integration: test-infra-up ## Run Go integration tests against real infrastructure
+	go test -tags=integration -v -count=1 -timeout=300s ./tests/integration/...
+	@$(MAKE) test-infra-down

@@ -12,7 +12,7 @@ var (
 			Help:    "LLM API request latency in seconds.",
 			Buckets: []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		},
-		[]string{"model", "tenant_id"},
+		[]string{"provider", "model", "status", "tenant_id"},
 	)
 
 	llmTokensTotal = promauto.NewCounterVec(
@@ -20,6 +20,6 @@ var (
 			Name: "hermes_llm_tokens_total",
 			Help: "Total LLM tokens consumed.",
 		},
-		[]string{"model", "tenant_id", "direction"},
+		[]string{"provider", "model", "direction", "tenant_id"},
 	)
 )
