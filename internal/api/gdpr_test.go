@@ -193,7 +193,7 @@ func TestGDPRExportHandler(t *testing.T) {
 			}
 
 			s := &mockGDPRStore{ss: ss, ms: ms, al: &mockGDPRAuditStore{}}
-			handler := NewGDPRHandler(s, nil).ExportHandler()
+			handler := NewGDPRHandler(s, nil, nil).ExportHandler()
 			rec := httptest.NewRecorder()
 			req := gdprReq(tt.method, "/v1/gdpr/export", tt.tenantID)
 
@@ -256,7 +256,7 @@ func TestGDPRDeleteHandler(t *testing.T) {
 			}
 
 			s := &mockGDPRStore{ss: ss, ms: newMockMessageStore(), al: &mockGDPRAuditStore{}}
-			handler := NewGDPRHandler(s, nil).DeleteHandler()
+			handler := NewGDPRHandler(s, nil, nil).DeleteHandler()
 			rec := httptest.NewRecorder()
 			req := gdprReq(tt.method, "/v1/gdpr/data", tt.tenantID)
 

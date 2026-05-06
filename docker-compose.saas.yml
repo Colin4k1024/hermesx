@@ -3,15 +3,15 @@ services:
     image: postgres:16
     container_name: hermes-pg
     environment:
-      POSTGRES_DB: hermes
-      POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hermes}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -34,8 +34,8 @@ services:
     container_name: hermes-minio
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: hermes
-      MINIO_ROOT_PASSWORD: hermespass
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
     volumes:
       - minio_data:/data
     ports:
@@ -56,34 +56,27 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     environment:
-      # Storage
-      DATABASE_URL: postgres://hermes:hermes@postgres:5432/hermes?sslmode=disable
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       REDIS_URL: redis://redis:6379
-      # MinIO
       MINIO_ENDPOINT: minio:9000
-      MINIO_ACCESS_KEY: hermes
-      MINIO_SECRET_KEY: hermespass
-      MINIO_BUCKET: hermes-skills
-      # SaaS API
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-hermes-skills}
       SAAS_API_PORT: "8080"
-      SAAS_ALLOWED_ORIGINS: "*"
+      SAAS_ALLOWED_ORIGINS: ${SAAS_ALLOWED_ORIGINS:-*}
       SAAS_STATIC_DIR: /static
-      HERMES_ACP_TOKEN: dev-token-change-in-production
-      # Gateway runner adapter (full agent path)
-      HERMES_API_KEY: test-secret-key
+      HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN}
+      HERMES_API_KEY: ${HERMES_API_KEY}
       HERMES_API_PORT: "8081"
-      # LLM config — mockchat path (direct HTTP)
-      LLM_API_URL: http://host.docker.internal:11434
-      LLM_API_KEY: ollama
-      LLM_MODEL: qwen3:30b
-      # LLM config — AIAgent path (gateway runner)
-      HERMES_MODEL: qwen3:30b
-      HERMES_PROVIDER: openai
-      HERMES_BASE_URL: http://host.docker.internal:11434/v1
-      HERMES_API_KEY_LLM: ollama
-      HERMES_API_MODE: openai
-      # Debug
-      HERMES_DEBUG: "true"
+      LLM_API_URL: ${LLM_API_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-qwen3:30b}
+      HERMES_MODEL: ${HERMES_MODEL:-qwen3:30b}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-openai}
+      HERMES_BASE_URL: ${HERMES_BASE_URL}
+      HERMES_API_KEY_LLM: ${HERMES_API_KEY_LLM}
+      HERMES_API_MODE: ${HERMES_API_MODE:-openai}
+      HERMES_DEBUG: ${HERMES_DEBUG:-false}
     volumes:
       - ./skills:/home/hermes/skills:ro
     depends_on:

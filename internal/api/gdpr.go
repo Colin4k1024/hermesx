@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
+	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
 	"github.com/hermes-agent/hermes-agent-go/internal/observability"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,10 +35,11 @@ var gdprAllowedTables = map[string]struct{}{
 type GDPRHandler struct {
 	store store.Store
 	pool  *pgxpool.Pool
+	minio *objstore.MinIOClient
 }
 
-func NewGDPRHandler(s store.Store, pool *pgxpool.Pool) *GDPRHandler {
-	return &GDPRHandler{store: s, pool: pool}
+func NewGDPRHandler(s store.Store, pool *pgxpool.Pool, minio *objstore.MinIOClient) *GDPRHandler {
+	return &GDPRHandler{store: s, pool: pool, minio: minio}
 }
 
 // ExportHandler returns GET /v1/gdpr/export — exports all user data for a tenant.
@@ -162,9 +164,15 @@ func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 		log := observability.ContextLogger(ctx)
 
 		if h.pool != nil {
-			if err := h.deleteViaTx(ctx, tenantID); err != nil {
+			statusCode, err := h.deleteViaTx(ctx, tenantID)
+			if err != nil {
 				log.Error("gdpr delete failed", "error", err)
-				http.Error(w, "deletion failed", http.StatusInternalServerError)
+				if statusCode == http.StatusMultiStatus {
+					w.WriteHeader(http.StatusMultiStatus)
+					fmt.Fprintf(w, `{"status":"partial","error":%q}`, err.Error())
+				} else {
+					http.Error(w, "deletion failed", statusCode)
+				}
 				return
 			}
 		} else {
@@ -179,10 +187,11 @@ func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 }
 
 // deleteViaTx performs all deletions in a single PG transaction (production path).
-func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) error {
+// Returns HTTP status code and error. 207 indicates partial success (MinIO cleanup failed).
+func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) (int, error) {
 	tx, err := h.pool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin tx: %w", err)
+		return http.StatusInternalServerError, fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
 
@@ -190,21 +199,90 @@ func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) error {
 	// usage_records and purge_audit_logs before tenants.
 	cascadeTables := []string{
 		"messages", "sessions", "memories", "user_profiles",
-		"api_keys", "cron_jobs", "usage_records", "purge_audit_logs",
-		"roles", "users", "audit_logs",
+		"api_keys", "cron_jobs", "usage_records",
+		"roles", "users",
 	}
 	for _, table := range cascadeTables {
 		if _, ok := gdprAllowedTables[table]; !ok {
-			return fmt.Errorf("table %s not in allowlist", table)
+			return http.StatusInternalServerError, fmt.Errorf("table %s not in allowlist", table)
 		}
 		if _, err := tx.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE tenant_id = $1`, table), tenantID); err != nil {
-			return fmt.Errorf("delete %s: %w", table, err)
+			return http.StatusInternalServerError, fmt.Errorf("delete %s: %w", table, err)
 		}
 	}
-	if _, err := tx.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, tenantID); err != nil {
-		return fmt.Errorf("delete tenant: %w", err)
+
+	// Audit logs: use SECURITY DEFINER function to bypass REVOKE DELETE.
+	if _, err := tx.Exec(ctx, `SELECT gdpr_purge_audit_logs($1, 'GDPR_DELETE')`, tenantID); err != nil {
+		// Fallback for environments without the function (e.g., tests).
+		if _, err2 := tx.Exec(ctx, `DELETE FROM audit_logs WHERE tenant_id = $1`, tenantID); err2 != nil {
+			return http.StatusInternalServerError, fmt.Errorf("delete audit_logs: %w (func err: %v)", err2, err)
+		}
 	}
-	return tx.Commit(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, tenantID); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("delete tenant: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("commit: %w", err)
+	}
+
+	// Post-commit: MinIO cleanup (best-effort with audit trail).
+	if h.minio != nil {
+		if err := h.deleteMinIOTenantObjects(ctx, tenantID); err != nil {
+			h.recordMinIOFailure(ctx, tenantID, err)
+			return http.StatusMultiStatus, fmt.Errorf("minio cleanup: %w", err)
+		}
+	}
+	return http.StatusNoContent, nil
+}
+
+func (h *GDPRHandler) deleteMinIOTenantObjects(ctx context.Context, tenantID string) error {
+	prefix := tenantID + "/"
+	keys, err := h.minio.ListObjects(ctx, prefix)
+	if err != nil {
+		return fmt.Errorf("list objects: %w", err)
+	}
+	for _, key := range keys {
+		if err := h.minio.DeleteObject(ctx, key); err != nil {
+			return fmt.Errorf("delete %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+func (h *GDPRHandler) recordMinIOFailure(ctx context.Context, tenantID string, cleanupErr error) {
+	if h.pool == nil {
+		return
+	}
+	_, _ = h.pool.Exec(ctx,
+		`INSERT INTO purge_audit_logs (tenant_id, action, detail, created_at)
+		 VALUES ($1, 'MINIO_CLEANUP_FAILED', $2, now())`,
+		tenantID, cleanupErr.Error())
+}
+
+// CleanupMinIOHandler returns POST /v1/gdpr/cleanup-minio — idempotent retry for MinIO cleanup.
+func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		tenantID := middleware.TenantFromContext(r.Context())
+		if tenantID == "" {
+			http.Error(w, "tenant context required", http.StatusBadRequest)
+			return
+		}
+		if h.minio == nil {
+			http.Error(w, "minio not configured", http.StatusServiceUnavailable)
+			return
+		}
+		if err := h.deleteMinIOTenantObjects(r.Context(), tenantID); err != nil {
+			observability.ContextLogger(r.Context()).Error("gdpr minio cleanup failed", "error", err)
+			http.Error(w, "cleanup failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 // deleteViaStore performs deletions through the store interface (fallback when pool is nil).

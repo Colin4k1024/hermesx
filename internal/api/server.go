@@ -119,9 +119,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	me := NewMeHandler(cfg.Store)
 	api.Handle("/v1/me", me)
 
-	gdpr := NewGDPRHandler(cfg.Store, cfg.Pool)
+	gdpr := NewGDPRHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
+	api.HandleFunc("POST /v1/gdpr/cleanup-minio", gdpr.CleanupMinIOHandler())
 
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
 	chatH := NewChatHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)

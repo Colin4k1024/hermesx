@@ -1,59 +1,41 @@
-replicaCount: 1
+replicaCount: 2
 
 image:
-  repository: hermes-agent-saas
-  tag: local
-  pullPolicy: Never
+  repository: hermes-agent/hermes-saas
+  tag: latest
+  pullPolicy: IfNotPresent
+
+args:
+  - saas-api
 
 service:
   type: ClusterIP
   port: 8080
 
-ingress:
-  enabled: false
+env:
+  DATABASE_URL: "postgres://hermes:changeme@postgres:5432/hermes?sslmode=disable"
+  HERMES_ACP_TOKEN: "changeme"
+  SAAS_API_PORT: "8080"
+  SAAS_ALLOWED_ORIGINS: "*"
+  SAAS_STATIC_DIR: "/static"
+  HERMES_API_PORT: "8081"
+  HERMES_API_KEY: "changeme"
+  REDIS_URL: "redis://redis:6379"
+  LLM_API_URL: "http://ollama:11434"
+  LLM_API_KEY: "ollama"
+  LLM_MODEL: "qwen3:30b"
+  MINIO_ENDPOINT: "minio:9000"
+  MINIO_ACCESS_KEY: "changeme"
+  MINIO_SECRET_KEY: "changeme"
+  MINIO_BUCKET: "hermes-skills"
 
 resources:
   limits:
-    cpu: 1000m
-    memory: 512Mi
+    cpu: "1000m"
+    memory: "512Mi"
   requests:
-    cpu: 250m
-    memory: 256Mi
-
-args:
-  - saas-api
-
-env:
-  # Required: PostgreSQL connection string (格式: postgres://user:pass@host:5432/dbname)
-  DATABASE_URL: ""
-  # Required: Static bearer token for ACP endpoints
-  HERMES_ACP_TOKEN: "dev-token-change-in-production"
-  # Optional: SaaS API port (default: 8080)
-  SAAS_API_PORT: "8080"
-  # Optional: CORS allowed origins (comma-separated, or "*")
-  SAAS_ALLOWED_ORIGINS: "*"
-  # Optional: Static file directory (default: empty = no static serving)
-  SAAS_STATIC_DIR: "/static"
-  # Optional: OpenAI-compatible adapter port
-  HERMES_API_PORT: "8081"
-  HERMES_API_KEY: "dev-api-key-change-in-production"
-  # Optional: Redis URL
-  REDIS_URL: ""
-  # LLM API for mock chat (used by isolation test page)
-  LLM_API_URL: ""
-  LLM_API_KEY: ""
-  LLM_MODEL: "Qwen3-Coder-Next-4bit"
-
-tls:
-  enabled: false
-  certFile: ""
-  keyFile: ""
-
-autoscaling:
-  enabled: false
-  minReplicas: 1
-  maxReplicas: 5
-  targetCPUUtilizationPercentage: 70
+    cpu: "200m"
+    memory: "128Mi"
 
 probes:
   liveness:
@@ -62,16 +44,20 @@ probes:
     periodSeconds: 10
   readiness:
     path: /health/ready
-    initialDelaySeconds: 10
-    periodSeconds: 15
+    initialDelaySeconds: 5
+    periodSeconds: 10
 
-# PostgreSQL sub-chart dependency
-postgresql:
+# PodDisruptionBudget — ensures availability during voluntary disruptions.
+pdb:
   enabled: true
-  auth:
-    database: hermes
-    username: hermes
-    password: hermes-dev-password
-  primary:
-    persistence:
-      enabled: false
+  minAvailable: 1
+  # maxUnavailable: 1  # alternative to minAvailable
+
+# HorizontalPodAutoscaler — scales based on CPU/memory utilization.
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  scaleDownStabilizationSeconds: 300

@@ -271,6 +271,169 @@ var migrations = []migration{
 	)`},
 	{63, `CREATE INDEX IF NOT EXISTS idx_usage_records_tenant_date ON usage_records(tenant_id, created_at)`},
 	{64, `CREATE INDEX IF NOT EXISTS idx_usage_records_session ON usage_records(tenant_id, session_id)`},
+
+	// v1.2.0 P1-S1: FORCE ROW LEVEL SECURITY on all tenant-scoped tables.
+	{65, `DO $$ BEGIN
+		ALTER TABLE sessions FORCE ROW LEVEL SECURITY;
+		ALTER TABLE messages FORCE ROW LEVEL SECURITY;
+		ALTER TABLE users FORCE ROW LEVEL SECURITY;
+		ALTER TABLE audit_logs FORCE ROW LEVEL SECURITY;
+		ALTER TABLE memories FORCE ROW LEVEL SECURITY;
+		ALTER TABLE user_profiles FORCE ROW LEVEL SECURITY;
+		ALTER TABLE cron_jobs FORCE ROW LEVEL SECURITY;
+		ALTER TABLE api_keys FORCE ROW LEVEL SECURITY;
+		ALTER TABLE roles FORCE ROW LEVEL SECURITY;
+	END $$`},
+
+	// v1.2.0 P1-S1: WITH CHECK policies for INSERT/UPDATE/DELETE on all tenant tables.
+	{66, `DO $$ BEGIN
+		-- sessions
+		DROP POLICY IF EXISTS tenant_write_sessions ON sessions;
+		CREATE POLICY tenant_write_sessions ON sessions
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_sessions ON sessions;
+		CREATE POLICY tenant_update_sessions ON sessions
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_sessions ON sessions;
+		CREATE POLICY tenant_delete_sessions ON sessions
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- messages
+		DROP POLICY IF EXISTS tenant_write_messages ON messages;
+		CREATE POLICY tenant_write_messages ON messages
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_messages ON messages;
+		CREATE POLICY tenant_update_messages ON messages
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_messages ON messages;
+		CREATE POLICY tenant_delete_messages ON messages
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- users
+		DROP POLICY IF EXISTS tenant_write_users ON users;
+		CREATE POLICY tenant_write_users ON users
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_users ON users;
+		CREATE POLICY tenant_update_users ON users
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_users ON users;
+		CREATE POLICY tenant_delete_users ON users
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- memories
+		DROP POLICY IF EXISTS tenant_write_memories ON memories;
+		CREATE POLICY tenant_write_memories ON memories
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_memories ON memories;
+		CREATE POLICY tenant_update_memories ON memories
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_memories ON memories;
+		CREATE POLICY tenant_delete_memories ON memories
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- user_profiles
+		DROP POLICY IF EXISTS tenant_write_profiles ON user_profiles;
+		CREATE POLICY tenant_write_profiles ON user_profiles
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_profiles ON user_profiles;
+		CREATE POLICY tenant_update_profiles ON user_profiles
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_profiles ON user_profiles;
+		CREATE POLICY tenant_delete_profiles ON user_profiles
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- cron_jobs
+		DROP POLICY IF EXISTS tenant_write_cron ON cron_jobs;
+		CREATE POLICY tenant_write_cron ON cron_jobs
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_cron ON cron_jobs;
+		CREATE POLICY tenant_update_cron ON cron_jobs
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_cron ON cron_jobs;
+		CREATE POLICY tenant_delete_cron ON cron_jobs
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- api_keys
+		DROP POLICY IF EXISTS tenant_write_apikeys ON api_keys;
+		CREATE POLICY tenant_write_apikeys ON api_keys
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_apikeys ON api_keys;
+		CREATE POLICY tenant_update_apikeys ON api_keys
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_apikeys ON api_keys;
+		CREATE POLICY tenant_delete_apikeys ON api_keys
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- roles
+		DROP POLICY IF EXISTS tenant_write_roles ON roles;
+		CREATE POLICY tenant_write_roles ON roles
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_roles ON roles;
+		CREATE POLICY tenant_update_roles ON roles
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_roles ON roles;
+		CREATE POLICY tenant_delete_roles ON roles
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+		-- audit_logs: SELECT keeps OR tenant_id IS NULL; write policies use strict check
+		DROP POLICY IF EXISTS tenant_isolation_audit ON audit_logs;
+		CREATE POLICY tenant_read_audit ON audit_logs
+			FOR SELECT USING (tenant_id::text = current_setting('app.current_tenant', true)
+			                   OR tenant_id IS NULL);
+		DROP POLICY IF EXISTS tenant_write_audit ON audit_logs;
+		CREATE POLICY tenant_write_audit ON audit_logs
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_audit ON audit_logs;
+		CREATE POLICY tenant_update_audit ON audit_logs
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+	END $$`},
+
+	// v1.2.0 P1-S2: Audit log immutability — revoke DELETE from application role.
+	{67, `DO $$ BEGIN
+		IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'hermes_app') THEN
+			REVOKE DELETE ON audit_logs FROM hermes_app;
+			REVOKE DELETE, UPDATE ON purge_audit_logs FROM hermes_app;
+		END IF;
+	END $$`},
+
+	// v1.2.0 P1-S2: GDPR purge function with SECURITY DEFINER (privileged delete).
+	{68, `CREATE OR REPLACE FUNCTION gdpr_purge_audit_logs(p_tenant_id TEXT, p_reason TEXT DEFAULT 'GDPR_DELETE')
+	RETURNS BIGINT
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	DECLARE
+		deleted_count BIGINT;
+	BEGIN
+		SELECT COUNT(*) INTO deleted_count FROM audit_logs WHERE tenant_id = p_tenant_id;
+		INSERT INTO purge_audit_logs (tenant_id, action, detail, rows_deleted, created_at)
+		VALUES (p_tenant_id, 'GDPR_PURGE_AUDIT', p_reason, deleted_count, now());
+		DELETE FROM audit_logs WHERE tenant_id = p_tenant_id;
+		RETURN deleted_count;
+	END;
+	$$`},
+
+	// v1.2.0 P1-S2: pricing_rules table for dynamic pricing (Phase 2 prep).
+	{69, `CREATE TABLE IF NOT EXISTS pricing_rules (
+		model_key TEXT PRIMARY KEY,
+		input_per_1k NUMERIC(10,6) NOT NULL DEFAULT 0,
+		output_per_1k NUMERIC(10,6) NOT NULL DEFAULT 0,
+		cache_read_per_1k NUMERIC(10,6) NOT NULL DEFAULT 0,
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`},
+
+	// v1.2.0 P1-S6: API key expiration support.
+	{70, `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

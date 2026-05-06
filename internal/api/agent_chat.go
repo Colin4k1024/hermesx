@@ -55,6 +55,9 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "session creation failed", http.StatusInternalServerError)
 			return
 		}
+	} else if sess.UserID != "" && sess.UserID != userID && !ac.HasScope("admin") {
+		http.Error(w, "forbidden: session belongs to another user", http.StatusForbidden)
+		return
 	}
 
 	var req chatReq
