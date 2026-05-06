@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes Chat</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root {
+  --bg: #0d1117; --sidebar-bg: #161b22; --card-bg: #161b22;
+  --border: #30363d; --text: #c9d1d9; --text-muted: #8b949e;
+  --accent: #58a6ff; --success: #3fb950; --danger: #f85149;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --mono: 'SF Mono', 'Cascadia Code', 'Consolas', monospace;
+}
+body { font-family: var(--font); background: var(--bg); color: var(--text); min-height: 100vh; }
+
+/* Login */
+.login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+.login-box { width: 420px; max-width: 90vw; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; padding: 36px; }
+.login-box h1 { font-size: 22px; margin-bottom: 4px; }
+.login-box .tagline { color: var(--text-muted); font-size: 14px; margin-bottom: 24px; }
+.form-group { margin-bottom: 14px; }
+.form-group label { display: block; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+.form-group input, .form-group select {
+  width: 100%; padding: 8px 12px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg); color: var(--text); font-size: 14px; font-family: inherit;
+}
+.form-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(88,166,255,0.1); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 500; border: 1px solid transparent; cursor: pointer; }
+.btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+.btn-primary:hover { background: #4393e6; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--text-muted); border-color: var(--border); }
+.btn-ghost:hover { background: #21262d; color: var(--text); }
+.alert-error { padding: 10px 14px; border-radius: 6px; font-size: 13px; margin-bottom: 14px; background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: var(--danger); }
+.hidden { display: none !important; }
+.hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+.hint code { color: var(--accent); font-family: var(--mono); }
+
+/* Chat layout */
+.chat-app { display: flex; height: 100vh; }
+.chat-sidebar { width: 260px; background: var(--sidebar-bg); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+.chat-sidebar-header { padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.chat-sidebar-header h2 { font-size: 15px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 8px; }
+.chat-sidebar-header h2 span { font-size: 11px; font-weight: 400; color: var(--text-muted); }
+.tenant-info { padding: 12px 20px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.tenant-info .label { color: var(--text-muted); }
+.tenant-info .value { color: var(--text); font-family: var(--mono); font-size: 11px; word-break: break-all; }
+.tenant-info .row { margin-bottom: 8px; }
+.sidebar-section { padding: 12px 20px; border-bottom: 1px solid var(--border); }
+.sidebar-section h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin-bottom: 8px; }
+.skill-list { max-height: 200px; overflow-y: auto; font-size: 12px; }
+.skill-item { padding: 3px 0; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.skill-item .name { color: var(--text); }
+.sidebar-footer { margin-top: auto; padding: 12px 20px; border-top: 1px solid var(--border); }
+
+/* Chat main area */
+.chat-main { flex: 1; display: flex; flex-direction: column; }
+.chat-header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.chat-header h1 { font-size: 16px; font-weight: 600; }
+.chat-header .session-id { font-size: 12px; color: var(--text-muted); font-family: var(--mono); }
+.messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.message { max-width: 80%; padding: 12px 16px; border-radius: 12px; font-size: 14px; line-height: 1.6; word-wrap: break-word; }
+.message.user { align-self: flex-end; background: var(--accent); color: #fff; border-bottom-right-radius: 4px; }
+.message.assistant { align-self: flex-start; background: var(--card-bg); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
+.message.system { align-self: center; background: rgba(88,166,255,0.1); border: 1px solid rgba(88,166,255,0.2); color: var(--accent); font-size: 12px; max-width: 90%; text-align: center; }
+.message .meta { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+.message.user .meta { color: rgba(255,255,255,0.6); }
+.typing { align-self: flex-start; padding: 12px 16px; background: var(--card-bg); border: 1px solid var(--border); border-radius: 12px; font-size: 13px; color: var(--text-muted); }
+.typing .dots { display: inline-block; }
+.typing .dots span { animation: blink 1.4s infinite both; }
+.typing .dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing .dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%,80%,100%{opacity:0} 40%{opacity:1} }
+
+/* Input area */
+.chat-input-area { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; gap: 10px; align-items: flex-end; }
+.chat-input-area textarea {
+  flex: 1; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--card-bg); color: var(--text); font-size: 14px; font-family: inherit;
+  resize: none; min-height: 44px; max-height: 150px; line-height: 1.4;
+}
+.chat-input-area textarea:focus { outline: none; border-color: var(--accent); }
+.chat-input-area button { height: 44px; min-width: 80px; }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge-ok { background: rgba(63,185,80,0.15); color: var(--success); }
+.badge-info { background: rgba(88,166,255,0.15); color: var(--accent); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 768px) {
+  .chat-sidebar { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login-page" class="login-page">
+  <div class="login-box">
+    <h1>Hermes Chat</h1>
+    <p class="tagline">Multi-tenant AI chat — enter your API key to start</p>
+    <div id="login-error" class="alert-error hidden"></div>
+    <div class="form-group">
+      <label for="input-apikey">API Key</label>
+      <input type="password" id="input-apikey" placeholder="hk_..." autocomplete="off">
+      <p class="hint">Get your key from admin panel or <code>POST /v1/api-keys</code></p>
+    </div>
+    <div class="form-group">
+      <label for="input-baseurl">API Base URL</label>
+      <input type="text" id="input-baseurl" value="http://localhost:8080">
+    </div>
+    <div class="form-group">
+      <label for="input-userid">User ID (optional)</label>
+      <input type="text" id="input-userid" placeholder="alice">
+      <p class="hint">Isolates memory per user within your tenant</p>
+    </div>
+    <button class="btn btn-primary" style="width:100%" id="btn-login" onclick="doLogin()">Sign In</button>
+  </div>
+</div>
+
+<!-- CHAT APP -->
+<div id="chat-app" class="chat-app hidden">
+  <aside class="chat-sidebar">
+    <div class="chat-sidebar-header">
+      <h2>Hermes <span>Chat</span></h2>
+    </div>
+    <div class="tenant-info">
+      <div class="row"><span class="label">Tenant:</span> <span class="value" id="info-tenant">—</span></div>
+      <div class="row"><span class="label">Identity:</span> <span class="value" id="info-identity">—</span></div>
+      <div class="row"><span class="label">Roles:</span> <span class="value" id="info-roles">—</span></div>
+      <div class="row"><span class="label">Auth:</span> <span class="value" id="info-auth">—</span></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>Skills (<span id="skills-count">0</span>)</h3>
+      <div class="skill-list" id="skills-list"></div>
+    </div>
+    <div class="sidebar-section">
+      <h3>Session</h3>
+      <div style="font-size:12px;color:var(--text-muted)">
+        <div>ID: <span id="info-session" style="font-family:var(--mono);color:var(--text)">—</span></div>
+        <div style="margin-top:4px">Messages: <span id="info-msgcount" style="color:var(--text)">0</span></div>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;margin-top:8px;font-size:12px" onclick="newSession()">New Session</button>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-ghost" style="width:100%;font-size:12px" onclick="doLogout()">Sign Out</button>
+    </div>
+  </aside>
+
+  <div class="chat-main">
+    <div class="chat-header">
+      <h1 id="chat-title">Chat</h1>
+      <span class="session-id" id="header-session">—</span>
+    </div>
+    <div class="messages" id="messages">
+      <div class="message system">Connected. Soul and skills loaded for your tenant. Start chatting!</div>
+    </div>
+    <div class="chat-input-area">
+      <textarea id="chat-input" placeholder="Type a message..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+      <button class="btn btn-primary" id="btn-send" onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let cfg = { baseUrl: '', apiKey: '', userId: '' };
+let me = null;
+let sessionId = 'sess-' + Date.now();
+let msgCount = 0;
+let sending = false;
+
+async function api(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (cfg.apiKey) headers['Authorization'] = 'Bearer ' + cfg.apiKey;
+  if (cfg.userId) headers['X-Hermes-User-Id'] = cfg.userId;
+  headers['X-Hermes-Session-Id'] = sessionId;
+  const resp = await fetch(cfg.baseUrl + path, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+  if (!resp.ok) {
+    const text = await resp.text().catch(() => '');
+    throw new Error(`HTTP ${resp.status}: ${text.slice(0, 200)}`);
+  }
+  const ct = resp.headers.get('content-type') || '';
+  if (ct.includes('json')) return resp.json();
+  return resp.text();
+}
+
+async function doLogin() {
+  const key = document.getElementById('input-apikey').value.trim();
+  const url = document.getElementById('input-baseurl').value.trim().replace(/\/$/, '');
+  const uid = document.getElementById('input-userid').value.trim();
+  if (!key) { showError('Enter an API key.'); return; }
+  cfg = { baseUrl: url, apiKey: key, userId: uid };
+
+  try {
+    me = await api('/v1/me');
+    localStorage.setItem('chat_apikey', key);
+    localStorage.setItem('chat_baseurl', url);
+    localStorage.setItem('chat_userid', uid);
+    showChat();
+  } catch (e) {
+    showError('Login failed: ' + e.message);
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem('chat_apikey');
+  cfg = { baseUrl: '', apiKey: '', userId: '' };
+  me = null;
+  document.getElementById('chat-app').classList.add('hidden');
+  document.getElementById('login-page').classList.remove('hidden');
+}
+
+function showError(msg) {
+  const el = document.getElementById('login-error');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+async function showChat() {
+  document.getElementById('login-page').classList.add('hidden');
+  document.getElementById('chat-app').classList.remove('hidden');
+
+  document.getElementById('info-tenant').textContent = me.tenant_id || '—';
+  document.getElementById('info-identity').textContent = me.identity || '—';
+  document.getElementById('info-roles').textContent = (me.roles || []).join(', ');
+  document.getElementById('info-auth').textContent = me.auth_method || '—';
+  document.getElementById('chat-title').textContent = 'Tenant: ' + (me.tenant_id || '').slice(0, 8) + '...';
+
+  updateSessionInfo();
+  loadSkills();
+}
+
+async function loadSkills() {
+  try {
+    const data = await api('/v1/skills');
+    const list = document.getElementById('skills-list');
+    document.getElementById('skills-count').textContent = data.total || 0;
+    list.innerHTML = '';
+    (data.skills || []).slice(0, 50).forEach(s => {
+      const div = document.createElement('div');
+      div.className = 'skill-item';
+      div.innerHTML = '<span class="name">' + esc(s.name) + '</span>';
+      if (s.user_modified) div.innerHTML += ' <span class="badge badge-info">custom</span>';
+      list.appendChild(div);
+    });
+    if ((data.skills || []).length > 50) {
+      const more = document.createElement('div');
+      more.className = 'skill-item';
+      more.textContent = '... and ' + ((data.skills || []).length - 50) + ' more';
+      list.appendChild(more);
+    }
+  } catch (e) {
+    console.warn('Failed to load skills:', e);
+  }
+}
+
+function newSession() {
+  sessionId = 'sess-' + Date.now();
+  msgCount = 0;
+  updateSessionInfo();
+  const msgs = document.getElementById('messages');
+  msgs.innerHTML = '<div class="message system">New session started.</div>';
+}
+
+function updateSessionInfo() {
+  document.getElementById('info-session').textContent = sessionId;
+  document.getElementById('header-session').textContent = sessionId;
+  document.getElementById('info-msgcount').textContent = msgCount;
+}
+
+function addMessage(role, content) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'message ' + role;
+
+  let cleanContent = content;
+  if (role === 'assistant') {
+    cleanContent = content.replace(/<think>[\s\S]*?<\/think>\s*/g, '').trim();
+  }
+  div.innerHTML = esc(cleanContent).replace(/\n/g, '<br>');
+
+  const meta = document.createElement('div');
+  meta.className = 'meta';
+  meta.textContent = role === 'user' ? 'You' : 'Hermes';
+  div.appendChild(meta);
+
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function showTyping() {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'typing';
+  div.id = 'typing-indicator';
+  div.innerHTML = 'Thinking <span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+async function sendMessage() {
+  if (sending) return;
+  const input = document.getElementById('chat-input');
+  const text = input.value.trim();
+  if (!text) return;
+
+  input.value = '';
+  input.style.height = 'auto';
+  addMessage('user', text);
+  msgCount++;
+  updateSessionInfo();
+
+  sending = true;
+  document.getElementById('btn-send').disabled = true;
+  showTyping();
+
+  try {
+    const data = await api('/v1/chat/completions', {
+      method: 'POST',
+      body: JSON.stringify({
+        model: 'MiniMax-M2.7-highspeed',
+        messages: [{ role: 'user', content: text }]
+      })
+    });
+    hideTyping();
+    const reply = data.choices?.[0]?.message?.content || '(empty response)';
+    addMessage('assistant', reply);
+    msgCount++;
+    updateSessionInfo();
+  } catch (e) {
+    hideTyping();
+    addMessage('system', 'Error: ' + e.message);
+  } finally {
+    sending = false;
+    document.getElementById('btn-send').disabled = false;
+    input.focus();
+  }
+}
+
+function esc(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// Auto-resize textarea
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('chat-input');
+  if (ta) ta.addEventListener('input', () => { ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 150) + 'px'; });
+
+  // Restore saved session
+  const savedKey = localStorage.getItem('chat_apikey');
+  const savedUrl = localStorage.getItem('chat_baseurl') || 'http://localhost:8080';
+  const savedUid = localStorage.getItem('chat_userid') || '';
+  document.getElementById('input-baseurl').value = savedUrl;
+  document.getElementById('input-userid').value = savedUid;
+  if (savedKey) {
+    document.getElementById('input-apikey').value = savedKey;
+  }
+
+  document.getElementById('input-apikey').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+});
+</script>
+</body>
+</html>
