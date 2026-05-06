@@ -27,3 +27,4 @@ vendor/
 node_modules/
 # Generated test fixtures (written by bootstrap.sh / make quickstart)
 tests/fixtures/tenants.json
+.worktrees/
