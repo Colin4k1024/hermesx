@@ -3,7 +3,7 @@ VERSION=0.7.0
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-.PHONY: all build test clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown test-infra-up test-infra-down test-integration
+.PHONY: all build test test-short test-race test-cover clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown test-infra-up test-infra-down test-integration
 
 all: build
 
@@ -25,6 +25,11 @@ test-short:
 
 test-race:
 	go test ./... -race -count=1
+
+test-cover: ## Run tests with coverage report
+	go test ./... -count=1 -coverprofile=coverage.out -covermode=atomic
+	go tool cover -func=coverage.out | tail -1
+	@echo "HTML report: go tool cover -html=coverage.out"
 
 lint:
 	go vet ./...

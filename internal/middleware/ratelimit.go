@@ -30,19 +30,30 @@ type RateLimiter interface {
 // RateLimitConfig holds rate limiting configuration.
 type RateLimitConfig struct {
 	Limiter       RateLimiter
+	DualLimiter   DualLayerLimiter // optional: atomic tenant+user limiting
 	DefaultRPM    int
-	TenantLimitFn func(tenantID string) int // optional: per-tenant override
+	UserRPM       int                               // per-user limit (defaults to DefaultRPM if 0)
+	TenantLimitFn func(tenantID string) int         // optional: per-tenant override
+	UserLimitFn   func(tenantID, userID string) int // optional: per-user override
 }
 
 // RateLimitMiddleware applies per-tenant rate limiting.
+// For authenticated requests with a UserID and a configured DualLimiter,
+// it atomically checks both tenant and user limits.
 // Falls back to local in-memory limiter if the distributed limiter errors.
 func RateLimitMiddleware(cfg RateLimitConfig) Middleware {
 	local := newLocalLimiter()
+	localDual := NewLocalDualLimiter()
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			var key string
 			ac, ok := auth.FromContext(r.Context())
+			if ok && ac != nil && ac.UserID != "" && cfg.DualLimiter != nil {
+				dualPath(cfg, localDual, ac, w, r, next)
+				return
+			}
+
+			var key string
 			if ok && ac != nil {
 				key = "rl:" + ac.TenantID
 			} else {
@@ -90,6 +101,48 @@ func RateLimitMiddleware(cfg RateLimitConfig) Middleware {
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func dualPath(cfg RateLimitConfig, localDual *LocalDualLimiter, ac *auth.AuthContext, w http.ResponseWriter, r *http.Request, next http.Handler) {
+	tenantKey := "rl:{" + ac.TenantID + "}"
+	userKey := "rl:{" + ac.TenantID + "}:user:" + ac.UserID
+
+	tenantLimit := cfg.DefaultRPM
+	if cfg.TenantLimitFn != nil {
+		if tl := cfg.TenantLimitFn(ac.TenantID); tl > 0 {
+			tenantLimit = tl
+		}
+	}
+
+	userLimit := cfg.UserRPM
+	if userLimit == 0 {
+		userLimit = cfg.DefaultRPM
+	}
+	if cfg.UserLimitFn != nil {
+		if ul := cfg.UserLimitFn(ac.TenantID, ac.UserID); ul > 0 {
+			userLimit = ul
+		}
+	}
+
+	allowed, tenantRemaining, userRemaining, err := cfg.DualLimiter.AllowDual(r.Context(), tenantKey, tenantLimit, userKey, userLimit)
+	if err != nil {
+		observability.ContextLogger(r.Context()).Warn("dual rate limiter failed, falling back to local", "error", err)
+		allowed, tenantRemaining, userRemaining, _ = localDual.AllowDual(r.Context(), tenantKey, tenantLimit, userKey, userLimit)
+	}
+
+	remaining := min(tenantRemaining, userRemaining)
+
+	w.Header().Set("X-RateLimit-Limit", strconv.Itoa(tenantLimit))
+	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(remaining))
+
+	if !allowed {
+		rateLimitRejectedTotal.WithLabelValues(ac.TenantID).Inc()
+		w.Header().Set("Retry-After", "60")
+		http.Error(w, "rate limit exceeded", http.StatusTooManyRequests)
+		return
+	}
+
+	next.ServeHTTP(w, r)
 }
 
 // localLimiter is a simple in-memory sliding window fallback with bounded size.

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -14,24 +15,25 @@ func (m *pgMessageStore) Append(ctx context.Context, tenantID, sessionID string,
 	if msg.Timestamp.IsZero() {
 		msg.Timestamp = time.Now()
 	}
-	// tool_calls is jsonb — pass nil if empty to avoid "invalid input syntax for type json".
 	var toolCalls any = nil
 	if msg.ToolCalls != "" {
 		toolCalls = []byte(msg.ToolCalls)
 	}
 	var id int64
-	err := m.pool.QueryRow(ctx, `
-		INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		RETURNING id`,
-		tenantID, sessionID, msg.Role, msg.Content,
-		nullStr(msg.ToolCallID),
-		toolCalls,
-		nullStr(msg.ToolName),
-		nullStr(msg.Reasoning),
-		msg.Timestamp,
-		nullInt(msg.TokenCount),
-		nullStr(msg.FinishReason)).Scan(&id)
+	err := withTenantTx(ctx, m.pool, tenantID, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			RETURNING id`,
+			tenantID, sessionID, msg.Role, msg.Content,
+			nullStr(msg.ToolCallID),
+			toolCalls,
+			nullStr(msg.ToolName),
+			nullStr(msg.Reasoning),
+			msg.Timestamp,
+			nullInt(msg.TokenCount),
+			nullStr(msg.FinishReason)).Scan(&id)
+	})
 	return id, err
 }
 

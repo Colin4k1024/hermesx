@@ -169,7 +169,7 @@ func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 				log.Error("gdpr delete failed", "error", err)
 				if statusCode == http.StatusMultiStatus {
 					w.WriteHeader(http.StatusMultiStatus)
-					fmt.Fprintf(w, `{"status":"partial","error":%q}`, err.Error())
+					fmt.Fprintf(w, `{"status":"partial","error":"some resources could not be deleted"}`)
 				} else {
 					http.Error(w, "deletion failed", statusCode)
 				}
@@ -250,6 +250,8 @@ func (h *GDPRHandler) deleteMinIOTenantObjects(ctx context.Context, tenantID str
 	return nil
 }
 
+// recordMinIOFailure persists MinIO cleanup errors for retry/audit.
+// Note: cleanupErr.Error() may contain object key paths — acceptable for internal audit only.
 func (h *GDPRHandler) recordMinIOFailure(ctx context.Context, tenantID string, cleanupErr error) {
 	if h.pool == nil {
 		return
@@ -278,7 +280,7 @@ func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
 		}
 		if err := h.deleteMinIOTenantObjects(r.Context(), tenantID); err != nil {
 			observability.ContextLogger(r.Context()).Error("gdpr minio cleanup failed", "error", err)
-			http.Error(w, "cleanup failed: "+err.Error(), http.StatusInternalServerError)
+			http.Error(w, "cleanup failed", http.StatusInternalServerError)
 			return
 		}
 		w.WriteHeader(http.StatusNoContent)

@@ -6,18 +6,21 @@ import (
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type pgSessionStore struct{ pool *pgxpool.Pool }
 
 func (s *pgSessionStore) Create(ctx context.Context, tenantID string, sess *store.Session) error {
-	_, err := s.pool.Exec(ctx, `
-		INSERT INTO sessions (id, tenant_id, platform, user_id, model, system_prompt, parent_session_id, title, started_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
-		sess.ID, tenantID, sess.Platform, sess.UserID, sess.Model,
-		sess.SystemPrompt, sess.ParentSessionID, sess.Title, sess.StartedAt)
-	return err
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			INSERT INTO sessions (id, tenant_id, platform, user_id, model, system_prompt, parent_session_id, title, started_at)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+			sess.ID, tenantID, sess.Platform, sess.UserID, sess.Model,
+			sess.SystemPrompt, sess.ParentSessionID, sess.Title, sess.StartedAt)
+		return err
+	})
 }
 
 func (s *pgSessionStore) Get(ctx context.Context, tenantID, sessionID string) (*store.Session, error) {
@@ -72,10 +75,12 @@ func (s *pgSessionStore) Get(ctx context.Context, tenantID, sessionID string) (*
 }
 
 func (s *pgSessionStore) End(ctx context.Context, tenantID, sessionID, reason string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE sessions SET ended_at = $1, end_reason = $2 WHERE tenant_id = $3 AND id = $4`,
-		time.Now(), reason, tenantID, sessionID)
-	return err
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`UPDATE sessions SET ended_at = $1, end_reason = $2 WHERE tenant_id = $3 AND id = $4`,
+			time.Now(), reason, tenantID, sessionID)
+		return err
+	})
 }
 
 func (s *pgSessionStore) List(ctx context.Context, tenantID string, opts store.ListOptions) ([]*store.Session, int, error) {
@@ -120,30 +125,35 @@ func (s *pgSessionStore) List(ctx context.Context, tenantID string, opts store.L
 }
 
 func (s *pgSessionStore) Delete(ctx context.Context, tenantID, sessionID string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND session_id = $2`, tenantID, sessionID)
-	if err != nil {
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		if _, err := tx.Exec(ctx, `DELETE FROM messages WHERE tenant_id = $1 AND session_id = $2`, tenantID, sessionID); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `DELETE FROM sessions WHERE tenant_id = $1 AND id = $2`, tenantID, sessionID)
 		return err
-	}
-	_, err = s.pool.Exec(ctx, `DELETE FROM sessions WHERE tenant_id = $1 AND id = $2`, tenantID, sessionID)
-	return err
+	})
 }
 
 func (s *pgSessionStore) UpdateTokens(ctx context.Context, tenantID, sessionID string, delta store.TokenDelta) error {
-	_, err := s.pool.Exec(ctx, `
-		UPDATE sessions SET
-			input_tokens = input_tokens + $1,
-			output_tokens = output_tokens + $2,
-			cache_read_tokens = cache_read_tokens + $3,
-			cache_write_tokens = cache_write_tokens + $4,
-			message_count = message_count + 1
-		WHERE tenant_id = $5 AND id = $6`,
-		delta.Input, delta.Output, delta.CacheRead, delta.CacheWrite, tenantID, sessionID)
-	return err
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `
+			UPDATE sessions SET
+				input_tokens = input_tokens + $1,
+				output_tokens = output_tokens + $2,
+				cache_read_tokens = cache_read_tokens + $3,
+				cache_write_tokens = cache_write_tokens + $4,
+				message_count = message_count + 1
+			WHERE tenant_id = $5 AND id = $6`,
+			delta.Input, delta.Output, delta.CacheRead, delta.CacheWrite, tenantID, sessionID)
+		return err
+	})
 }
 
 func (s *pgSessionStore) SetTitle(ctx context.Context, tenantID, sessionID, title string) error {
-	_, err := s.pool.Exec(ctx,
-		`UPDATE sessions SET title = $1 WHERE tenant_id = $2 AND id = $3`,
-		title, tenantID, sessionID)
-	return err
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`UPDATE sessions SET title = $1 WHERE tenant_id = $2 AND id = $3`,
+			title, tenantID, sessionID)
+		return err
+	})
 }

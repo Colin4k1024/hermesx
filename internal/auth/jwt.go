@@ -60,10 +60,14 @@ func (j *JWTExtractor) Extract(r *http.Request) (*AuthContext, error) {
 
 	_ = time.Now() // placeholder for future token-age checks
 
+	acr, _ := claims["acr"].(string)
+
 	return &AuthContext{
 		Identity:   sub,
+		UserID:     sub,
 		TenantID:   tenantID,
 		Roles:      roles,
 		AuthMethod: "jwt",
+		ACRLevel:   acr,
 	}, nil
 }

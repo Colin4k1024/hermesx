@@ -8,10 +8,12 @@ import (
 // AuthContext carries authenticated identity through the request lifecycle.
 type AuthContext struct {
 	Identity   string   // user ID or API key ID
+	UserID     string   // real user identifier (OIDC sub / JWT sub); empty for API keys
 	TenantID   string   // derived from credential, not from header
 	Roles      []string // e.g. ["user"], ["admin"], ["operator"]
 	Scopes     []string // fine-grained scopes; empty = legacy (role-only check)
 	AuthMethod string   // "static_token", "jwt", "api_key"
+	ACRLevel   string   // OIDC acr claim value; empty if not provided
 }
 
 type contextKey struct{}

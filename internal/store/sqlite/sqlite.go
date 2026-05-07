@@ -43,6 +43,7 @@ func (s *SQLiteStore) Memories() store.MemoryStore          { return &noopMemory
 func (s *SQLiteStore) UserProfiles() store.UserProfileStore { return &noopUserProfileStore{} }
 func (s *SQLiteStore) CronJobs() store.CronJobStore         { return &noopCronJobStore{} }
 func (s *SQLiteStore) Roles() store.RoleStore               { return &noopRoleStore{} }
+func (s *SQLiteStore) PricingRules() store.PricingRuleStore { return &noopPricingRuleStore{} }
 func (s *SQLiteStore) Close() error                         { return s.db.Close() }
 func (s *SQLiteStore) Migrate(_ context.Context) error      { return nil } // SQLite migrations handled by SessionDB
 

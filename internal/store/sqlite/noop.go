@@ -171,3 +171,20 @@ func (n *noopRoleStore) HasPermission(_ context.Context, _ []string, _, _, _ str
 }
 
 var _ store.RoleStore = (*noopRoleStore)(nil)
+
+type noopPricingRuleStore struct{}
+
+func (n *noopPricingRuleStore) List(_ context.Context) ([]store.PricingRule, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopPricingRuleStore) Get(_ context.Context, _ string) (*store.PricingRule, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopPricingRuleStore) Upsert(_ context.Context, _ *store.PricingRule) error {
+	return errSQLiteUnsupported
+}
+func (n *noopPricingRuleStore) Delete(_ context.Context, _ string) error {
+	return errSQLiteUnsupported
+}
+
+var _ store.PricingRuleStore = (*noopPricingRuleStore)(nil)

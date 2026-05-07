@@ -29,35 +29,44 @@ func (s *pgUserProfileStore) Get(ctx context.Context, tenantID, userID string) (
 }
 
 func (s *pgUserProfileStore) Upsert(ctx context.Context, tenantID, userID, content string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO user_profiles (tenant_id, user_id, content, updated_at)
-		 VALUES ($1, $2, $3, now())
-		 ON CONFLICT (tenant_id, user_id)
-		 DO UPDATE SET content = $3, updated_at = now()`,
-		tenantID, userID, content)
-	if err != nil {
-		return fmt.Errorf("pg upsert user profile: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO user_profiles (tenant_id, user_id, content, updated_at)
+			 VALUES ($1, $2, $3, now())
+			 ON CONFLICT (tenant_id, user_id)
+			 DO UPDATE SET content = $3, updated_at = now()`,
+			tenantID, userID, content)
+		if err != nil {
+			return fmt.Errorf("pg upsert user profile: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgUserProfileStore) Delete(ctx context.Context, tenantID, userID string) error {
-	_, err := s.pool.Exec(ctx,
-		`DELETE FROM user_profiles WHERE tenant_id = $1 AND user_id = $2`,
-		tenantID, userID)
-	if err != nil {
-		return fmt.Errorf("pg delete user profile: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`DELETE FROM user_profiles WHERE tenant_id = $1 AND user_id = $2`,
+			tenantID, userID)
+		if err != nil {
+			return fmt.Errorf("pg delete user profile: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgUserProfileStore) DeleteAllByTenant(ctx context.Context, tenantID string) (int64, error) {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM user_profiles WHERE tenant_id = $1`, tenantID)
-	if err != nil {
-		return 0, fmt.Errorf("pg delete tenant profiles: %w", err)
-	}
-	return tag.RowsAffected(), nil
+	var affected int64
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM user_profiles WHERE tenant_id = $1`, tenantID)
+		if err != nil {
+			return fmt.Errorf("pg delete tenant profiles: %w", err)
+		}
+		affected = tag.RowsAffected()
+		return nil
+	})
+	return affected, err
 }
 
 var _ store.UserProfileStore = (*pgUserProfileStore)(nil)

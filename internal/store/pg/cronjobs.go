@@ -16,15 +16,17 @@ type pgCronJobStore struct {
 }
 
 func (s *pgCronJobStore) Create(ctx context.Context, job *store.CronJob) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO cron_jobs (id, tenant_id, name, prompt, schedule, deliver, enabled, model, next_run_at, metadata)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::jsonb, '{}'))`,
-		job.ID, job.TenantID, job.Name, job.Prompt, job.Schedule,
-		job.Deliver, job.Enabled, job.Model, job.NextRunAt, job.Metadata)
-	if err != nil {
-		return fmt.Errorf("pg create cron job: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, job.TenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO cron_jobs (id, tenant_id, name, prompt, schedule, deliver, enabled, model, next_run_at, metadata)
+			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, COALESCE($10::jsonb, '{}'))`,
+			job.ID, job.TenantID, job.Name, job.Prompt, job.Schedule,
+			job.Deliver, job.Enabled, job.Model, job.NextRunAt, job.Metadata)
+		if err != nil {
+			return fmt.Errorf("pg create cron job: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgCronJobStore) Get(ctx context.Context, tenantID, jobID string) (*store.CronJob, error) {
@@ -46,31 +48,35 @@ func (s *pgCronJobStore) Get(ctx context.Context, tenantID, jobID string) (*stor
 }
 
 func (s *pgCronJobStore) Update(ctx context.Context, job *store.CronJob) error {
-	tag, err := s.pool.Exec(ctx,
-		`UPDATE cron_jobs SET name=$3, prompt=$4, schedule=$5, deliver=$6, enabled=$7, model=$8, next_run_at=$9
-		 WHERE tenant_id = $1 AND id = $2`,
-		job.TenantID, job.ID, job.Name, job.Prompt, job.Schedule,
-		job.Deliver, job.Enabled, job.Model, job.NextRunAt)
-	if err != nil {
-		return fmt.Errorf("pg update cron job: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("cron job not found")
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, job.TenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`UPDATE cron_jobs SET name=$3, prompt=$4, schedule=$5, deliver=$6, enabled=$7, model=$8, next_run_at=$9
+			 WHERE tenant_id = $1 AND id = $2`,
+			job.TenantID, job.ID, job.Name, job.Prompt, job.Schedule,
+			job.Deliver, job.Enabled, job.Model, job.NextRunAt)
+		if err != nil {
+			return fmt.Errorf("pg update cron job: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("cron job not found")
+		}
+		return nil
+	})
 }
 
 func (s *pgCronJobStore) Delete(ctx context.Context, tenantID, jobID string) error {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM cron_jobs WHERE tenant_id = $1 AND id = $2`,
-		tenantID, jobID)
-	if err != nil {
-		return fmt.Errorf("pg delete cron job: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("cron job not found")
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM cron_jobs WHERE tenant_id = $1 AND id = $2`,
+			tenantID, jobID)
+		if err != nil {
+			return fmt.Errorf("pg delete cron job: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("cron job not found")
+		}
+		return nil
+	})
 }
 
 func (s *pgCronJobStore) List(ctx context.Context, tenantID string) ([]*store.CronJob, error) {

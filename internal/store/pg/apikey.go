@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -13,14 +14,16 @@ type pgAPIKeyStore struct {
 }
 
 func (s *pgAPIKeyStore) Create(ctx context.Context, key *store.APIKey) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, expires_at) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7)`,
-		key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, key.Roles, key.ExpiresAt,
-	)
-	if err != nil {
-		return fmt.Errorf("create api key: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, key.TenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, expires_at) VALUES (COALESCE(NULLIF($1, '')::uuid, gen_random_uuid()), $2, $3, $4, $5, $6, $7)`,
+			key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, key.Roles, key.ExpiresAt,
+		)
+		if err != nil {
+			return fmt.Errorf("create api key: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgAPIKeyStore) GetByHash(ctx context.Context, hash string) (*store.APIKey, error) {
@@ -72,11 +75,13 @@ func (s *pgAPIKeyStore) List(ctx context.Context, tenantID string) ([]*store.API
 }
 
 func (s *pgAPIKeyStore) Revoke(ctx context.Context, tenantID, id string) error {
-	_, err := s.pool.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE tenant_id = $1 AND id = $2`, tenantID, id)
-	if err != nil {
-		return fmt.Errorf("revoke api key: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `UPDATE api_keys SET revoked_at = now() WHERE tenant_id = $1 AND id = $2`, tenantID, id)
+		if err != nil {
+			return fmt.Errorf("revoke api key: %w", err)
+		}
+		return nil
+	})
 }
 
 var _ store.APIKeyStore = (*pgAPIKeyStore)(nil)

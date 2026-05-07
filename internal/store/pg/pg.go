@@ -29,6 +29,7 @@ type PGStore struct {
 	userProfiles *pgUserProfileStore
 	cronJobs     *pgCronJobStore
 	roles        *pgRoleStore
+	pricingRules *pgPricingRuleStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -65,6 +66,7 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.userProfiles = &pgUserProfileStore{pool: pool}
 	s.cronJobs = &pgCronJobStore{pool: pool}
 	s.roles = &pgRoleStore{pool: pool}
+	s.pricingRules = &pgPricingRuleStore{pool: pool}
 	return s, nil
 }
 
@@ -78,6 +80,7 @@ func (s *PGStore) Memories() store.MemoryStore          { return s.memories }
 func (s *PGStore) UserProfiles() store.UserProfileStore { return s.userProfiles }
 func (s *PGStore) CronJobs() store.CronJobStore         { return s.cronJobs }
 func (s *PGStore) Roles() store.RoleStore               { return s.roles }
+func (s *PGStore) PricingRules() store.PricingRuleStore { return s.pricingRules }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

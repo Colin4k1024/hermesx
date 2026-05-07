@@ -15,14 +15,16 @@ type pgRoleStore struct {
 }
 
 func (s *pgRoleStore) Create(ctx context.Context, role *store.Role) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO roles (id, tenant_id, name, description, is_system)
-		 VALUES ($1, $2, $3, $4, $5)`,
-		role.ID, role.TenantID, role.Name, role.Description, role.IsSystem)
-	if err != nil {
-		return fmt.Errorf("pg create role: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, role.TenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO roles (id, tenant_id, name, description, is_system)
+			 VALUES ($1, $2, $3, $4, $5)`,
+			role.ID, role.TenantID, role.Name, role.Description, role.IsSystem)
+		if err != nil {
+			return fmt.Errorf("pg create role: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgRoleStore) Get(ctx context.Context, tenantID, roleID string) (*store.Role, error) {
@@ -77,40 +79,46 @@ func (s *pgRoleStore) List(ctx context.Context, tenantID string) ([]*store.Role,
 }
 
 func (s *pgRoleStore) Delete(ctx context.Context, tenantID, roleID string) error {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM roles WHERE tenant_id = $1 AND id = $2 AND is_system = false`,
-		tenantID, roleID)
-	if err != nil {
-		return fmt.Errorf("pg delete role: %w", err)
-	}
-	if tag.RowsAffected() == 0 {
-		return fmt.Errorf("role not found or is a system role")
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM roles WHERE tenant_id = $1 AND id = $2 AND is_system = false`,
+			tenantID, roleID)
+		if err != nil {
+			return fmt.Errorf("pg delete role: %w", err)
+		}
+		if tag.RowsAffected() == 0 {
+			return fmt.Errorf("role not found or is a system role")
+		}
+		return nil
+	})
 }
 
 func (s *pgRoleStore) AddPermission(ctx context.Context, tenantID, roleName, resource, action string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO role_permissions (role_id, resource, action)
-		 SELECT r.id, $3, $4 FROM roles r WHERE r.tenant_id = $1 AND r.name = $2
-		 ON CONFLICT (role_id, resource, action) DO NOTHING`,
-		tenantID, roleName, resource, action)
-	if err != nil {
-		return fmt.Errorf("pg add permission: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO role_permissions (role_id, resource, action)
+			 SELECT r.id, $3, $4 FROM roles r WHERE r.tenant_id = $1 AND r.name = $2
+			 ON CONFLICT (role_id, resource, action) DO NOTHING`,
+			tenantID, roleName, resource, action)
+		if err != nil {
+			return fmt.Errorf("pg add permission: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgRoleStore) RemovePermission(ctx context.Context, tenantID, roleName, resource, action string) error {
-	_, err := s.pool.Exec(ctx,
-		`DELETE FROM role_permissions
-		 WHERE role_id = (SELECT id FROM roles WHERE tenant_id = $1 AND name = $2)
-		   AND resource = $3 AND action = $4`,
-		tenantID, roleName, resource, action)
-	if err != nil {
-		return fmt.Errorf("pg remove permission: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`DELETE FROM role_permissions
+			 WHERE role_id = (SELECT id FROM roles WHERE tenant_id = $1 AND name = $2)
+			   AND resource = $3 AND action = $4`,
+			tenantID, roleName, resource, action)
+		if err != nil {
+			return fmt.Errorf("pg remove permission: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgRoleStore) ListPermissions(ctx context.Context, tenantID, roleName string) ([]*store.RolePermission, error) {

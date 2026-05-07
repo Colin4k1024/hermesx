@@ -18,7 +18,7 @@ env:
   DATABASE_URL: "postgres://hermes:hermes@postgres-postgresql:5432/hermes?sslmode=disable"
   HERMES_ACP_TOKEN: "dev-token-change-in-production"
   SAAS_API_PORT: "8080"
-  SAAS_ALLOWED_ORIGINS: "*"
+  SAAS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080"
   SAAS_STATIC_DIR: "/static"
   HERMES_API_PORT: "8081"
   HERMES_API_KEY: "dev-api-key-change-in-production"

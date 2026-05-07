@@ -45,6 +45,15 @@ type Message struct {
 	FinishReason string    `json:"finish_reason,omitempty" db:"finish_reason"`
 }
 
+// PricingRule defines per-model token pricing stored in the database.
+type PricingRule struct {
+	ModelKey       string    `json:"model_key" db:"model_key"`
+	InputPer1K     float64   `json:"input_per_1k" db:"input_per_1k"`
+	OutputPer1K    float64   `json:"output_per_1k" db:"output_per_1k"`
+	CacheReadPer1K float64   `json:"cache_read_per_1k" db:"cache_read_per_1k"`
+	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
+}
+
 // User represents a platform user.
 type User struct {
 	ID          string         `json:"id" db:"id"`

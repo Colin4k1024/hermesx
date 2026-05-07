@@ -50,48 +50,68 @@ func (s *pgMemoryStore) List(ctx context.Context, tenantID, userID string) ([]st
 }
 
 func (s *pgMemoryStore) Upsert(ctx context.Context, tenantID, userID, key, content string) error {
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO memories (tenant_id, user_id, key, content, updated_at)
-		 VALUES ($1, $2, $3, $4, now())
-		 ON CONFLICT (tenant_id, user_id, key)
-		 DO UPDATE SET content = $4, updated_at = now()`,
-		tenantID, userID, key, content)
-	if err != nil {
-		return fmt.Errorf("pg upsert memory: %w", err)
-	}
-	return nil
+	return withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO memories (tenant_id, user_id, key, content, updated_at)
+			 VALUES ($1, $2, $3, $4, now())
+			 ON CONFLICT (tenant_id, user_id, key)
+			 DO UPDATE SET content = $4, updated_at = now()`,
+			tenantID, userID, key, content)
+		if err != nil {
+			return fmt.Errorf("pg upsert memory: %w", err)
+		}
+		return nil
+	})
 }
 
 func (s *pgMemoryStore) Delete(ctx context.Context, tenantID, userID, key string) error {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
-		tenantID, userID, key)
+	var affected int64
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
+			tenantID, userID, key)
+		if err != nil {
+			return fmt.Errorf("pg delete memory: %w", err)
+		}
+		affected = tag.RowsAffected()
+		return nil
+	})
 	if err != nil {
-		return fmt.Errorf("pg delete memory: %w", err)
+		return err
 	}
-	if tag.RowsAffected() == 0 {
+	if affected == 0 {
 		return fmt.Errorf("memory key %q not found", key)
 	}
 	return nil
 }
 
 func (s *pgMemoryStore) DeleteAllByUser(ctx context.Context, tenantID, userID string) (int64, error) {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2`,
-		tenantID, userID)
-	if err != nil {
-		return 0, fmt.Errorf("pg delete user memories: %w", err)
-	}
-	return tag.RowsAffected(), nil
+	var affected int64
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2`,
+			tenantID, userID)
+		if err != nil {
+			return fmt.Errorf("pg delete user memories: %w", err)
+		}
+		affected = tag.RowsAffected()
+		return nil
+	})
+	return affected, err
 }
 
 func (s *pgMemoryStore) DeleteAllByTenant(ctx context.Context, tenantID string) (int64, error) {
-	tag, err := s.pool.Exec(ctx,
-		`DELETE FROM memories WHERE tenant_id = $1`, tenantID)
-	if err != nil {
-		return 0, fmt.Errorf("pg delete tenant memories: %w", err)
-	}
-	return tag.RowsAffected(), nil
+	var affected int64
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx,
+			`DELETE FROM memories WHERE tenant_id = $1`, tenantID)
+		if err != nil {
+			return fmt.Errorf("pg delete tenant memories: %w", err)
+		}
+		affected = tag.RowsAffected()
+		return nil
+	})
+	return affected, err
 }
 
 var _ store.MemoryStore = (*pgMemoryStore)(nil)

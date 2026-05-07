@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -32,12 +33,25 @@ func (s *pgAuditLogStore) Append(ctx context.Context, log *store.AuditLog) error
 		}
 	}
 
-	_, err := s.pool.Exec(ctx,
-		`INSERT INTO audit_logs (tenant_id, user_id, session_id, action, detail, request_id, status_code, latency_ms, source_ip, error_code, user_agent)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
-		tenantID, userID, log.SessionID, log.Action, log.Detail, log.RequestID, log.StatusCode, log.LatencyMs,
-		log.SourceIP, log.ErrorCode, log.UserAgent,
-	)
+	const q = `INSERT INTO audit_logs (tenant_id, user_id, session_id, action, detail, request_id, status_code, latency_ms, source_ip, error_code, user_agent)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`
+	args := []any{tenantID, userID, log.SessionID, log.Action, log.Detail, log.RequestID, log.StatusCode, log.LatencyMs,
+		log.SourceIP, log.ErrorCode, log.UserAgent}
+
+	if log.TenantID != "" {
+		return withTenantTx(ctx, s.pool, log.TenantID, func(tx pgx.Tx) error {
+			_, err := tx.Exec(ctx, q, args...)
+			if err != nil {
+				return fmt.Errorf("append audit log: %w", err)
+			}
+			return nil
+		})
+	}
+
+	// Auth failure events have no tenant context — direct exec without SET LOCAL.
+	// Safety: RLS WITH CHECK uses current_setting('app.current_tenant', false) which
+	// errors when unset, so any accidental call with a real tenantID would fail at DB level.
+	_, err := s.pool.Exec(ctx, q, args...)
 	if err != nil {
 		return fmt.Errorf("append audit log: %w", err)
 	}
@@ -113,11 +127,16 @@ func (s *pgAuditLogStore) List(ctx context.Context, tenantID string, opts store.
 
 // DeleteByTenant removes all audit logs for a tenant (used during hard delete).
 func (s *pgAuditLogStore) DeleteByTenant(ctx context.Context, tenantID string) (int64, error) {
-	tag, err := s.pool.Exec(ctx, `DELETE FROM audit_logs WHERE tenant_id = $1`, tenantID)
-	if err != nil {
-		return 0, fmt.Errorf("delete audit logs by tenant: %w", err)
-	}
-	return tag.RowsAffected(), nil
+	var affected int64
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		tag, err := tx.Exec(ctx, `DELETE FROM audit_logs WHERE tenant_id = $1`, tenantID)
+		if err != nil {
+			return fmt.Errorf("delete audit logs by tenant: %w", err)
+		}
+		affected = tag.RowsAffected()
+		return nil
+	})
+	return affected, err
 }
 
 var _ store.AuditLogStore = (*pgAuditLogStore)(nil)

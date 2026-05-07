@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -29,9 +30,12 @@ func (u *pgUserStore) GetOrCreate(ctx context.Context, tenantID, externalID, use
 		Username:   username,
 		Role:       "user",
 	}
-	_, err = u.pool.Exec(ctx,
-		`INSERT INTO users (id, tenant_id, external_id, username, role) VALUES ($1, $2, $3, $4, $5)`,
-		user.ID, tenantID, externalID, username, user.Role)
+	err = withTenantTx(ctx, u.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`INSERT INTO users (id, tenant_id, external_id, username, role) VALUES ($1, $2, $3, $4, $5)`,
+			user.ID, tenantID, externalID, username, user.Role)
+		return err
+	})
 	return user, err
 }
 
@@ -49,18 +53,22 @@ func (u *pgUserStore) IsApproved(ctx context.Context, tenantID, platform, userID
 
 func (u *pgUserStore) Approve(ctx context.Context, tenantID, platform, userID string) error {
 	externalID := platform + ":" + userID
-	_, err := u.pool.Exec(ctx,
-		`UPDATE users SET approved_at = $1 WHERE tenant_id = $2 AND external_id = $3`,
-		time.Now(), tenantID, externalID)
-	return err
+	return withTenantTx(ctx, u.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`UPDATE users SET approved_at = $1 WHERE tenant_id = $2 AND external_id = $3`,
+			time.Now(), tenantID, externalID)
+		return err
+	})
 }
 
 func (u *pgUserStore) Revoke(ctx context.Context, tenantID, platform, userID string) error {
 	externalID := platform + ":" + userID
-	_, err := u.pool.Exec(ctx,
-		`UPDATE users SET approved_at = NULL WHERE tenant_id = $1 AND external_id = $2`,
-		tenantID, externalID)
-	return err
+	return withTenantTx(ctx, u.pool, tenantID, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx,
+			`UPDATE users SET approved_at = NULL WHERE tenant_id = $1 AND external_id = $2`,
+			tenantID, externalID)
+		return err
+	})
 }
 
 func (u *pgUserStore) ListApproved(ctx context.Context, tenantID, platform string) ([]string, error) {

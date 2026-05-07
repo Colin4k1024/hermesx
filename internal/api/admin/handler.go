@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/hermes-agent/hermes-agent-go/internal/metering"
 	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
 	"github.com/hermes-agent/hermes-agent-go/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -12,14 +13,15 @@ import (
 // AdminHandler provides administrative API endpoints for tenant management,
 // sandbox policy configuration, and API key lifecycle operations.
 type AdminHandler struct {
-	store  store.Store
-	pool   *pgxpool.Pool
-	logger *slog.Logger
+	store        store.Store
+	pool         *pgxpool.Pool
+	logger       *slog.Logger
+	pricingCache *metering.PricingStore
 }
 
 // NewAdminHandler creates an AdminHandler with the given store and logger.
 // If the store implements PoolProvider, the pool is extracted for transactional operations.
-func NewAdminHandler(s store.Store, logger *slog.Logger) *AdminHandler {
+func NewAdminHandler(s store.Store, logger *slog.Logger, opts ...AdminOption) *AdminHandler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -27,7 +29,18 @@ func NewAdminHandler(s store.Store, logger *slog.Logger) *AdminHandler {
 	if pp, ok := s.(store.PoolProvider); ok {
 		h.pool = pp.Pool()
 	}
+	for _, opt := range opts {
+		opt(h)
+	}
 	return h
+}
+
+// AdminOption configures optional dependencies for AdminHandler.
+type AdminOption func(*AdminHandler)
+
+// WithPricingCache enables cache invalidation when pricing rules are modified.
+func WithPricingCache(ps *metering.PricingStore) AdminOption {
+	return func(h *AdminHandler) { h.pricingCache = ps }
 }
 
 // Handler returns an http.Handler that serves all admin routes under /admin/v1/.
@@ -44,6 +57,11 @@ func (h *AdminHandler) Handler() http.Handler {
 	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys", h.createAPIKey)
 	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys/{kid}/rotate", h.rotateAPIKey)
 	mux.HandleFunc("DELETE /admin/v1/tenants/{id}/api-keys/{kid}", h.revokeAPIKey)
+
+	// Pricing rule management endpoints.
+	mux.HandleFunc("GET /admin/v1/pricing-rules", h.listPricingRules)
+	mux.HandleFunc("PUT /admin/v1/pricing-rules/{model}", h.upsertPricingRule)
+	mux.HandleFunc("DELETE /admin/v1/pricing-rules/{model}", h.deletePricingRule)
 
 	// Audit log query endpoint (cross-tenant).
 	mux.HandleFunc("GET /admin/v1/audit-logs", h.listAuditLogs)

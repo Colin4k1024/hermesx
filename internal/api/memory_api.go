@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/hermes-agent/hermes-agent-go/internal/agent"
 	"github.com/hermes-agent/hermes-agent-go/internal/auth"
+	"github.com/jackc/pgx/v5"
 )
 
 type memoryEntry struct {
@@ -22,9 +24,13 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID := r.Header.Get("X-Hermes-User-Id")
-	if userID == "" {
-		userID = ac.Identity
+	userID := ac.Identity
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
+		if !ac.HasRole("admin") {
+			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
+			return
+		}
+		userID = override
 	}
 
 	if h.pool == nil {
@@ -71,9 +77,13 @@ func (h *chatHandler) handleDeleteMemory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	userID := r.Header.Get("X-Hermes-User-Id")
-	if userID == "" {
-		userID = ac.Identity
+	userID := ac.Identity
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
+		if !ac.HasRole("admin") {
+			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
+			return
+		}
+		userID = override
 	}
 
 	key := strings.TrimPrefix(r.URL.Path, "/v1/memories/")
@@ -107,9 +117,13 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	userID := r.Header.Get("X-Hermes-User-Id")
-	if userID == "" {
-		userID = ac.Identity
+	userID := ac.Identity
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
+		if !ac.HasRole("admin") {
+			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
+			return
+		}
+		userID = override
 	}
 
 	if h.pool == nil {
@@ -189,6 +203,26 @@ func (h *chatHandler) handleGetSessionMessages(w http.ResponseWriter, r *http.Re
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"messages": []any{}})
 		return
+	}
+
+	// Session ownership check: verify session belongs to this user (admin bypasses).
+	if !ac.HasRole("admin") {
+		var ownerID string
+		err := h.pool.QueryRow(r.Context(),
+			`SELECT user_id FROM sessions WHERE tenant_id = $1 AND id = $2`,
+			ac.TenantID, sessionID).Scan(&ownerID)
+		if err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				http.Error(w, "session not found", http.StatusNotFound)
+				return
+			}
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		if ownerID != ac.Identity {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
 	}
 
 	rows, err := h.pool.Query(r.Context(),

@@ -2,8 +2,12 @@ package store
 
 import (
 	"context"
+	"errors"
 	"time"
 )
+
+// ErrNotFound indicates the requested resource does not exist.
+var ErrNotFound = errors.New("not found")
 
 // Store is the unified state persistence interface.
 // Implementations: pg.PGStore (production), sqlite.SQLiteStore (local dev).
@@ -18,6 +22,7 @@ type Store interface {
 	UserProfiles() UserProfileStore
 	CronJobs() CronJobStore
 	Roles() RoleStore
+	PricingRules() PricingRuleStore
 	Close() error
 	Migrate(ctx context.Context) error
 }
@@ -132,6 +137,14 @@ type CronJobStore interface {
 	Delete(ctx context.Context, tenantID, jobID string) error
 	List(ctx context.Context, tenantID string) ([]*CronJob, error)
 	ListDue(ctx context.Context, now time.Time) ([]*CronJob, error)
+}
+
+// PricingRuleStore manages per-model pricing configuration.
+type PricingRuleStore interface {
+	List(ctx context.Context) ([]PricingRule, error)
+	Get(ctx context.Context, modelKey string) (*PricingRule, error)
+	Upsert(ctx context.Context, rule *PricingRule) error
+	Delete(ctx context.Context, modelKey string) error
 }
 
 // ListOptions controls pagination and filtering for list queries.

@@ -115,11 +115,33 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		authChain.Add(auth.NewStaticTokenExtractor(acpToken, "00000000-0000-0000-0000-000000000001"))
 	}
 
+	// OIDC extractor (activated when OIDC_ISSUER_URL is set).
+	if oidcIssuer := os.Getenv("OIDC_ISSUER_URL"); oidcIssuer != "" {
+		oidcClientID := os.Getenv("OIDC_CLIENT_ID")
+		if oidcClientID == "" {
+			return fmt.Errorf("OIDC_ISSUER_URL is set but OIDC_CLIENT_ID is missing")
+		}
+		mapper := &auth.ClaimMapper{
+			TenantClaim: os.Getenv("OIDC_TENANT_CLAIM"),
+			RolesClaim:  os.Getenv("OIDC_ROLES_CLAIM"),
+			ACRClaim:    os.Getenv("OIDC_ACR_CLAIM"),
+		}
+		discCtx, discCancel := context.WithTimeout(context.Background(), 15*time.Second)
+		oidcExtractor, err := auth.NewOIDCExtractor(discCtx, auth.OIDCConfig{
+			IssuerURL:   oidcIssuer,
+			ClientID:    oidcClientID,
+			ClaimMapper: mapper,
+		})
+		discCancel()
+		if err != nil {
+			return fmt.Errorf("oidc extractor init: %w", err)
+		}
+		authChain.Add(oidcExtractor)
+		slog.Info("OIDC extractor enabled", "issuer", oidcIssuer, "client_id", oidcClientID)
+	}
+
 	// API key extractor.
 	authChain.Add(auth.NewAPIKeyExtractor(pgStore.APIKeys()))
-
-	// JWT extractor — add JWT config here in production.
-	// authChain.Extractors = append(authChain.Extractors, auth.NewJWTExtractor(...))
 
 	// ── 4. RBAC config ──────────────────────────────────────
 	rbacCfg := middleware.RBACConfig{
