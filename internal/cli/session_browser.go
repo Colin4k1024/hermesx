@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/Colin4k1024/hermesx/internal/state"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // SessionBrowser provides a simple session history browser.

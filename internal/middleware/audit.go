@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/google/uuid"
 )
 
 // AuditMiddleware logs key actions to the audit store.

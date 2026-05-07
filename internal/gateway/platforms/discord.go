@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bwmarrin/discordgo"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
+	"github.com/bwmarrin/discordgo"
 )
 
 // DiscordAdapter implements PlatformAdapter for Discord.

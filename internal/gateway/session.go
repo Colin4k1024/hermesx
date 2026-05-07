@@ -11,9 +11,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/state"
+	"github.com/google/uuid"
 )
 
 // SessionEntry represents a session in the store.

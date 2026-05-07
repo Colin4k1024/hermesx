@@ -10,13 +10,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/state"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 	"github.com/Colin4k1024/hermesx/internal/toolsets"
+	"github.com/google/uuid"
 )
 
 // FallbackModel describes an alternative model to try on API failures.

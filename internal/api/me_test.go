@@ -22,19 +22,19 @@ func (m *mockMeStore) Tenants() store.TenantStore {
 	return &mockMeTenantStore{tenant: m.tenant}
 }
 
-func (m *mockMeStore) Sessions() store.SessionStore         { return nil }
-func (m *mockMeStore) Messages() store.MessageStore         { return nil }
-func (m *mockMeStore) Users() store.UserStore               { return nil }
-func (m *mockMeStore) AuditLogs() store.AuditLogStore       { return nil }
-func (m *mockMeStore) APIKeys() store.APIKeyStore           { return nil }
-func (m *mockMeStore) Memories() store.MemoryStore          { return nil }
-func (m *mockMeStore) UserProfiles() store.UserProfileStore { return nil }
-func (m *mockMeStore) CronJobs() store.CronJobStore         { return nil }
-func (m *mockMeStore) Roles() store.RoleStore               { return nil }
-func (m *mockMeStore) PricingRules() store.PricingRuleStore             { return nil }
+func (m *mockMeStore) Sessions() store.SessionStore                   { return nil }
+func (m *mockMeStore) Messages() store.MessageStore                   { return nil }
+func (m *mockMeStore) Users() store.UserStore                         { return nil }
+func (m *mockMeStore) AuditLogs() store.AuditLogStore                 { return nil }
+func (m *mockMeStore) APIKeys() store.APIKeyStore                     { return nil }
+func (m *mockMeStore) Memories() store.MemoryStore                    { return nil }
+func (m *mockMeStore) UserProfiles() store.UserProfileStore           { return nil }
+func (m *mockMeStore) CronJobs() store.CronJobStore                   { return nil }
+func (m *mockMeStore) Roles() store.RoleStore                         { return nil }
+func (m *mockMeStore) PricingRules() store.PricingRuleStore           { return nil }
 func (m *mockMeStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
-func (m *mockMeStore) Close() error                                    { return nil }
-func (m *mockMeStore) Migrate(_ context.Context) error                 { return nil }
+func (m *mockMeStore) Close() error                                   { return nil }
+func (m *mockMeStore) Migrate(_ context.Context) error                { return nil }
 
 type mockMeTenantStore struct{ tenant *store.Tenant }
 

@@ -101,7 +101,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: hermesx-${{ matrix.os }}-${{ matrix.arch }}
-          path: hermes-*
+          path: hermesx-*
 
   docker:
     name: Docker Build & Push
@@ -156,7 +156,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U hermesx_test -d hermes_test"
+          --health-cmd "pg_isready -U hermesx_test -d hermesx_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -170,7 +170,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      TEST_DATABASE_URL: postgres://hermes_test:hermes_test@localhost:5432/hermes_test?sslmode=disable
+      TEST_DATABASE_URL: postgres://hermesx_test:hermesx_test@localhost:5432/hermesx_test?sslmode=disable
       TEST_MINIO_ENDPOINT: localhost:9000
       TEST_MINIO_ACCESS_KEY: hermesx_test
       TEST_MINIO_SECRET_KEY: hermesx_test
@@ -186,8 +186,8 @@ jobs:
         run: |
           docker run -d --name minio \
             -p 9000:9000 \
-            -e MINIO_ROOT_USER=hermes_test \
-            -e MINIO_ROOT_PASSWORD=hermes_test \
+            -e MINIO_ROOT_USER=hermesx_test \
+            -e MINIO_ROOT_PASSWORD=hermesx_test \
             minio/minio server /data
           echo "Waiting for MinIO..."
           for i in $(seq 1 30); do

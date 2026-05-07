@@ -14,12 +14,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/state"
 	"github.com/Colin4k1024/hermesx/internal/toolsets"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // isTerminal returns true if stdout is a terminal.

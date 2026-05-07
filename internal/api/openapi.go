@@ -19,8 +19,8 @@ func OpenAPISpec() http.HandlerFunc {
 			{"url": "/", "description": "Current server"},
 		},
 		"paths": map[string]any{
-			"/v1/health":      healthPath(),
-			"/v1/health/live": pathItem("get", "Kubernetes liveness probe", "200"),
+			"/v1/health":       healthPath(),
+			"/v1/health/live":  pathItem("get", "Kubernetes liveness probe", "200"),
 			"/v1/health/ready": pathItem("get", "Kubernetes readiness probe (checks DB connectivity)", "200"),
 
 			"/v1/chat/completions": chatPath(),
@@ -29,11 +29,11 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/memories":         memoriesPath(),
 			"/v1/memories/{key}":   memoryByKeyPath(),
 
-			"/v1/tenants":    tenantsPath(),
-			"/v1/tenants/{id}": tenantByIDPath(),
-			"/v1/api-keys":   apiKeysPath(),
-			"/v1/api-keys/{id}": apiKeyByIDPath(),
-			"/v1/audit-logs": auditLogsPath(),
+			"/v1/tenants":                 tenantsPath(),
+			"/v1/tenants/{id}":            tenantByIDPath(),
+			"/v1/api-keys":                apiKeysPath(),
+			"/v1/api-keys/{id}":           apiKeyByIDPath(),
+			"/v1/audit-logs":              auditLogsPath(),
 			"/v1/execution-receipts":      executionReceiptsPath(),
 			"/v1/execution-receipts/{id}": executionReceiptByIDPath(),
 
@@ -389,12 +389,12 @@ func schemas() map[string]any {
 		"SandboxPolicy": map[string]any{
 			"type": "object",
 			"properties": map[string]any{
-				"enabled":              map[string]any{"type": "boolean"},
-				"max_timeout_seconds":  map[string]any{"type": "integer"},
-				"allowed_tools":        map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
-				"allow_docker":         map[string]any{"type": "boolean"},
-				"restrict_network":     map[string]any{"type": "boolean"},
-				"max_stdout_kb":        map[string]any{"type": "integer"},
+				"enabled":             map[string]any{"type": "boolean"},
+				"max_timeout_seconds": map[string]any{"type": "integer"},
+				"allowed_tools":       map[string]any{"type": "array", "items": map[string]any{"type": "string"}},
+				"allow_docker":        map[string]any{"type": "boolean"},
+				"restrict_network":    map[string]any{"type": "boolean"},
+				"max_stdout_kb":       map[string]any{"type": "integer"},
 			},
 		},
 	}

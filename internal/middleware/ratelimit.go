@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/observability"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

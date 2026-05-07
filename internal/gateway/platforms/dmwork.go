@@ -22,8 +22,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
+	"github.com/gorilla/websocket"
 	"golang.org/x/crypto/curve25519"
 )
 

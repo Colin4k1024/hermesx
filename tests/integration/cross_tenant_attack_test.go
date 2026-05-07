@@ -23,7 +23,7 @@ func TestAttack_APIKey_BoundaryEnforcement(t *testing.T) {
 
 	// Create session for tenant B
 	sessB := &store.Session{
-		ID: fmt.Sprintf("attack-sess-b-%d", time.Now().UnixNano()),
+		ID:       fmt.Sprintf("attack-sess-b-%d", time.Now().UnixNano()),
 		Platform: "api", UserID: "user-b", Model: "test", StartedAt: time.Now(),
 	}
 	testEnv.Store.Sessions().Create(ctx, tenantB.ID, sessB)
