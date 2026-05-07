@@ -9,6 +9,9 @@ import (
 )
 
 func TestPTYEnvironment_SimpleCommand(t *testing.T) {
+	if testing.Short() {
+		t.Skip("PTY tests unreliable in CI headless environments")
+	}
 	env := NewPTYEnvironment()
 	if !env.IsAvailable() {
 		t.Skip("PTY not available in this environment")
@@ -27,6 +30,9 @@ func TestPTYEnvironment_SimpleCommand(t *testing.T) {
 }
 
 func TestPTYEnvironment_ExitCode(t *testing.T) {
+	if testing.Short() {
+		t.Skip("PTY tests unreliable in CI headless environments")
+	}
 	env := NewPTYEnvironment()
 	if !env.IsAvailable() {
 		t.Skip("PTY not available")
@@ -42,6 +48,9 @@ func TestPTYEnvironment_ExitCode(t *testing.T) {
 }
 
 func TestPTYEnvironment_Timeout(t *testing.T) {
+	if testing.Short() {
+		t.Skip("PTY tests unreliable in CI headless environments")
+	}
 	env := NewPTYEnvironment()
 	if !env.IsAvailable() {
 		t.Skip("PTY not available")
@@ -60,6 +69,9 @@ func TestPTYEnvironment_Timeout(t *testing.T) {
 }
 
 func TestPTYEnvironment_WorkDir(t *testing.T) {
+	if testing.Short() {
+		t.Skip("PTY tests unreliable in CI headless environments")
+	}
 	env := NewPTYEnvironment()
 	if !env.IsAvailable() {
 		t.Skip("PTY not available")
@@ -76,6 +88,9 @@ func TestPTYEnvironment_WorkDir(t *testing.T) {
 }
 
 func TestPTYEnvironment_InteractiveOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("PTY tests unreliable in CI headless environments")
+	}
 	env := NewPTYEnvironment()
 	if !env.IsAvailable() {
 		t.Skip("PTY not available")
