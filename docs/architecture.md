@@ -236,7 +236,8 @@ hermes-agent-go/
 │   │   ├── tracer.go     # OpenTelemetry 初始化
 │   │   └── logger.go     # Context-enriched 日志
 │   ├── objstore/         # MinIO/S3 对象存储
-│   ├── gateway/          # CLI 模式 Gateway
+│   ├── gateway/          # CLI 模式 Gateway, media dispatch, lifecycle hooks
+│   │   └── platforms/    # 15 platform adapters + registry
 │   ├── config/           # 配置管理
 │   └── dashboard/        # 管理面板静态文件
 │       └── static/       # HTML/CSS/JS
@@ -247,6 +248,37 @@ hermes-agent-go/
 ├── scripts/              # 测试和工具脚本
 └── docs/                 # 文档
 ```
+
+## v1.4.0 新增模块（上游 v2026.4.30 吸收）
+
+### Agent 层
+
+| 模块 | 职责 | 源文件 |
+|------|------|--------|
+| **Memory Curator** | 自主去重、LLM 合并、过期清理 | `internal/agent/curator.go` |
+| **Self-improvement** | 定期 LLM 对话自评 + 洞察持久化 | `internal/agent/self_improve.go` |
+| **Multimodal Router** | 图片/音频/视频请求按提供商能力分发 | `internal/agent/multimodal.go` |
+| **Compress** | 上下文压缩（接近 token 限制时自动摘要） | `internal/agent/compress.go` |
+
+### Gateway 层
+
+| 模块 | 职责 | 源文件 |
+|------|------|--------|
+| **Media Dispatcher** | 感知平台能力的媒体路由 + 降级链 | `internal/gateway/media_dispatch.go` |
+| **Lifecycle Hooks** | 优先级排序事件钩子（RWMutex 并发安全） | `internal/gateway/lifecycle_hooks.go` |
+| **Platform Registry** | 平台注册与能力声明 | `internal/gateway/registry.go` |
+
+### LLM 层
+
+| 模块 | 职责 | 源文件 |
+|------|------|--------|
+| **Model Catalog** | 支持热重载的模型注册表 + 能力元数据 | `internal/llm/model_catalog.go` |
+
+### Store 层
+
+| 模块 | 职责 | 源文件 |
+|------|------|--------|
+| **Trigram Search** | pg_trgm CJK 模糊搜索 | `internal/store/pg/trigram_search.go` |
 
 ## 相关文档
 

@@ -27,14 +27,15 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 
 | Metric | Value |
 |--------|-------|
-| Go source files | 273 |
-| Lines of code | 49,875 |
+| Go source files | 413 |
+| Lines of code | 53,130 |
 | Registered tools | 50 (36 core + 14 extended) |
 | Platform adapters | 15 |
 | Terminal backends | 7 |
 | Bundled skills | 81 |
-| Test files | 108 |
-| Version | v1.1.0 (production-ready) |
+| Test files | 123 |
+| Total tests | 1,576 |
+| Version | v1.4.0 (production-ready) |
 
 ### Features
 
@@ -57,7 +58,17 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 - **ACP server**: editor integration for VS Code, Zed, JetBrains
 - **Batch mode**: parallel trajectory generation for RL training
 
-#### Enterprise SaaS Platform (v1.1.0)
+#### Upstream Absorption — hermes-agent v2026.4.30 (v1.4.0)
+
+- **Model Catalog**: hot-reload capable model registry with capability metadata and provider detection
+- **CJK Trigram Search**: pg_trgm based fuzzy search with CJK-aware tokenization
+- **Multimodal Router**: image/audio/video dispatch with provider capability detection and fallback
+- **Autonomous Memory Curator**: heuristic dedup + LLM-assisted merge + stale entry pruning
+- **Self-improvement Loop**: periodic LLM conversation review with insight persistence
+- **Gateway Media Parity**: capability-aware media routing with platform fallback chain
+- **Gateway Lifecycle Hooks**: priority-ordered event hooks with concurrent safety (RWMutex)
+
+#### Enterprise SaaS Platform (v1.3.0)
 
 - **Multi-tenant isolation**: PostgreSQL Row-Level Security (RLS) enforced on all tenant tables
 - **API Key scopes**: fine-grained `read`/`write`/`admin`/`sandbox` scope authorization
@@ -225,7 +236,7 @@ hermes version          # Show version info
 hermes-agent-go/
 ├── cmd/hermes/              Entry point (Cobra CLI)
 ├── internal/
-│   ├── agent/               Core agent loop, streaming, prompts, pricing
+│   ├── agent/               Core agent loop, streaming, prompts, pricing, memory curator, self-improvement
 │   ├── acp/                 ACP editor integration server
 │   ├── api/                 HTTP API server + handlers
 │   │   └── admin/           Admin API (sandbox policy, API keys, audit)
@@ -234,9 +245,9 @@ hermes-agent-go/
 │   ├── cli/                 Interactive TUI, commands, skins, setup wizard
 │   ├── config/              Config loading, profiles, env, migration
 │   ├── cron/                Scheduler and job persistence
-│   ├── gateway/             Multi-platform messaging gateway
+│   ├── gateway/             Multi-platform messaging gateway, media dispatch, lifecycle hooks
 │   │   └── platforms/       15 platform adapters
-│   ├── llm/                 LLM client, FallbackRouter, RetryTransport, circuit breaker
+│   ├── llm/                 LLM client, FallbackRouter, RetryTransport, circuit breaker, model catalog
 │   ├── metering/            Token usage recording, batch flush, cost calculation
 │   ├── middleware/          Rate limiting, scope check, tenant injection, tracing
 │   ├── observability/       OTel tracing (LLM, PG, Redis), Prometheus metrics
@@ -292,9 +303,9 @@ make test-integration      # Starts infra, runs tests, tears down
 
 | Layer | Tests | What's covered |
 |-------|-------|---------------|
-| Unit | 108 files | Tools, agent loop, LLM client, skills, config, auth, metering |
+| Unit | 123 files, 1576 tests | Tools, agent loop, LLM client, skills, config, auth, metering, curator, media dispatch, lifecycle hooks |
 | Integration | 7 suites | Tenant/user/session/skills isolation, sandbox, GDPR cascade |
-| Race detection | CI job | Agent, tools, gateway packages with `-race` flag |
+| Race detection | CI job | Agent, tools, gateway packages with `-race` flag (verified clean) |
 | Multi-replica | Script | Rate limit consistency, session visibility, failover |
 
 ### Deployment
@@ -360,14 +371,15 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 
 | 指标 | 数值 |
 |------|------|
-| Go 源文件 | 273 个 |
-| 代码行数 | 49,875 行 |
+| Go 源文件 | 413 个 |
+| 代码行数 | 53,130 行 |
 | 注册工具 | 50 个（36 核心 + 14 扩展） |
 | 平台适配器 | 15 个 |
 | 终端后端 | 7 个 |
 | 内置技能 | 81 个 |
-| 测试文件 | 108 个 |
-| 版本 | v1.1.0（生产就绪） |
+| 测试文件 | 123 个 |
+| 测试总数 | 1,576 个 |
+| 版本 | v1.4.0（生产就绪） |
 
 ### 主要功能
 
@@ -390,7 +402,17 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 - **编辑器集成**：ACP 服务器支持 VS Code/Zed/JetBrains
 - **批量模式**：并行轨迹生成用于 RL 训练
 
-#### 企业级 SaaS 平台功能（v1.1.0）
+#### 上游能力吸收 — hermes-agent v2026.4.30（v1.4.0）
+
+- **模型目录**：支持热重载的模型注册表，含能力元数据和提供商检测
+- **CJK 三字搜索**：基于 pg_trgm 的模糊搜索，支持 CJK 字符分词
+- **多模态路由**：图片/音频/视频分发，含提供商能力检测和降级回退
+- **自主记忆管理**：启发式去重 + LLM 辅助合并 + 过期条目清理
+- **自我改进循环**：定期 LLM 对话评审 + 洞察持久化
+- **网关媒体统一**：感知平台能力的媒体路由 + 降级链
+- **网关生命周期钩子**：优先级排序的事件钩子，支持并发安全（RWMutex）
+
+#### 企业级 SaaS 平台功能（v1.3.0）
 
 - **多租户隔离**：PostgreSQL 行级安全（RLS）强制所有租户表隔离
 - **API Key 作用域**：细粒度 `read`/`write`/`admin`/`sandbox` 权限控制
