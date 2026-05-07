@@ -177,6 +177,22 @@ type RolePermission struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+// ExecutionReceipt represents an auditable record of a single tool execution.
+type ExecutionReceipt struct {
+	ID            string    `json:"id" db:"id"`
+	TenantID      string    `json:"tenant_id" db:"tenant_id"`
+	SessionID     string    `json:"session_id" db:"session_id"`
+	UserID        string    `json:"user_id" db:"user_id"`
+	ToolName      string    `json:"tool_name" db:"tool_name"`
+	Input         string    `json:"input" db:"input"`
+	Output        string    `json:"output" db:"output"`
+	Status        string    `json:"status" db:"status"` // "success", "error", "timeout"
+	DurationMs    int       `json:"duration_ms" db:"duration_ms"`
+	IdempotencyID string    `json:"idempotency_id,omitempty" db:"idempotency_id"`
+	TraceID       string    `json:"trace_id,omitempty" db:"trace_id"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
+}
+
 // PoolProvider is optionally implemented by stores backed by pgxpool.
 type PoolProvider interface {
 	Pool() *pgxpool.Pool

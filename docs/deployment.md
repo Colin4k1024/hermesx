@@ -245,9 +245,189 @@ helm install hermes deploy/helm/hermes-agent/ \
 - [ ] PostgreSQL 配置连接池（推荐 PgBouncer）
 - [ ] MinIO 使用持久化存储卷
 
+## 方式四：多副本 HA (Docker Compose)
+
+3 实例 + Nginx LB，适用于小规模生产或验证水平扩展能力。
+
+```bash
+cd deploy/
+docker compose -f docker-compose.multi-replica.yml up -d --build
+```
+
+架构：Nginx (ip_hash) → 3× hermes instances → 共享 PG + Redis + MinIO
+
+---
+
+## 生产环境变量完整参考
+
+### 必须
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `DATABASE_URL` | PostgreSQL 连接串 | `postgres://user:pass@host:5432/hermes?sslmode=require` |
+| `HERMES_API_KEY` | API 认证 Bearer token | `sk-prod-xxxxx` |
+| `HERMES_API_KEY_LLM` | LLM Provider API key | `sk-...` |
+| `HERMES_PROVIDER` | LLM Provider | `openai`, `anthropic`, `gemini` |
+| `HERMES_MODEL` | 默认模型 | `gpt-4o`, `claude-sonnet-4-20250514` |
+
+### 基础设施（推荐）
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `REDIS_URL` | — | Redis 连接，启用分布式限流 |
+| `MINIO_ENDPOINT` | — | MinIO/S3 endpoint |
+| `MINIO_ACCESS_KEY` | — | MinIO access key |
+| `MINIO_SECRET_KEY` | — | MinIO secret key |
+| `MINIO_BUCKET` | `hermes-skills` | Skills bucket |
+
+### 服务器
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `HERMES_API_PORT` | `8081` | HTTP API 端口 |
+| `HERMES_ACP_PORT` | `8082` | ACP 协议端口 |
+| `HERMES_INSTANCE_ID` | hostname | HA 实例标识 |
+| `HERMES_MAX_ITERATIONS` | `20` | Agent 最大迭代次数 |
+| `HERMES_MAX_TOKENS` | `4096` | 最大响应 token |
+| `HERMES_BASE_URL` | provider default | 自定义 LLM endpoint |
+| `HERMES_DEBUG` | `false` | Debug 日志 |
+
+### 可观测性
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | OTel Collector gRPC |
+| `OTEL_EXPORTER_OTLP_INSECURE` | `false` | 禁用 OTel TLS |
+| `OTEL_SERVICE_NAME` | `hermes-saas` | 服务名 |
+
+---
+
+## Prometheus 指标
+
+Scrape endpoint: `GET /v1/metrics`
+
+| Metric | Type | Labels |
+|--------|------|--------|
+| `hermes_http_requests_total` | Counter | method, path, status, tenant_id |
+| `hermes_http_request_duration_seconds` | Histogram | method, path, tenant_id |
+| `hermes_http_requests_in_flight` | Gauge | — |
+| `hermes_llm_request_duration_seconds` | Histogram | provider, model, status, tenant_id |
+| `hermes_llm_tokens_total` | Counter | provider, model, direction, tenant_id |
+| `hermes_rate_limit_rejected_total` | Counter | tenant_id |
+| `hermes_tool_executions_total` | Counter | tool_name, status, tenant_id |
+| `hermes_tool_execution_duration_seconds` | Histogram | tool_name, status, tenant_id |
+| `hermes_active_sessions` | Gauge | tenant_id |
+| `hermes_chat_completions_total` | Counter | tenant_id, status |
+| `hermes_store_operation_duration_seconds` | Histogram | operation, entity |
+
+### 告警建议
+
+```yaml
+- alert: HermesHighErrorRate
+  expr: rate(hermes_http_requests_total{status=~"5.."}[5m]) / rate(hermes_http_requests_total[5m]) > 0.05
+  for: 2m
+
+- alert: HermesLLMSlow
+  expr: histogram_quantile(0.95, rate(hermes_llm_request_duration_seconds_bucket[5m])) > 30
+  for: 5m
+
+- alert: HermesRateLimitSurge
+  expr: rate(hermes_rate_limit_rejected_total[5m]) > 100
+  for: 1m
+```
+
+---
+
+## 备份恢复
+
+### 自动备份
+
+```bash
+./scripts/backup/backup.sh /backup
+# 输出: /backup/hermes_YYYYMMDD_HHMMSS.sql.gz
+# BACKUP_RETENTION_DAYS=7 (默认保留 7 天)
+```
+
+### 恢复
+
+```bash
+./scripts/backup/restore.sh /backup/hermes_20260507_120000.sql.gz
+# 单事务恢复 + 自动运行 pending migrations
+```
+
+### PITR
+
+生产环境建议启用 WAL archiving 实现 < 5 min RPO。配置模板见 `deploy/pitr/`。
+
+---
+
+## 水平扩展
+
+Hermes 实例无状态，所有持久化状态在 PG + Redis 中。
+
+| 负载 | CPU/实例 | 内存/实例 | 实例数 |
+|------|----------|-----------|--------|
+| < 100 req/s | 1 core | 512MB | 1-2 |
+| 100-500 req/s | 2 cores | 1GB | 3-5 |
+| 500+ req/s | 4 cores | 2GB | 5+ |
+
+数据库扩展建议:
+- > 5 实例时使用 PgBouncer 连接池
+- `audit_logs` / `execution_receipts` > 10M 行时考虑分区
+
+---
+
+## 安全加固
+
+### 认证体系
+
+1. **API Key**: SHA-256 hash 存储，支持 scopes + expiry + rotation
+2. **JWT**: 签名验证 + claims 提取 tenant_id
+3. **Static Token**: 单租户部署的简单 Bearer token
+
+### 行级安全 (RLS)
+
+所有租户数据表启用 PostgreSQL RLS。每个事务通过 `SET LOCAL app.current_tenant` 设置上下文——即使应用层有 bug，数据库层面也阻止跨租户访问。
+
+### 网络安全
+
+- API 仅绑定内部网络，通过 reverse proxy + TLS 暴露
+- PG/Redis/MinIO 禁止公网暴露
+- 生产环境 MinIO 启用 TLS
+
+---
+
+## 回滚策略
+
+### 应用回滚
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --no-build  # 使用上一个镜像
+# 或
+docker service update --image ghcr.io/org/hermes:previous-tag hermes
+```
+
+### 数据库回滚
+
+Migrations 仅前向。回滚步骤:
+1. 从最近备份恢复
+2. 部署上一个应用版本
+3. 验证数据完整性
+
+### 回滚触发条件
+
+- Error rate > 5% 持续 5 分钟
+- P95 latency > 30s 持续 5 分钟
+- 数据完整性告警（跨租户数据泄漏）
+- 发布后发现 Critical 安全漏洞
+
+---
+
 ## 相关文档
 
 - [快速开始](saas-quickstart.md) — 本地开发环境
 - [配置指南](configuration.md) — 所有环境变量
 - [可观测性](observability.md) — 监控和追踪
 - [架构概览](architecture.md) — 系统设计
+- [企业加固](enterprise-hardening.md) — 安全与合规
+- [Changelog v1.3.0](CHANGELOG-v1.3.0.md) — 最新变更记录

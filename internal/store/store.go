@@ -23,6 +23,7 @@ type Store interface {
 	CronJobs() CronJobStore
 	Roles() RoleStore
 	PricingRules() PricingRuleStore
+	ExecutionReceipts() ExecutionReceiptStore
 	Close() error
 	Migrate(ctx context.Context) error
 }
@@ -145,6 +146,23 @@ type PricingRuleStore interface {
 	Get(ctx context.Context, modelKey string) (*PricingRule, error)
 	Upsert(ctx context.Context, rule *PricingRule) error
 	Delete(ctx context.Context, modelKey string) error
+}
+
+// ExecutionReceiptStore manages auditable tool execution records.
+type ExecutionReceiptStore interface {
+	Create(ctx context.Context, receipt *ExecutionReceipt) error
+	Get(ctx context.Context, tenantID, id string) (*ExecutionReceipt, error)
+	List(ctx context.Context, tenantID string, opts ReceiptListOptions) ([]*ExecutionReceipt, int, error)
+	GetByIdempotencyID(ctx context.Context, tenantID, idempotencyID string) (*ExecutionReceipt, error)
+}
+
+// ReceiptListOptions controls pagination and filtering for execution receipt queries.
+type ReceiptListOptions struct {
+	SessionID string
+	ToolName  string
+	Status    string
+	Limit     int
+	Offset    int
 }
 
 // ListOptions controls pagination and filtering for list queries.

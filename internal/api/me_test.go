@@ -31,9 +31,10 @@ func (m *mockMeStore) Memories() store.MemoryStore          { return nil }
 func (m *mockMeStore) UserProfiles() store.UserProfileStore { return nil }
 func (m *mockMeStore) CronJobs() store.CronJobStore         { return nil }
 func (m *mockMeStore) Roles() store.RoleStore               { return nil }
-func (m *mockMeStore) PricingRules() store.PricingRuleStore { return nil }
-func (m *mockMeStore) Close() error                         { return nil }
-func (m *mockMeStore) Migrate(_ context.Context) error      { return nil }
+func (m *mockMeStore) PricingRules() store.PricingRuleStore             { return nil }
+func (m *mockMeStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (m *mockMeStore) Close() error                                    { return nil }
+func (m *mockMeStore) Migrate(_ context.Context) error                 { return nil }
 
 type mockMeTenantStore struct{ tenant *store.Tenant }
 

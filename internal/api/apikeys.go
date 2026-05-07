@@ -61,14 +61,20 @@ func (h *APIKeyHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Admin callers pass tenant_id in body; otherwise use extracted tenant context.
-	tenantID := req.TenantID
-	if tenantID == "" {
-		tenantID = middleware.TenantFromContext(r.Context())
-	}
+	// Derive tenant_id strictly from credential context.
+	// Body-supplied tenant_id is only allowed for admin role callers.
+	tenantID := middleware.TenantFromContext(r.Context())
 	if tenantID == "" {
 		http.Error(w, "tenant context required", http.StatusBadRequest)
 		return
+	}
+	if req.TenantID != "" && req.TenantID != tenantID {
+		ac, _ := auth.FromContext(r.Context())
+		if ac == nil || !ac.HasRole("admin") {
+			http.Error(w, "non-admin cannot specify tenant_id", http.StatusForbidden)
+			return
+		}
+		tenantID = req.TenantID
 	}
 
 	rawKey := generateRawKey()
@@ -131,6 +137,8 @@ func (h *APIKeyHandler) revoke(w http.ResponseWriter, r *http.Request, id string
 
 func generateRawKey() string {
 	b := make([]byte, 32)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		panic("crypto/rand failed: " + err.Error())
+	}
 	return "hk_" + hex.EncodeToString(b)
 }

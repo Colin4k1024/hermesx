@@ -100,9 +100,10 @@ func (stubStore) Memories() store.MemoryStore          { return nil }
 func (stubStore) UserProfiles() store.UserProfileStore { return nil }
 func (stubStore) CronJobs() store.CronJobStore         { return nil }
 func (stubStore) Roles() store.RoleStore               { return nil }
-func (stubStore) PricingRules() store.PricingRuleStore { return nil }
-func (stubStore) Close() error                         { return nil }
-func (stubStore) Migrate(_ context.Context) error      { return nil }
+func (stubStore) PricingRules() store.PricingRuleStore             { return nil }
+func (stubStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (stubStore) Close() error                                    { return nil }
+func (stubStore) Migrate(_ context.Context) error                 { return nil }
 
 func TestNewAPIServer(t *testing.T) {
 	tests := []struct {

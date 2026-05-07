@@ -113,6 +113,8 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.Handle("/v1/api-keys", NewAPIKeyHandler(cfg.Store.APIKeys()))
 	api.Handle("/v1/api-keys/", NewAPIKeyHandler(cfg.Store.APIKeys()))
 	api.Handle("/v1/audit-logs", NewAuditHandler(cfg.Store.AuditLogs()))
+	api.Handle("/v1/execution-receipts", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
+	api.Handle("/v1/execution-receipts/", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
 	api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 

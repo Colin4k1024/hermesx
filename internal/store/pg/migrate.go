@@ -440,6 +440,35 @@ var migrations = []migration{
 	{72, `CREATE INDEX IF NOT EXISTS idx_messages_trgm ON messages USING GIN(content gin_trgm_ops)`},
 	{73, `CREATE INDEX IF NOT EXISTS idx_memories_trgm ON memories USING GIN(content gin_trgm_ops)`},
 	{74, `CREATE INDEX IF NOT EXISTS idx_sessions_title_trgm ON sessions USING GIN(title gin_trgm_ops)`},
+
+	// v1.3.0: Execution receipts — auditable tool call records with idempotency.
+	{75, `CREATE TABLE IF NOT EXISTS execution_receipts (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		session_id TEXT NOT NULL,
+		user_id TEXT NOT NULL DEFAULT '',
+		tool_name TEXT NOT NULL,
+		input TEXT NOT NULL DEFAULT '',
+		output TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'success',
+		duration_ms INT NOT NULL DEFAULT 0,
+		idempotency_id TEXT,
+		trace_id TEXT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{76, `CREATE INDEX IF NOT EXISTS idx_exec_receipts_tenant ON execution_receipts(tenant_id)`},
+	{77, `CREATE INDEX IF NOT EXISTS idx_exec_receipts_session ON execution_receipts(tenant_id, session_id)`},
+	{78, `CREATE UNIQUE INDEX IF NOT EXISTS idx_exec_receipts_idempotency ON execution_receipts(tenant_id, idempotency_id) WHERE idempotency_id IS NOT NULL AND idempotency_id != ''`},
+
+	// v1.3.0: RLS policy for execution_receipts.
+	{79, `ALTER TABLE execution_receipts ENABLE ROW LEVEL SECURITY`},
+	{80, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'execution_receipts' AND policyname = 'tenant_isolation_exec_receipts') THEN
+			CREATE POLICY tenant_isolation_exec_receipts ON execution_receipts
+			USING (tenant_id::text = current_setting('app.current_tenant', true))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

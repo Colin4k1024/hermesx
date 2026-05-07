@@ -56,12 +56,12 @@ func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
 		"/v1/health",
 		"/v1/health/live",
 		"/v1/health/ready",
-		"/v1/chat",
-		"/v1/status",
+		"/v1/chat/completions",
 		"/v1/sessions",
 		"/v1/tenants",
 		"/v1/api-keys",
 		"/v1/audit-logs",
+		"/v1/execution-receipts",
 		"/v1/usage",
 		"/v1/me",
 		"/v1/metrics",
@@ -128,7 +128,7 @@ func TestOpenAPISpec_EachPathHasOperation(t *testing.T) {
 			continue
 		}
 		hasOp := false
-		for _, method := range []string{"GET", "POST", "PUT", "DELETE", "PATCH"} {
+		for _, method := range []string{"get", "post", "put", "delete", "patch"} {
 			if _, ok := pathItem[method]; ok {
 				hasOp = true
 				break

@@ -188,3 +188,22 @@ func (n *noopPricingRuleStore) Delete(_ context.Context, _ string) error {
 }
 
 var _ store.PricingRuleStore = (*noopPricingRuleStore)(nil)
+
+// --- ExecutionReceipt noop ---
+
+type noopExecutionReceiptStore struct{}
+
+func (n *noopExecutionReceiptStore) Create(_ context.Context, _ *store.ExecutionReceipt) error {
+	return errSQLiteUnsupported
+}
+func (n *noopExecutionReceiptStore) Get(_ context.Context, _, _ string) (*store.ExecutionReceipt, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopExecutionReceiptStore) List(_ context.Context, _ string, _ store.ReceiptListOptions) ([]*store.ExecutionReceipt, int, error) {
+	return nil, 0, errSQLiteUnsupported
+}
+func (n *noopExecutionReceiptStore) GetByIdempotencyID(_ context.Context, _, _ string) (*store.ExecutionReceipt, error) {
+	return nil, errSQLiteUnsupported
+}
+
+var _ store.ExecutionReceiptStore = (*noopExecutionReceiptStore)(nil)

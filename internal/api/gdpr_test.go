@@ -104,9 +104,10 @@ func (m *mockGDPRStore) Memories() store.MemoryStore          { return nil }
 func (m *mockGDPRStore) UserProfiles() store.UserProfileStore { return nil }
 func (m *mockGDPRStore) CronJobs() store.CronJobStore         { return nil }
 func (m *mockGDPRStore) Roles() store.RoleStore               { return nil }
-func (m *mockGDPRStore) PricingRules() store.PricingRuleStore { return nil }
-func (m *mockGDPRStore) Close() error                         { return nil }
-func (m *mockGDPRStore) Migrate(_ context.Context) error      { return nil }
+func (m *mockGDPRStore) PricingRules() store.PricingRuleStore             { return nil }
+func (m *mockGDPRStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (m *mockGDPRStore) Close() error                                    { return nil }
+func (m *mockGDPRStore) Migrate(_ context.Context) error                 { return nil }
 
 type mockGDPRAuditStore struct{}
 

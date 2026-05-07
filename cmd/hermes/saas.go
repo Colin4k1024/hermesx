@@ -147,12 +147,13 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	rbacCfg := middleware.RBACConfig{
 		DefaultRole: "user",
 		Rules: map[string]string{
-			"/v1/tenants":    "admin",
-			"/v1/tenants/":   "admin",
-			"/v1/api-keys":   "admin",
-			"/v1/api-keys/":  "admin",
-			"/v1/audit-logs": "admin",
-			"/v1/gdpr/":      "admin",
+			"/v1/tenants":          "admin",
+			"/v1/tenants/":         "admin",
+			"/v1/api-keys":         "admin",
+			"/v1/api-keys/":        "admin",
+			"GET /v1/audit-logs":   "auditor",
+			"/v1/gdpr/":            "admin",
+			"/v1/execution-receipts": "auditor",
 		},
 	}
 
