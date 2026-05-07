@@ -1,9 +1,9 @@
 # Project Context: hermes-agent-go
 
 **项目名**: hermes-agent-go  
-**当前任务**: 2026-05-07-enterprise-saas-phase3  
+**当前任务**: 2026-05-07-v012-absorption  
 **阶段**: closed  
-**版本目标**: v1.3.0
+**版本目标**: v1.4.0
 
 ## Tech Stack
 
@@ -18,33 +18,40 @@
 
 ## 当前状态
 
-- v1.2.0 CLOSED (Phase 1 + Phase 2)
-- v1.3.0-rc CLOSED (Phase 3 — OIDC wiring + breaker metrics + CI/CD)
-- 全部 enterprise SaaS GA 交付完成，production-ready
+- v1.2.0 CLOSED (Phase 1 + Phase 2 enterprise SaaS)
+- v1.3.0 CLOSED (Phase 3 — OIDC wiring + breaker metrics + CI/CD)
+- v1.4.0 CLOSED (v0.12 upstream absorption — hermes-agent v2026.4.30)
+- 全部 enterprise SaaS GA + upstream absorption 交付完成
 
 ## 已完成
 
 - Phase 1: RLS write protection, audit immutability, GDPR cleanup, PDB/HPA, session ownership, IDOR fix, CORS fix, credential hygiene
 - Phase 2: OIDCExtractor (JWKS + ClaimMapper), DualLayerLimiter (Redis Lua + local fallback), Dynamic PricingStore (30s cache + DB fallback), Admin Pricing CRUD API, store.ErrNotFound sentinel
 - Phase 3: OIDC wired into auth chain (env var activation), breaker Prometheus metrics + ChatStream failure recording, CI coverage reporting + Docker ghcr.io push, security hardening (tenant claim validation, JWT error propagation, startup timeout, goroutine leak fix)
+- v0.12 Absorption Sprint 1: Model Catalog hot-reload, CJK trigram search, Gateway platform registry refactor
+- v0.12 Absorption Sprint 2: MultimodalRouter (image/audio/video dispatch with provider capability detection)
+- v0.12 Absorption Sprint 3: Autonomous Memory Curator, Self-improvement Loop, Gateway Media Parity, Gateway Lifecycle Hooks
 
 ## 依赖
 
 - Redis Cluster: DualLayerLimiter (hash tag {tenantID})
-- PostgreSQL: RLS policies + pricing_rules table
+- PostgreSQL: RLS policies + pricing_rules table + pg_trgm extension
 - OIDC IdP: wired and production-ready (set OIDC_ISSUER_URL to activate)
 - GitHub Container Registry: automated image push on main
 
 ## 风险
 
 - ChatStream breaker.Execute double-counts (accepted — low streaming volume)
-- Half-open state not throttled for ChatStream (accepted — streaming probes negligible)
+- LifecycleHooks not yet wired into Gateway Runner (standalone correct, additive work)
+- SelfImprover not yet wired into Agent loop (standalone correct, additive work)
+- compress.go/curator.go LLM prompts not sanitized (server-controlled data only)
 - GHA actions not digest-pinned (deferred to next security sweep)
-- ACRLevel field populated but enforcement middleware not yet implemented
 
 ## 下一步
 
-1. 生产部署执行 (canary → 50% → full rollout)
-2. OIDC IdP 联调 (配置 OIDC_ISSUER_URL + OIDC_CLIENT_ID)
-3. Grafana dashboard for breaker metrics (hermes_breaker_state, hermes_breaker_requests_total)
-4. Backlog: digest-pin GHA actions, CI coverage threshold, ACR enforcement middleware
+1. LifecycleHooks integration into Gateway Runner
+2. SelfImprover wiring into Agent conversation loop
+3. compress.go / curator.go prompt sanitization consistency
+4. payload.URL traversal check extension
+5. Curator O(n²) dedup optimization (if MaxMemories > 100 needed)
+6. 生产部署执行 (canary → 50% → full rollout)

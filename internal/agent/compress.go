@@ -69,16 +69,27 @@ type CompressionConfig struct {
 	// ContextWindow overrides the model's context length for tail-budget
 	// calculation.  When zero the model metadata is used.
 	ContextWindow int
+
+	// RetryWithMain controls whether compression retries with the main model
+	// when the summary model fails. Default: true.
+	RetryWithMain *bool
 }
 
 // DefaultCompressionConfig returns sensible defaults.
 func DefaultCompressionConfig() CompressionConfig {
+	retryEnabled := true
 	return CompressionConfig{
 		Threshold:       0.75,
 		Strategy:        StrategyHybrid,
 		KeepCount:       6,
 		SummaryMaxWords: 500,
+		RetryWithMain:   &retryEnabled,
 	}
+}
+
+// retryWithMainEnabled returns true if the config allows retry with main model.
+func (c CompressionConfig) retryWithMainEnabled() bool {
+	return c.RetryWithMain == nil || *c.RetryWithMain
 }
 
 // ShouldCompress returns true if the conversation should be compressed.
@@ -279,7 +290,34 @@ func isKeyMessage(m llm.Message) bool {
 // summary.  When the messages already contain a previous summary (identified by
 // summaryHeader), the LLM is asked to update it incrementally instead of
 // recreating from scratch.
+//
+// If the summary model fails and RetryWithMain is enabled, it retries with the
+// main LLM client before returning an error.
 func (a *AIAgent) generateSummary(ctx context.Context, messages []llm.Message, maxWords int) (string, error) {
+	completer := a.compressionCompleter()
+	result, err := a.generateSummaryWith(ctx, completer, messages, maxWords)
+	if err == nil {
+		return result, nil
+	}
+
+	// Retry with main client if the summary model failed and it's a different client.
+	if a.compressionCfg.retryWithMainEnabled() && a.summaryCompleter != nil && a.client != nil {
+		slog.Warn("Summary model failed, retrying with main model",
+			"error", err,
+			"model", a.model,
+		)
+		result, retryErr := a.generateSummaryWith(ctx, a.client, messages, maxWords)
+		if retryErr == nil {
+			return result, nil
+		}
+		return "", fmt.Errorf("generate summary (main model retry also failed): %w", retryErr)
+	}
+
+	return "", err
+}
+
+// generateSummaryWith sends the summarisation prompt to the given completer.
+func (a *AIAgent) generateSummaryWith(ctx context.Context, completer chatCompleter, messages []llm.Message, maxWords int) (string, error) {
 	// Pre-pass: prune large tool results.
 	pruned := pruneToolResults(messages)
 
@@ -346,7 +384,7 @@ func (a *AIAgent) generateSummary(ctx context.Context, messages []llm.Message, m
 		},
 	}
 
-	resp, err := a.compressionCompleter().CreateChatCompletion(ctx, req)
+	resp, err := completer.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("generate summary: %w", err)
 	}

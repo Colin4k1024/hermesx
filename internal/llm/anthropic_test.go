@@ -570,3 +570,92 @@ func TestConvertResponse_MultipleToolCalls(t *testing.T) {
 		t.Errorf("Expected second tool 'terminal', got '%s'", result.ToolCalls[1].Function.Name)
 	}
 }
+
+func TestPromptCacheDisabled(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+	c.SetPromptCacheOpts(PromptCacheOpts{Enabled: false, Breakpoints: 3})
+
+	req := ChatRequest{
+		Messages: []Message{
+			{Role: "system", Content: "System prompt."},
+			{Role: "user", Content: "Hello"},
+			{Role: "assistant", Content: "Hi"},
+			{Role: "user", Content: "How?"},
+		},
+	}
+
+	apiReq := c.buildAnthropicRequest(req)
+
+	// System block should NOT have cache_control.
+	sysBlocks := apiReq.System.([]anthropicSystemBlock)
+	if sysBlocks[0].CacheControl != nil {
+		t.Error("expected no cache_control on system block when caching disabled")
+	}
+
+	// Messages should NOT have cache_control blocks.
+	for i, msg := range apiReq.Messages {
+		switch content := msg.Content.(type) {
+		case []anthropicContentBlock:
+			for _, block := range content {
+				if block.CacheControl != nil {
+					t.Errorf("message[%d]: expected no cache_control, found one", i)
+				}
+			}
+		}
+	}
+}
+
+func TestPromptCacheCustomBreakpoints(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+	c.SetPromptCacheOpts(PromptCacheOpts{Enabled: true, Breakpoints: 1})
+
+	req := ChatRequest{
+		Messages: []Message{
+			{Role: "system", Content: "System."},
+			{Role: "user", Content: "First"},
+			{Role: "assistant", Content: "Response 1"},
+			{Role: "user", Content: "Second"},
+			{Role: "assistant", Content: "Response 2"},
+			{Role: "user", Content: "Third"},
+		},
+	}
+
+	apiReq := c.buildAnthropicRequest(req)
+
+	// With breakpoints=1, only the last message should be cached.
+	cachedCount := 0
+	for _, msg := range apiReq.Messages {
+		switch content := msg.Content.(type) {
+		case []anthropicContentBlock:
+			for _, block := range content {
+				if block.CacheControl != nil {
+					cachedCount++
+				}
+			}
+		}
+	}
+
+	if cachedCount != 1 {
+		t.Errorf("expected exactly 1 cached message, got %d", cachedCount)
+	}
+}
+
+func TestDefaultPromptCacheOpts(t *testing.T) {
+	opts := DefaultPromptCacheOpts()
+	if !opts.Enabled {
+		t.Error("expected default opts to have caching enabled")
+	}
+	if opts.Breakpoints != 3 {
+		t.Errorf("expected default breakpoints=3, got %d", opts.Breakpoints)
+	}
+}
+
+func TestNewAnthropicClientDefaultCache(t *testing.T) {
+	c := NewAnthropicClient("model", "https://api.anthropic.com", "key", "")
+	if !c.cacheOpts.Enabled {
+		t.Error("expected default cache enabled")
+	}
+	if c.cacheOpts.Breakpoints != 3 {
+		t.Errorf("expected default breakpoints=3, got %d", c.cacheOpts.Breakpoints)
+	}
+}

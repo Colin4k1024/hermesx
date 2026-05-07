@@ -32,6 +32,7 @@ type Config struct {
 	Auxiliary  AuxiliaryConfig  `yaml:"auxiliary"`
 	Plugins    PluginsConfig    `yaml:"plugins"`
 
+	Cache          CacheConfig    `yaml:"cache"`
 	ProviderRouting map[string]any `yaml:"provider_routing"`
 
 	// SaaS / Stateless
@@ -61,6 +62,13 @@ type MinIOConfig struct {
 	SecretKey string `yaml:"secret_key"`
 	Bucket    string `yaml:"bucket"`
 	UseSSL    bool   `yaml:"use_ssl"`
+}
+
+// CacheConfig controls prompt caching and model discovery caching behavior.
+type CacheConfig struct {
+	PromptCacheEnabled     *bool  `yaml:"prompt_cache_enabled"`      // nil = auto (enabled for Anthropic)
+	PromptCacheBreakpoints int    `yaml:"prompt_cache_breakpoints"`  // Number of messages to cache (default: 3)
+	ModelDiscoveryTTL      string `yaml:"model_discovery_ttl"`       // Duration string, e.g. "1h" (default: 1h)
 }
 
 // DisplayConfig controls CLI display options.

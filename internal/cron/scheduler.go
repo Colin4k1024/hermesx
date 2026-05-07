@@ -221,6 +221,22 @@ func (s *Scheduler) executeJob(job *Job) {
 }
 
 func (s *Scheduler) runJob(job *Job) (success bool, output, response, errMsg string) {
+	// Switch to job-specific working directory if configured.
+	if job.Workdir != "" {
+		origDir, err := os.Getwd()
+		if err != nil {
+			errMsg = fmt.Sprintf("failed to get working directory: %v", err)
+			output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
+			return false, output, "", errMsg
+		}
+		if err := os.Chdir(job.Workdir); err != nil {
+			errMsg = fmt.Sprintf("failed to chdir to %s: %v", job.Workdir, err)
+			output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
+			return false, output, "", errMsg
+		}
+		defer os.Chdir(origDir)
+	}
+
 	// Build the prompt (with optional skill loading).
 	prompt := s.buildJobPrompt(job)
 
@@ -278,6 +294,20 @@ func (s *Scheduler) buildJobPrompt(job *Job) string {
 		`with exactly "[SILENT]" (nothing else) to suppress delivery.]` + "\n\n"
 
 	prompt = cronHint + prompt
+
+	// Inject context from a previous job's output if configured.
+	if job.ContextFrom != "" {
+		prevOutput, err := s.store.GetLatestOutput(job.ContextFrom)
+		if err != nil {
+			slog.Warn("Failed to load context_from output", "context_from", job.ContextFrom, "error", err)
+		} else {
+			contextBlock := fmt.Sprintf(
+				"## Prior Context (from job %s)\n\n%s\n\n---\n\n",
+				job.ContextFrom, prevOutput,
+			)
+			prompt = contextBlock + prompt
+		}
+	}
 
 	// Load skills if configured.
 	if len(job.Skills) > 0 {

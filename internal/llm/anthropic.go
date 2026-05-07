@@ -12,6 +12,17 @@ import (
 	"time"
 )
 
+// PromptCacheOpts controls Anthropic prompt caching behavior.
+type PromptCacheOpts struct {
+	Enabled     bool // Whether to apply cache_control breakpoints.
+	Breakpoints int  // Number of trailing messages to mark (default: 3).
+}
+
+// DefaultPromptCacheOpts returns the default caching configuration.
+func DefaultPromptCacheOpts() PromptCacheOpts {
+	return PromptCacheOpts{Enabled: true, Breakpoints: 3}
+}
+
 // AnthropicClient implements the Anthropic Messages API.
 type AnthropicClient struct {
 	httpClient *http.Client
@@ -19,6 +30,7 @@ type AnthropicClient struct {
 	provider   string
 	baseURL    string
 	apiKey     string
+	cacheOpts  PromptCacheOpts
 }
 
 // NewAnthropicClient creates a new Anthropic Messages API client.
@@ -32,11 +44,17 @@ func NewAnthropicClient(model, baseURL, apiKey, provider string) *AnthropicClien
 
 	return &AnthropicClient{
 		httpClient: &http.Client{Timeout: 300 * time.Second},
+		cacheOpts:  DefaultPromptCacheOpts(),
 		model:      model,
 		provider:   provider,
 		baseURL:    baseURL,
 		apiKey:     apiKey,
 	}
+}
+
+// SetPromptCacheOpts configures prompt caching behavior.
+func (c *AnthropicClient) SetPromptCacheOpts(opts PromptCacheOpts) {
+	c.cacheOpts = opts
 }
 
 // --- Anthropic API request/response types ---
@@ -367,14 +385,14 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 	for _, m := range req.Messages {
 		switch m.Role {
 		case "system":
-			// Use cache_control on system prompt for Anthropic prompt caching
-			apiReq.System = []anthropicSystemBlock{
-				{
-					Type:         "text",
-					Text:         m.Content,
-					CacheControl: &anthropicCacheCtrl{Type: "ephemeral"},
-				},
+			block := anthropicSystemBlock{
+				Type: "text",
+				Text: m.Content,
 			}
+			if c.cacheOpts.Enabled {
+				block.CacheControl = &anthropicCacheCtrl{Type: "ephemeral"}
+			}
+			apiReq.System = []anthropicSystemBlock{block}
 
 		case "user":
 			apiReq.Messages = append(apiReq.Messages, anthropicMessage{
@@ -450,9 +468,10 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 	// Ensure messages alternate user/assistant (Anthropic requirement)
 	apiReq.Messages = ensureAlternating(apiReq.Messages)
 
-	// Apply prompt caching: mark the last 3 non-system messages with cache_control.
-	// This reduces input costs ~75% by caching the conversation prefix.
-	applyMessageCaching(apiReq.Messages)
+	// Apply prompt caching if enabled.
+	if c.cacheOpts.Enabled {
+		applyMessageCaching(apiReq.Messages, c.cacheOpts.Breakpoints)
+	}
 
 	// Convert tools to Anthropic format
 	for _, t := range req.Tools {
@@ -467,20 +486,20 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 	return apiReq
 }
 
-// applyMessageCaching applies cache_control breakpoints to the last 3 messages
-// in the conversation (Anthropic "system_and_3" strategy). System prompt caching
-// is handled separately in buildAnthropicRequest. This caches the rolling
-// conversation prefix to reduce input costs ~75%.
-func applyMessageCaching(msgs []anthropicMessage) {
-	if len(msgs) == 0 {
+// applyMessageCaching applies cache_control breakpoints to the last N messages
+// in the conversation. System prompt caching is handled separately in
+// buildAnthropicRequest. This caches the rolling conversation prefix to reduce
+// input costs ~75%.
+func applyMessageCaching(msgs []anthropicMessage, breakpoints int) {
+	if len(msgs) == 0 || breakpoints <= 0 {
 		return
 	}
 
 	cacheCtrl := &anthropicCacheCtrl{Type: "ephemeral"}
 	marked := 0
 
-	// Walk backwards, mark the last 3 messages
-	for i := len(msgs) - 1; i >= 0 && marked < 3; i-- {
+	// Walk backwards, mark the last N messages
+	for i := len(msgs) - 1; i >= 0 && marked < breakpoints; i-- {
 		msg := &msgs[i]
 
 		switch content := msg.Content.(type) {

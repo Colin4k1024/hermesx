@@ -346,3 +346,23 @@ func TestKnownProviderPrefixes_NoDuplicates(t *testing.T) {
 		seen[p] = true
 	}
 }
+
+func TestSetModelDiscoveryCacheTTL(t *testing.T) {
+	origTTL := cacheTTL
+	defer func() { cacheTTL = origTTL }()
+
+	SetModelDiscoveryCacheTTL(30 * time.Minute)
+	if cacheTTL != 30*time.Minute {
+		t.Errorf("expected 30m, got %v", cacheTTL)
+	}
+
+	// Zero/negative should be ignored.
+	SetModelDiscoveryCacheTTL(0)
+	if cacheTTL != 30*time.Minute {
+		t.Errorf("expected cacheTTL unchanged, got %v", cacheTTL)
+	}
+	SetModelDiscoveryCacheTTL(-5 * time.Minute)
+	if cacheTTL != 30*time.Minute {
+		t.Errorf("expected cacheTTL unchanged, got %v", cacheTTL)
+	}
+}

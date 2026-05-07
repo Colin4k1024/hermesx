@@ -434,6 +434,12 @@ var migrations = []migration{
 
 	// v1.2.0 P1-S6: API key expiration support.
 	{70, `ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`},
+
+	// v1.4.0: pg_trgm extension + GIN trigram indexes for CJK full-text search.
+	{71, `CREATE EXTENSION IF NOT EXISTS pg_trgm`},
+	{72, `CREATE INDEX IF NOT EXISTS idx_messages_trgm ON messages USING GIN(content gin_trgm_ops)`},
+	{73, `CREATE INDEX IF NOT EXISTS idx_memories_trgm ON memories USING GIN(content gin_trgm_ops)`},
+	{74, `CREATE INDEX IF NOT EXISTS idx_sessions_title_trgm ON sessions USING GIN(title gin_trgm_ops)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

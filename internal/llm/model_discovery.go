@@ -63,6 +63,13 @@ var modelCache sync.Map
 // cacheTTL defines how long cached entries remain valid.
 var cacheTTL = 1 * time.Hour
 
+// SetModelDiscoveryCacheTTL overrides the default model discovery cache TTL.
+func SetModelDiscoveryCacheTTL(d time.Duration) {
+	if d > 0 {
+		cacheTTL = d
+	}
+}
+
 // httpClient is the HTTP client used for API requests. It can be replaced in tests.
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 

@@ -70,7 +70,31 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	}
 
 	apiMode := detectAPIMode(cfg.APIMode, provider, baseURL)
-	return newClientInternal(model, baseURL, apiKey, provider, apiMode)
+	client, err := newClientInternal(model, baseURL, apiKey, provider, apiMode)
+	if err != nil {
+		return nil, err
+	}
+
+	// Apply prompt cache configuration.
+	if cfg.Cache.PromptCacheEnabled != nil || cfg.Cache.PromptCacheBreakpoints > 0 {
+		opts := DefaultPromptCacheOpts()
+		if cfg.Cache.PromptCacheEnabled != nil {
+			opts.Enabled = *cfg.Cache.PromptCacheEnabled
+		}
+		if cfg.Cache.PromptCacheBreakpoints > 0 {
+			opts.Breakpoints = cfg.Cache.PromptCacheBreakpoints
+		}
+		client.SetPromptCacheOpts(opts)
+	}
+
+	// Apply model discovery cache TTL.
+	if cfg.Cache.ModelDiscoveryTTL != "" {
+		if d, err := time.ParseDuration(cfg.Cache.ModelDiscoveryTTL); err == nil {
+			SetModelDiscoveryCacheTTL(d)
+		}
+	}
+
+	return client, nil
 }
 
 // NewClientWithParams creates a client with explicit parameters.
@@ -168,6 +192,19 @@ func (c *Client) APIMode() APIMode { return c.apiMode }
 
 // GetTransport returns the underlying transport.
 func (c *Client) GetTransport() Transport { return c.transport }
+
+// SetPromptCacheOpts configures prompt caching on the underlying Anthropic transport.
+// No-op for non-Anthropic transports.
+func (c *Client) SetPromptCacheOpts(opts PromptCacheOpts) {
+	switch t := c.transport.(type) {
+	case *anthropicTransportImpl:
+		t.client.SetPromptCacheOpts(opts)
+	case *ResilientTransport:
+		if at, ok := t.inner.(*anthropicTransportImpl); ok {
+			at.client.SetPromptCacheOpts(opts)
+		}
+	}
+}
 
 // ChatRequest represents a chat completion request.
 type ChatRequest struct {

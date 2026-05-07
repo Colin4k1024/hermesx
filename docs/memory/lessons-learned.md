@@ -67,6 +67,49 @@
 
 ---
 
+## 2026-05-07 — v0.12 Absorption: store.List() 排序语义不能作为业务逻辑依赖
+
+**场景：** SelfImprover.persistInsights() 通过 store.List() 获取已有 insight keys 后，从列表头部删除以淘汰"最旧"条目。
+
+**问题：**
+1. pg 实现的 `store.List()` 按 `ORDER BY updated_at DESC` 返回 — 列表头部是最新条目，直接从头删除导致淘汰最新而非最旧。
+2. 不同 store 实现（pg、memory mock、未来 Redis）的 List() 排序语义不一致，业务逻辑对此做隐式假设必然出错。
+
+**建议：**
+1. 任何依赖 List() 返回顺序的逻辑，必须在调用侧显式排序（`sort.Strings` 或自定义 comparator），不依赖 store 层实现细节。
+2. store 接口文档应明确声明是否保证返回顺序 — 若不保证，调用方必须自行排序。
+
+---
+
+## 2026-05-07 — v0.12 Absorption: 多字节 UTF-8 截断必须用 rune 而非 byte
+
+**场景：** sanitizeForPrompt() 用 `s[:maxLen]` 字节切片截断含 CJK 字符的字符串，产生非法 UTF-8 序列注入 LLM prompt。
+
+**问题：**
+1. Go 的 `s[:n]` 在字节级操作，CJK 字符占 3 字节，中间截断产生无效 rune。
+2. 非法 UTF-8 可能导致下游 JSON 序列化失败、LLM tokenizer 异常或日志不可读。
+
+**建议：**
+1. 涉及用户可见内容或 LLM prompt 的截断，一律使用 `[]rune(s)[:maxLen]` 转换。
+2. 对性能敏感路径（高频调用），可考虑 `utf8.RuneCountInString` + 逐 rune 遍历避免一次性分配 rune slice。
+
+---
+
+## 2026-05-07 — v0.12 Absorption: 并发安全审计应前置而非后补
+
+**场景：** Sprint 3 四个新模块均含共享可变状态（turnCount、hooks map），但 mutex 保护在首次 code-review 才被要求补充。
+
+**问题：**
+1. SelfImprover.turnCount 在 RecordTurn() 和 Review() 间存在数据竞态 — 直到第二轮 review 才通过 `-race` 验证发现。
+2. LifecycleHooks.hooks 在 Register() 和 Fire() 间存在 map 竞态 — 若已 wired 到 Runner，生产环境会 panic。
+
+**建议：**
+1. 含 goroutine 交互的新模块，PR 提交前必须先执行 `go test -race` 验证。
+2. 分步 review（code-reviewer + security-reviewer 并行两轮）比单次大审查遗漏率更低 — 推荐作为标准实践。
+3. 对含共享状态的 struct，在设计阶段就标注"并发安全要求"，而非实现后靠 review 补锁。
+
+---
+
 ## 2026-04-28 — SaaS Readiness: 安全审查驱动的批量修复
 
 **场景：** P0-P5 一次性交付 23 个新文件后，并行 code-reviewer + security-reviewer 发现 29 个安全问题（5 CRITICAL + 10 HIGH + 9 MEDIUM + 5 LOW）。

@@ -59,7 +59,8 @@ type AIAgent struct {
 	fallbackModels []FallbackModel
 
 	// Smart routing
-	smartRouter *SmartRouter
+	smartRouter      *SmartRouter
+	multimodalRouter *MultimodalRouter
 
 	// Runtime state
 	client          *llm.Client
@@ -106,16 +107,17 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 	cfg := config.Load()
 
 	a := &AIAgent{
-		model:          cfg.Model,
-		baseURL:        cfg.BaseURL,
-		apiKey:         cfg.APIKey,
-		provider:       cfg.Provider,
-		apiMode:        cfg.APIMode,
-		maxIterations:  cfg.MaxIterations,
-		platform:       "cli",
-		persistSession: true,
-		compressionCfg: DefaultCompressionConfig(),
-		lastActivity:   time.Now(),
+		model:            cfg.Model,
+		baseURL:          cfg.BaseURL,
+		apiKey:           cfg.APIKey,
+		provider:         cfg.Provider,
+		apiMode:          cfg.APIMode,
+		maxIterations:    cfg.MaxIterations,
+		platform:         "cli",
+		persistSession:   true,
+		compressionCfg:   DefaultCompressionConfig(),
+		multimodalRouter: DefaultMultimodalRouter(),
+		lastActivity:     time.Now(),
 	}
 
 	// Options override config defaults
@@ -260,6 +262,12 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 			Stream:   a.hasStreamConsumers(),
 		}
 
+		// Route to vision client if images present and model lacks vision.
+		activeClient := a.client
+		if vc := a.visionClientForRequest(apiMessages); vc != nil {
+			activeClient = vc
+		}
+
 		// Call LLM (with fallback chain on failure)
 		a.fireHeartbeat()
 		var resp *llm.ChatResponse
@@ -268,7 +276,7 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		if req.Stream {
 			resp, err = a.streamingAPICall(ctx, req)
 		} else {
-			resp, err = a.client.CreateChatCompletion(ctx, req)
+			resp, err = activeClient.CreateChatCompletion(ctx, req)
 		}
 
 		if err != nil {

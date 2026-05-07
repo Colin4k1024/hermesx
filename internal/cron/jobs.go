@@ -28,6 +28,8 @@ type Job struct {
 	Script          string         `json:"script,omitempty"` // Pre-run data collection script
 	Deliver         string         `json:"deliver"`          // "local", "origin", "platform:chat_id"
 	Origin          *JobOrigin     `json:"origin,omitempty"` // Where the job was created
+	Workdir         string         `json:"workdir,omitempty"`      // Working directory for execution
+	ContextFrom     string         `json:"context_from,omitempty"` // Job ID whose last output injects as context
 	Enabled         bool           `json:"enabled"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
@@ -267,6 +269,34 @@ func (s *JobStore) SaveJobOutput(jobID, output string) (string, error) {
 	}
 
 	return outputPath, nil
+}
+
+// GetLatestOutput returns the most recent output content for a given job ID.
+func (s *JobStore) GetLatestOutput(jobID string) (string, error) {
+	outputDir := filepath.Join(s.jobsDir, "output")
+	pattern := filepath.Join(outputDir, jobID+"_*.md")
+
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return "", fmt.Errorf("glob output files: %w", err)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no output found for job %s", jobID)
+	}
+
+	// Filenames contain timestamps in sortable format, so last lexicographically = latest.
+	latest := matches[0]
+	for _, m := range matches[1:] {
+		if m > latest {
+			latest = m
+		}
+	}
+
+	data, err := os.ReadFile(latest)
+	if err != nil {
+		return "", fmt.Errorf("read output file: %w", err)
+	}
+	return string(data), nil
 }
 
 func (s *JobStore) saveUnlocked() error {
