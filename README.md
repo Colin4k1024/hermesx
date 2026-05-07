@@ -21,20 +21,20 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 | **Binary size** | ~500MB (with venv) | 23MB |
 | **Concurrency** | asyncio + threading (GIL) | Goroutines (native parallelism) |
 | **Cross-compile** | Requires per-platform setup | `GOOS=linux go build` |
-| **Code volume** | 183K lines | 29K lines (6x more compact) |
+| **Code volume** | 183K lines | 78K lines (2.3x more compact) |
 
 ### Project Stats
 
 | Metric | Value |
 |--------|-------|
 | Go source files | 413 |
-| Lines of code | 53,130 |
+| Lines of code | 78,157 |
 | Registered tools | 50 (36 core + 14 extended) |
 | Platform adapters | 15 |
 | Terminal backends | 7 |
-| Bundled skills | 81 |
+| Bundled skills | 126 |
 | Test files | 123 |
-| Total tests | 1,576 |
+| Total tests | 1,585 |
 | Version | v1.4.0 (production-ready) |
 
 ### Features
@@ -70,18 +70,22 @@ The original hermes-agent is written in Python (183K lines). This Go rewrite del
 
 #### Enterprise SaaS Platform (v1.3.0)
 
-- **Multi-tenant isolation**: PostgreSQL Row-Level Security (RLS) enforced on all tenant tables
+- **Multi-tenant isolation**: PostgreSQL Row-Level Security (RLS) with FORCE + WITH CHECK write policies
+- **OIDC SSO**: JWKS rotation, configurable claim mapping, env-var activated wiring
+- **Dual-layer rate limiting**: atomic Redis Lua (tenant + user ZSET) with local fallback on Redis failure
+- **Dynamic pricing**: per-model pricing rules with 30s cache + DB fallback, Admin CRUD API
+- **Circuit breaker**: per-model gobreaker with Prometheus metrics + failure recording
 - **API Key scopes**: fine-grained `read`/`write`/`admin`/`sandbox` scope authorization
-- **Redis rate limiting**: ZSET sliding-window with atomic Lua script (no race conditions)
 - **Token usage metering**: async batch persistence with cost calculation per model
-- **Admin API**: tenant sandbox policy CRUD, API key lifecycle (create/rotate/revoke), audit log query
-- **GDPR compliance**: full-chain tenant data export and transactional deletion
+- **Admin API**: tenant sandbox policy CRUD, API key lifecycle (create/rotate/revoke), pricing rules, audit log query
+- **GDPR compliance**: full-chain tenant data export + transactional deletion + MinIO object cleanup (207 Multi-Status)
 - **Distributed tracing**: OpenTelemetry spans on LLM calls, PostgreSQL queries, Redis operations
-- **Prometheus metrics**: rate limiting, active sessions, LLM latency by provider/status
+- **Prometheus metrics**: rate limiting, breaker state, active sessions, LLM latency by provider/status
 - **PG PITR backup**: pgBackRest with RPO < 5min, RTO < 1h
 - **Multi-replica ready**: verified with 3 replicas + Nginx ip_hash load balancer
-- **CI integration tests**: full pipeline with PG 16, Redis 7, MinIO service containers
+- **CI/CD**: GitHub Actions (unit + integration + race + coverage + Docker ghcr.io auto-push)
 - **Docker sandbox**: per-tenant code execution isolation with network/resource limits
+- **Kubernetes ready**: Helm chart with PDB, HPA (CPU/memory), conservative scale-down
 
 ### Installation
 
@@ -208,7 +212,7 @@ hermes version          # Show version info
 - Same skill file format (YAML frontmatter + Markdown)
 - Same toolset definitions and platform presets
 - Same slash command names and aliases (40+ commands)
-- Bundled skills are directly copied (81 skills)
+- Bundled skills are directly copied (126 skills)
 
 #### What's improved
 - **Single binary** — no Python/Node.js/venv setup required
@@ -272,7 +276,7 @@ hermes-agent-go/
 ├── scripts/
 │   ├── verify-multi-replica.sh   Multi-replica verification
 │   └── pitr-drill.sh             Backup recovery drill
-├── skills/                  81 bundled skills
+├── skills/                  126 bundled skills
 ├── optional-skills/         Official optional skills
 ├── docker-compose.test.yml  Test infrastructure (PG/Redis/MinIO)
 ├── Makefile
@@ -303,7 +307,7 @@ make test-integration      # Starts infra, runs tests, tears down
 
 | Layer | Tests | What's covered |
 |-------|-------|---------------|
-| Unit | 123 files, 1576 tests | Tools, agent loop, LLM client, skills, config, auth, metering, curator, media dispatch, lifecycle hooks |
+| Unit | 123 files, 1585 tests | Tools, agent loop, LLM client, skills, config, auth, metering, curator, media dispatch, lifecycle hooks |
 | Integration | 7 suites | Tenant/user/session/skills isolation, sandbox, GDPR cascade |
 | Race detection | CI job | Agent, tools, gateway packages with `-race` flag (verified clean) |
 | Multi-replica | Script | Rate limit consistency, session visibility, failover |
@@ -365,20 +369,20 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 | **体积** | ~500MB（含 venv） | 23MB |
 | **并发模型** | asyncio + threading（GIL 限制） | Goroutine（原生并行） |
 | **交叉编译** | 需要各平台独立配置 | `GOOS=linux go build` |
-| **代码量** | 183K 行 | 29K 行（紧凑 6 倍） |
+| **代码量** | 183K 行 | 78K 行（紧凑 2.3 倍） |
 
 ### 项目数据
 
 | 指标 | 数值 |
 |------|------|
 | Go 源文件 | 413 个 |
-| 代码行数 | 53,130 行 |
+| 代码行数 | 78,157 行 |
 | 注册工具 | 50 个（36 核心 + 14 扩展） |
 | 平台适配器 | 15 个 |
 | 终端后端 | 7 个 |
-| 内置技能 | 81 个 |
+| 内置技能 | 126 个 |
 | 测试文件 | 123 个 |
-| 测试总数 | 1,576 个 |
+| 测试总数 | 1,585 个 |
 | 版本 | v1.4.0（生产就绪） |
 
 ### 主要功能
@@ -414,24 +418,28 @@ MIT — same as the [original Python version](https://github.com/NousResearch/he
 
 #### 企业级 SaaS 平台功能（v1.3.0）
 
-- **多租户隔离**：PostgreSQL 行级安全（RLS）强制所有租户表隔离
+- **多租户隔离**：PostgreSQL 行级安全（RLS）+ FORCE + WITH CHECK 写策略
+- **OIDC SSO**：JWKS 密钥轮换、可配置 Claim 映射、环境变量激活
+- **双层限流**：原子 Redis Lua 脚本（租户 + 用户 ZSET 滑动窗口），Redis 故障自动降级到本地
+- **动态定价**：按模型定价规则，30s 缓存 + DB 回退，Admin CRUD API
+- **熔断器**：按模型独立的 gobreaker + Prometheus 指标 + 故障记录
 - **API Key 作用域**：细粒度 `read`/`write`/`admin`/`sandbox` 权限控制
-- **Redis 限流**：ZSET 滑动窗口 + Lua 脚本原子操作（无竞态条件）
 - **Token 用量计量**：异步批量持久化 + 按模型成本计算
-- **Admin API**：租户沙箱策略管理、API Key 生命周期（创建/轮换/吊销）、审计日志查询
-- **GDPR 合规**：全链路租户数据导出 + 事务性删除
+- **Admin API**：租户沙箱策略、API Key 生命周期、定价规则、审计日志查询
+- **GDPR 合规**：全链路数据导出 + 事务性删除 + MinIO 对象清理（207 Multi-Status）
 - **分布式追踪**：OpenTelemetry 接入 LLM 调用、PostgreSQL 查询、Redis 操作
-- **Prometheus 指标**：限流、活跃会话、LLM 延迟（按 Provider/状态维度）
+- **Prometheus 指标**：限流、熔断器状态、活跃会话、LLM 延迟（按 Provider/状态维度）
 - **PG PITR 备份**：pgBackRest 实现 RPO < 5min, RTO < 1h
 - **多副本就绪**：3 副本 + Nginx ip_hash 负载均衡验证
-- **CI 集成测试**：完整 Pipeline，PG 16、Redis 7、MinIO 服务容器
+- **CI/CD**：GitHub Actions（单元 + 集成 + 竞态检测 + 覆盖率 + Docker ghcr.io 自动推送）
 - **Docker 沙箱**：按租户隔离的代码执行环境，支持网络/资源限制
+- **Kubernetes 就绪**：Helm chart 含 PDB、HPA（CPU/内存）、保守缩容策略
 
 ### 安装
 
 #### 从源码构建（推荐）
 
-前置条件：Go 1.22+
+前置条件：Go 1.23+
 
 ```bash
 git clone https://github.com/MLT-OSS/hermes-agent-go.git
@@ -521,7 +529,7 @@ docker run -it --rm \
 - 技能文件格式（YAML frontmatter + Markdown）一致
 - 工具集定义和平台预设一致
 - 斜杠命令名称和别名一致（40+ 命令）
-- 内置技能直接复制（81 个）
+- 内置技能直接复制（126 个）
 
 #### 改进之处
 - **单文件部署** —— 无需安装 Python/Node.js/venv

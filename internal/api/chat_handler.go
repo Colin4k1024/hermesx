@@ -26,6 +26,7 @@ type chatHandler struct {
 	llmURL       string
 	llmAPIKey    string
 	llmModel     string
+	apiMode      string
 	httpClient   *http.Client
 	skillsClient *objstore.MinIOClient
 
@@ -116,6 +117,7 @@ func NewChatHandler(s store.Store, pool *pgxpool.Pool, skillsClient *objstore.Mi
 		llmURL:       getEnvOr("LLM_API_URL", "http://localhost:8000"),
 		llmAPIKey:    getEnvOr("LLM_API_KEY", ""),
 		llmModel:     getEnvOr("LLM_MODEL", "Qwen3-Coder-Next-4bit"),
+		apiMode:      getEnvOr("HERMES_API_MODE", ""),
 		httpClient:   &http.Client{Timeout: 120 * time.Second},
 		skillsClient: skillsClient,
 		soulCache:    lru.NewLRU[string, string](soulCacheMaxEntries, nil, soulCacheTTL),

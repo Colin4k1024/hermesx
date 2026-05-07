@@ -122,6 +122,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		agent.WithBaseURL(h.llmURL),
 		agent.WithAPIKey(h.llmAPIKey),
 		agent.WithModel(h.llmModel),
+		agent.WithAPIMode(h.apiMode),
 		agent.WithTenantID(tenantID),
 		agent.WithUserID(userID),
 		agent.WithSessionID(sessionID),

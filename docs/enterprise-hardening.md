@@ -93,16 +93,20 @@ v0.7.0 基线
   ├── 隔离：应用层 WHERE tenant_id（无 RLS）
   └── LLM：直接 HTTP，无断路器
 
-v1.0.0 当前
-  ├── 认证：完整三段链（Static → API Key → JWT），时序攻击防护
+v1.4.0 当前
+  ├── 认证：Static → API Key → JWT → OIDC (JWKS rotation + claim mapping)
   ├── RBAC：method+path 细粒度，admin 超级权限
-  ├── 限流：Redis 分布式 + 本地 LRU 降级，租户维度
-  ├── 可观测：OTel + W3C Trace Context，Prometheus 低基数，结构化审计日志
-  ├── 隔离：应用层 WHERE + RLS 纵深防御
-  ├── LLM：断路器（gobreaker v2.4.0）+ 可配置超时
+  ├── 限流：双层 Redis Lua (tenant + user) + 本地 LRU 降级
+  ├── 可观测：OTel + W3C Trace Context，Prometheus (limiter + breaker + LLM)
+  ├── 隔离：应用层 WHERE + RLS FORCE + WITH CHECK 写策略
+  ├── LLM：FallbackRouter + RetryTransport + 断路器 + Model Catalog
   ├── SSE：真实流式响应
+  ├── 计费：Dynamic Pricing + Token Usage Metering + Admin CRUD
+  ├── GDPR：事务性删除 + MinIO 对象清理 + 207 Multi-Status
+  ├── CI/CD：GitHub Actions (unit + integration + race + Docker push)
+  ├── K8s：Helm PDB + HPA (CPU/memory) + 保守缩容
   ├── 生命周期：有序关闭 Lifecycle Manager
-  └── Schema：治理约束 + 审计不可篡改
+  └── Schema：70+ migrations + 治理约束 + 审计不可篡改
 ```
 
 ## 关键决策记录
@@ -120,10 +124,11 @@ v1.0.0 当前
 
 | 版本 | 主题 | 关键内容 |
 |------|------|----------|
-| v1.1.0 | Enterprise SaaS GA | Pricing/计费 API、OIDC Extractor、DualLayer 限流 |
-| v1.2.0 | Enterprise SaaS GA P2 | 输入验证加固、sentinel error 解耦 |
-| v1.3.0 | CI/CD + 断路器治理 | GitHub Actions pipeline、ChatStream breaker 重构 |
-| v1.4.0 | 上游 v2026.4.30 吸收 | Memory Curator、Self-improvement、Multimodal Router、Context Compress、CJK Trigram Search、Model Catalog、Gateway Media/Hooks |
+| v1.1.0 | Production Readiness | LLM RetryTransport、Token Usage Metering、Admin API、安全修复 |
+| v1.2.0 | Enterprise SaaS Phase 1 | RLS WITH CHECK 写策略、GDPR MinIO cleanup、PDB/HPA、Session ownership、IDOR 修复、CORS 加固 |
+| v1.2.0 | Enterprise SaaS Phase 2 | OIDC Extractor (JWKS + ClaimMapper)、DualLayer 限流 (Redis Lua)、Dynamic Pricing (Admin CRUD)、store.ErrNotFound |
+| v1.3.0 | Enterprise SaaS Phase 3 | OIDC wiring 到 auth chain (env 激活)、Circuit Breaker Prometheus metrics、CI/CD (ghcr.io auto-push)、安全加固 |
+| v1.4.0 | 上游 v2026.4.30 吸收 | Memory Curator、Self-improvement Loop、Multimodal Router、Context Compress、CJK Trigram Search、Model Catalog、Gateway Media/Hooks |
 
 ## 遗留项（下一阶段）
 
@@ -131,9 +136,10 @@ v1.0.0 当前
 |------|--------|----------|
 | LifecycleHooks 接入 Gateway Runner | P1 | 下一 sprint 启动 |
 | SelfImprover 接入 Agent 循环 | P2 | 下一 sprint 启动 |
-| OIDC wiring 到 server.go auth chain | P1 | 运维提供 IdP 配置 |
+| compress.go / curator.go prompt sanitization | P2 | 安全加固 sprint |
 | ApprovalQueue 分布式化 | P3 | 多副本 Gateway 上线 |
 | Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 |
+| GHA actions digest-pin | P3 | 安全扫描周期 |
 
 ## 相关文档
 

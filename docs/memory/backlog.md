@@ -17,13 +17,13 @@
 | 5 | Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 | backend-engineer |
 | 6 | Unicode bidi chars sanitization | P4 | LLM 安全要求升级 | backend-engineer |
 
-## Phase 3 候选项
+## Phase 3 已完成项
 
-| # | 事项 | 优先级 | 触发条件 | Owner |
-|---|------|--------|----------|-------|
-| 7 | OIDC wiring 到 server.go auth chain | P1 | 运维提供 IdP 配置 | devops-engineer |
-| 8 | 断路器 registry (ChatStream breaker 重构) | P2 | Phase 3 规划启动 | backend-engineer |
-| 9 | CI/CD Pipeline (GitHub Actions) | P2 | Phase 3 规划启动 | devops-engineer |
+| # | 事项 | 状态 | 完成版本 |
+|---|------|------|----------|
+| 7 | OIDC wiring 到 server.go auth chain | ✅ 完成 | v1.3.0 |
+| 8 | 断路器 Prometheus metrics + failure recording | ✅ 完成 | v1.3.0 |
+| 9 | CI/CD Pipeline (GitHub Actions + ghcr.io) | ✅ 完成 | v1.3.0 |
 
 ## 技术债
 
