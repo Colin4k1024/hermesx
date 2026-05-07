@@ -100,7 +100,7 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 	}
 
 	// RLS pool (restricted user)
-	rlsURL := strings.Replace(dbURL, "hermes_test:hermes_test", "hermesx_rls:hermesx_rls", 1)
+	rlsURL := strings.Replace(dbURL, "hermesx_test:hermesx_test", "hermesx_rls:hermesx_rls", 1)
 	rlsPool, err := pgxpool.New(ctx, rlsURL)
 	if err != nil {
 		return nil, fmt.Errorf("rls pool: %w", err)
