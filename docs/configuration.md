@@ -74,6 +74,18 @@
 | `OTEL_EXPORTER_OTLP_INSECURE` | 否 | `false` | 是否使用不安全连接 |
 | `OTEL_SERVICE_NAME` | 否 | `hermes-agent` | OTel 服务名 |
 
+## Agent 行为配置（v1.4.0+）
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `HERMES_CONTEXT_COMPRESSION` | 否 | `true` | 启用上下文自动压缩 |
+| `HERMES_COMPRESSION_THRESHOLD` | 否 | `80000` | 触发压缩的 token 阈值 |
+| `HERMES_MEMORY_CURATOR` | 否 | `true` | 启用自主记忆整理 |
+| `HERMES_MAX_MEMORIES` | 否 | `100` | 单租户最大记忆条数 |
+| `HERMES_SELF_IMPROVE` | 否 | `true` | 启用自我改进循环 |
+| `HERMES_REVIEW_INTERVAL` | 否 | `10` | 自我评审触发间隔（对话轮次） |
+| `HERMES_MAX_INSIGHTS` | 否 | `50` | 最大改进洞察条数 |
+
 ## 调试与运行时
 
 | 变量 | 必填 | 默认值 | 说明 |
@@ -202,6 +214,11 @@ max_iterations: 20
 max_tokens: 4096
 context_compression: true
 compression_threshold: 80000
+memory_curator: true
+max_memories: 100
+self_improve: true
+review_interval: 10
+max_insights: 50
 
 # 终端
 terminal:

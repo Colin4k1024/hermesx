@@ -59,7 +59,7 @@ CLI 模式下直接加载本地 Skills。
 
 ### 2. 内置 Skills
 
-仓库 `skills/` 目录包含 77+ 个预置 Skills，分为 26 个类别：
+仓库 `skills/` 目录包含 81 个预置 Skills，分为 26 个类别：
 
 | 类别 | 说明 | 示例 |
 |------|------|------|
@@ -105,7 +105,7 @@ MinIO Bucket: hermes-skills
 
 **创建租户时自动触发**：当通过 `POST /v1/tenants` 创建新租户时，系统异步执行：
 
-1. **技能同步**：将 `skills/` 目录中的 77+ 内置技能复制到租户的 MinIO 前缀
+1. **技能同步**：将 `skills/` 目录中的 81 个内置技能复制到租户的 MinIO 前缀
 2. **Soul 创建**：生成默认 `SOUL.md` 人格文件到 `{tenant-id}/_soul/SOUL.md`
 3. **清单写入**：创建 `.manifest.json` 记录每个技能的 SHA-256 hash 和来源
 

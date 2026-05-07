@@ -80,7 +80,7 @@ curl -X POST http://localhost:8080/v1/tenants \
 }
 ```
 
-> 创建租户时，如果 MinIO 已配置，系统会异步为新租户 Provisioning 所有内置技能（77+）和默认 SOUL.md 人格文件。
+> 创建租户时，如果 MinIO 已配置，系统会异步为新租户 Provisioning 所有内置技能（81 个）和默认 SOUL.md 人格文件。
 
 #### GET /v1/tenants — 列出所有租户
 

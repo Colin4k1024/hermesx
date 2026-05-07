@@ -1,6 +1,6 @@
 # SaaS 模式快速开始
 
-> 5 分钟内启动 Hermes SaaS 多租户 API 服务器。
+> 5 分钟内启动 Hermes SaaS 多租户 API 服务器（v1.4.0）。
 
 ## 前置条件
 
@@ -156,6 +156,21 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 
 完整配置参考: [configuration.md](configuration.md)
 
+## v1.4.0 新增能力
+
+v1.4.0 吸收上游 hermes-agent v2026.4.30 后，SaaS 模式自动获得以下 Agent 增强：
+
+| 能力 | 说明 | 配置 |
+|------|------|------|
+| 上下文压缩 | 接近 token 限制时自动摘要历史，保持长对话连贯性 | `context_compression: true` |
+| 多模态路由 | 图片/音频/视频请求按提供商能力自动分发 | 配置 `AUXILIARY_VISION_*` |
+| 自主记忆整理 | 去重、LLM 合并、过期清理 | 自动启用 |
+| 自我改进循环 | 定期对话质量自评，持久化改进洞察 | 自动启用 |
+| CJK 模糊搜索 | pg_trgm 中日韩文字模糊匹配 | PostgreSQL pg_trgm 扩展 |
+| 模型目录热重载 | 运行时更新可用模型列表，无需重启 | 自动启用 |
+
+这些能力对已有 API 完全兼容，无需修改客户端调用方式。
+
 ## 下一步
 
 - [API 参考](api-reference.md) — 完整的端点文档
@@ -163,3 +178,4 @@ curl -X POST http://localhost:8080/v1/chat/completions \
 - [配置指南](configuration.md) — 所有环境变量
 - [部署指南](deployment.md) — Docker / Helm / Kind
 - [架构概览](architecture.md) — 系统设计与数据流
+- [企业加固](enterprise-hardening.md) — Phase 1-5 加固全记录

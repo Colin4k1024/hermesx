@@ -241,7 +241,7 @@ hermes-agent-go/
 │   ├── config/           # 配置管理
 │   └── dashboard/        # 管理面板静态文件
 │       └── static/       # HTML/CSS/JS
-├── skills/               # 77 个内置 Skills
+├── skills/               # 81 个内置 Skills
 ├── deploy/               # 部署配置
 │   ├── helm/             # Helm Chart
 │   └── kind/             # Kind 本地 K8s

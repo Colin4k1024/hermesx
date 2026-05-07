@@ -116,14 +116,24 @@ v1.0.0 当前
 | ApprovalQueue 分布式化 | 推迟（Phase 5+）| 当前无多副本 Gateway 需求 |
 | 审批超时 | 60s → 5 分钟 | 人工审批需要合理操作窗口 |
 
+## 后续版本演进（v1.0.0 → v1.4.0）
+
+| 版本 | 主题 | 关键内容 |
+|------|------|----------|
+| v1.1.0 | Enterprise SaaS GA | Pricing/计费 API、OIDC Extractor、DualLayer 限流 |
+| v1.2.0 | Enterprise SaaS GA P2 | 输入验证加固、sentinel error 解耦 |
+| v1.3.0 | CI/CD + 断路器治理 | GitHub Actions pipeline、ChatStream breaker 重构 |
+| v1.4.0 | 上游 v2026.4.30 吸收 | Memory Curator、Self-improvement、Multimodal Router、Context Compress、CJK Trigram Search、Model Catalog、Gateway Media/Hooks |
+
 ## 遗留项（下一阶段）
 
 | 项目 | 优先级 | 触发条件 |
 |------|--------|----------|
-| Agent Chat 接入真实 LLM | 高 | 产品决策：切换 mock → 真实 LLM |
-| OIDC 接入 | 中 | 企业 IdP 就绪（JWT extractor 已预置）|
-| ApprovalQueue 分布式化 | 中 | 多副本 Gateway 上线 |
-| WebUI 功能增强 | 中 | 独立 Vue 3 项目版本节奏 |
+| LifecycleHooks 接入 Gateway Runner | P1 | 下一 sprint 启动 |
+| SelfImprover 接入 Agent 循环 | P2 | 下一 sprint 启动 |
+| OIDC wiring 到 server.go auth chain | P1 | 运维提供 IdP 配置 |
+| ApprovalQueue 分布式化 | P3 | 多副本 Gateway 上线 |
+| Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 |
 
 ## 相关文档
 

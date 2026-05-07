@@ -208,7 +208,7 @@ hermes version          # Show version info
 - Same skill file format (YAML frontmatter + Markdown)
 - Same toolset definitions and platform presets
 - Same slash command names and aliases (40+ commands)
-- Bundled skills are directly copied (77 skills)
+- Bundled skills are directly copied (81 skills)
 
 #### What's improved
 - **Single binary** — no Python/Node.js/venv setup required
@@ -521,7 +521,7 @@ docker run -it --rm \
 - 技能文件格式（YAML frontmatter + Markdown）一致
 - 工具集定义和平台预设一致
 - 斜杠命令名称和别名一致（40+ 命令）
-- 内置技能直接复制（77 个）
+- 内置技能直接复制（81 个）
 
 #### 改进之处
 - **单文件部署** —— 无需安装 Python/Node.js/venv
