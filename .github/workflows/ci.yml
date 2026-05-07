@@ -170,8 +170,7 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     env:
-      TEST_PG_URL: postgres://hermes_test:hermes_test@localhost:5432/hermes_test?sslmode=disable
-      TEST_REDIS_URL: redis://localhost:6379
+      TEST_DATABASE_URL: postgres://hermes_test:hermes_test@localhost:5432/hermes_test?sslmode=disable
       TEST_MINIO_ENDPOINT: localhost:9000
       TEST_MINIO_ACCESS_KEY: hermes_test
       TEST_MINIO_SECRET_KEY: hermes_test
