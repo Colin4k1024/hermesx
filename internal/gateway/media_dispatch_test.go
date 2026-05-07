@@ -6,20 +6,20 @@ import (
 )
 
 type mediaTestAdapter struct {
-	platform     Platform
-	sentImages   []string
-	sentVoice    []string
-	sentDocs     []string
-	sentTexts    []string
-	failSend     bool
+	platform   Platform
+	sentImages []string
+	sentVoice  []string
+	sentDocs   []string
+	sentTexts  []string
+	failSend   bool
 }
 
-func (m *mediaTestAdapter) Platform() Platform                        { return m.platform }
-func (m *mediaTestAdapter) Connect(_ context.Context) error           { return nil }
-func (m *mediaTestAdapter) Disconnect() error                         { return nil }
+func (m *mediaTestAdapter) Platform() Platform                           { return m.platform }
+func (m *mediaTestAdapter) Connect(_ context.Context) error              { return nil }
+func (m *mediaTestAdapter) Disconnect() error                            { return nil }
 func (m *mediaTestAdapter) SendTyping(_ context.Context, _ string) error { return nil }
-func (m *mediaTestAdapter) OnMessage(_ func(event *MessageEvent))     {}
-func (m *mediaTestAdapter) IsConnected() bool                         { return true }
+func (m *mediaTestAdapter) OnMessage(_ func(event *MessageEvent))        {}
+func (m *mediaTestAdapter) IsConnected() bool                            { return true }
 
 func (m *mediaTestAdapter) Send(_ context.Context, _ string, text string, _ map[string]string) (*SendResult, error) {
 	m.sentTexts = append(m.sentTexts, text)
@@ -293,4 +293,3 @@ func TestDispatch_PathTraversal(t *testing.T) {
 		t.Errorf("expected ErrInvalidPath, got %v", result.Error)
 	}
 }
-

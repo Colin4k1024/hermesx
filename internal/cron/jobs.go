@@ -25,9 +25,9 @@ type Job struct {
 	Provider        string         `json:"provider,omitempty"`
 	BaseURL         string         `json:"base_url,omitempty"`
 	Skills          []string       `json:"skills,omitempty"`
-	Script          string         `json:"script,omitempty"` // Pre-run data collection script
-	Deliver         string         `json:"deliver"`          // "local", "origin", "platform:chat_id"
-	Origin          *JobOrigin     `json:"origin,omitempty"` // Where the job was created
+	Script          string         `json:"script,omitempty"`       // Pre-run data collection script
+	Deliver         string         `json:"deliver"`                // "local", "origin", "platform:chat_id"
+	Origin          *JobOrigin     `json:"origin,omitempty"`       // Where the job was created
 	Workdir         string         `json:"workdir,omitempty"`      // Working directory for execution
 	ContextFrom     string         `json:"context_from,omitempty"` // Job ID whose last output injects as context
 	Enabled         bool           `json:"enabled"`
