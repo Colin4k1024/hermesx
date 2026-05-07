@@ -9,7 +9,7 @@ body:
         Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix it quickly.
 
         **Before submitting**, please:
-        - Search [existing issues](https://github.com/MLT-OSS/hermes-agent-go/issues) to avoid duplicates
+        - Search [existing issues](https://github.com/MLT-OSS/hermesx/issues) to avoid duplicates
         - Build the latest `main` branch and confirm the bug still exists
 
   - type: textarea

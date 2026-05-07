@@ -1,4 +1,4 @@
-# PRD: Hermes Agent Go — 上游同步 (v0.11.0+)
+# PRD: HermesX — 上游同步 (v0.11.0+)
 
 | 字段 | 值 |
 |------|-----|
@@ -12,7 +12,7 @@
 
 ## 背景
 
-当前 hermes-agent-go 是对上游 Python 项目 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 的 Go 重写。上游已发展到 v0.11.0（2026-04-23 发布，1,556 commits，761 merged PRs），引入了大量新特性。Go 实现已具备完整的 agent loop、工具系统、LLM 双模式客户端、MCP、网关骨架等核心能力，但与上游在以下维度存在显著差距。
+当前 hermesx 是对上游 Python 项目 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 的 Go 重写。上游已发展到 v0.11.0（2026-04-23 发布，1,556 commits，761 merged PRs），引入了大量新特性。Go 实现已具备完整的 agent loop、工具系统、LLM 双模式客户端、MCP、网关骨架等核心能力，但与上游在以下维度存在显著差距。
 
 **触发原因：** 上游 v0.11.0 引入了 pluggable transport layer、20+ LLM provider、17 messaging platform、TUI、Web Dashboard、plugin 增强等重大变更，Go 端需要追赶。
 

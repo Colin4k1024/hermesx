@@ -4,7 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 func TestResolveProviderOpenRouter(t *testing.T) {

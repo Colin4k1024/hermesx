@@ -1,4 +1,4 @@
-# Delivery Plan: Hermes Agent Go 企业级分布式平台加固
+# Delivery Plan: HermesX 企业级分布式平台加固
 
 > 日期: 2026-04-30 | 主责: tech-lead | 状态: handoff-ready | 阶段: plan
 
@@ -6,7 +6,7 @@
 
 ## 版本目标
 
-将 hermes-agent-go 从 POC（v0.6.0）提升至企业级分布式 Agent 平台（v1.1.0），分 5 个 Phase 滚动交付。
+将 hermesx 从 POC（v0.6.0）提升至企业级分布式 Agent 平台（v1.1.0），分 5 个 Phase 滚动交付。
 
 **MVP 定义**: Phase 1 + 2 + 3（v0.9.5-MVP），零外部依赖，预计 10-13 周。
 

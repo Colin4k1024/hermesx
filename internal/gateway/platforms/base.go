@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
 // MaxMessageLength is the default maximum message length for platforms.

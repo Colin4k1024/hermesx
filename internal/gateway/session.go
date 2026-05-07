@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/state"
 )
 
 // SessionEntry represents a session in the store.

@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // SkillManifest tracks the state of all synced skills, including hashes

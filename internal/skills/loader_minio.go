@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
 )
 
 // MinIOSkillLoader loads skills from S3-compatible object storage, scoped by tenant.

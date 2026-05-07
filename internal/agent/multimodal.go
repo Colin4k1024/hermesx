@@ -3,7 +3,7 @@ package agent
 import (
 	"log/slog"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // MultimodalRouter determines whether to route a request through the vision

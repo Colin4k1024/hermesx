@@ -248,7 +248,7 @@ step11() {
 # ─────────────────────────────────────────────────────────────
 echo -e "${GREEN}"
 echo "╔══════════════════════════════════════════════════════════╗"
-echo "║  Hermes Agent Go — Enterprise SaaS Demo                 ║"
+echo "║  HermesX — Enterprise SaaS Demo                 ║"
 echo "║  Demonstrating: Isolation · Auth · Audit · Compliance   ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"

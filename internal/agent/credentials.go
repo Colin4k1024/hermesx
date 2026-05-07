@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // CredentialPool manages API credentials for multi-provider scenarios.

@@ -10,10 +10,10 @@
 
 ## 版本目标
 
-在 hermes-agent-go monorepo 的 `webui/` 子目录内交付一个可独立部署的 Vue 3 SPA，支持多租户多用户接入、聊天、记忆管理、技能管理和租户/API Key 管理（Admin）。
+在 hermesx monorepo 的 `webui/` 子目录内交付一个可独立部署的 Vue 3 SPA，支持多租户多用户接入、聊天、记忆管理、技能管理和租户/API Key 管理（Admin）。
 
 **放行标准**:
-- Docker 镜像可一键运行，`HERMES_BACKEND_URL` 指向任意 hermes-agent-go 实例
+- Docker 镜像可一键运行，`HERMES_BACKEND_URL` 指向任意 hermesx 实例
 - 连接、聊天、记忆、技能、Admin 页面全部可用
 - Playwright api-isolation 套件 13/13 继续通过（后端零破坏）
 - 所有页面实现 loading / empty / error / success 四态

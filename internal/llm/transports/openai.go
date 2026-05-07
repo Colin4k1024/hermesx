@@ -7,7 +7,7 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 	openai "github.com/sashabaranov/go-openai"
 )
 

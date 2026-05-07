@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/utils"
+	"github.com/Colin4k1024/hermesx/internal/utils"
 )
 
 func init() {

@@ -1,6 +1,6 @@
 # Security Model
 
-> Hermes Agent Go — Enterprise Security Architecture
+> HermesX — Enterprise Security Architecture
 > Answers: Who can access? What data? How is it isolated? How is it audited?
 
 ---

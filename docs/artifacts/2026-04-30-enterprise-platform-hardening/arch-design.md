@@ -1,4 +1,4 @@
-# Architecture Design: Hermes Agent Go 企业级分布式平台加固
+# Architecture Design: HermesX 企业级分布式平台加固
 
 > 日期: 2026-04-30 | 主责: architect | 状态: draft | 阶段: plan
 

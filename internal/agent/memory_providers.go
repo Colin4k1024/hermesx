@@ -4,8 +4,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

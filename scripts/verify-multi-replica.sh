@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Multi-replica verification script for hermes-agent-go
+# Multi-replica verification script for hermesx
 # Validates: startup, health, load distribution, rate limiting, failover
 
 COMPOSE_FILE="deploy/docker-compose.multi-replica.yml"

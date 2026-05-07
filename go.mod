@@ -1,4 +1,4 @@
-module github.com/hermes-agent/hermes-agent-go
+module github.com/Colin4k1024/hermesx
 
 go 1.25.9
 

@@ -121,7 +121,7 @@ services:
       HERMES_DEBUG: ${HERMES_DEBUG:-false}
       # Observability
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
-      OTEL_SERVICE_NAME: hermes-agent
+      OTEL_SERVICE_NAME: hermesx
     volumes:
       - ./skills:/home/hermes/skills:ro
     depends_on:

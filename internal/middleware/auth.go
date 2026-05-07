@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // AuthMiddleware extracts credentials via the extractor chain and populates AuthContext.

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // APIServerAdapter implements PlatformAdapter as an OpenAI-compatible API server.

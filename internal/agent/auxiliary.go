@@ -7,8 +7,8 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // AuxiliaryClient provides secondary LLM clients for tasks like

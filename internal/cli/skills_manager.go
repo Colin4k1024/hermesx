@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 )
 
 // RunSkillsSearch searches the hub and local skills for a query string.

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // APIKeyExtractor validates Bearer tokens against hashed API keys in the store.

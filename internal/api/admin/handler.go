@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/metering"
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/metering"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

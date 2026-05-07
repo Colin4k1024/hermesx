@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/observability"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // AuditMiddleware logs key actions to the audit store.

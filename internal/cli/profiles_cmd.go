@@ -5,7 +5,7 @@ import (
 	"os"
 	"text/tabwriter"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // RunProfileList prints all available profiles with their status.

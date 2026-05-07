@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 )
 
 // InjectSkillAsUserMessage loads a skill by name and returns its content

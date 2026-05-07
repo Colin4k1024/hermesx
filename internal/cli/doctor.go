@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/cron"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/cron"
+	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 // checkStatus represents the outcome of a single diagnostic check.

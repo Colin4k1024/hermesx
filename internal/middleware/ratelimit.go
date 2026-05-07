@@ -8,8 +8,8 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )

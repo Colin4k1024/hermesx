@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // StickerCache maps sticker IDs to their emoji/description for context injection.

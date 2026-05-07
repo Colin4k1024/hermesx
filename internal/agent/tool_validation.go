@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // ToolCallError represents a validation error for a tool call.

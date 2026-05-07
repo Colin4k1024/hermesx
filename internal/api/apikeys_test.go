@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // mockAPIKeyStore is an in-memory implementation of store.APIKeyStore.

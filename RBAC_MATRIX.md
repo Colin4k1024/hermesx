@@ -1,6 +1,6 @@
 # RBAC Permission Matrix
 
-> hermes-agent-go — Enterprise Agent Runtime  
+> hermesx — Enterprise Agent Runtime  
 > Version: v1.4.0
 
 ---

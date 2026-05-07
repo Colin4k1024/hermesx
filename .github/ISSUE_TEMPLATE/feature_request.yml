@@ -8,8 +8,8 @@ body:
       value: |
         Thanks for the suggestion! Before submitting, please:
 
-        - Search [existing issues](https://github.com/MLT-OSS/hermes-agent-go/issues) — someone may have already proposed this
-        - Check whether the feature exists in the [Python original](https://github.com/NousResearch/hermes-agent) but is missing from the Go rewrite (if so, use the "Gap from Python Original" template instead)
+        - Search [existing issues](https://github.com/MLT-OSS/hermesx/issues) — someone may have already proposed this
+        - Check whether the feature exists in the [Python original](https://github.com/NousResearch/hermesx) but is missing from the Go rewrite (if so, use the "Gap from Python Original" template instead)
 
   - type: textarea
     id: problem

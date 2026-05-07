@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/observability"
 )
 
 // LoggingMiddleware creates an enriched slog.Logger with request_id and

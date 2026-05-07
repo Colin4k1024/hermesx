@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // mockTenantStore is an in-memory implementation of store.TenantStore.

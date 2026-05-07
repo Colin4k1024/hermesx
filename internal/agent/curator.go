@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // CuratorConfig controls autonomous memory curation behavior.

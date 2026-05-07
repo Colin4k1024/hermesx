@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // --- Mock providers for testing lifecycle interfaces ---

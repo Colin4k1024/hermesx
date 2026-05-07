@@ -10,7 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
 const PlatformMattermost gateway.Platform = "mattermost"

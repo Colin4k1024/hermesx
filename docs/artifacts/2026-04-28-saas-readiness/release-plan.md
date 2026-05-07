@@ -14,7 +14,7 @@
 
 | 项目 | 说明 |
 |------|------|
-| 发布对象 | hermes-agent-go SaaS Readiness P0-P5 |
+| 发布对象 | hermesx SaaS Readiness P0-P5 |
 | 发布版本 | v0.2.0-saas (suggested semver) |
 | 发布类型 | Feature release (multi-tenant SaaS foundation) |
 | 发布窗口 | 非高峰时段，建议工作日上午 10:00-12:00 |

@@ -15,7 +15,7 @@
 
 ## 背景
 
-hermes-agent-go 已完成 SaaS 无状态化重构（Phase 0-5），基础架构层就绪（PG+Redis+AgentFactory），
+hermesx 已完成 SaaS 无状态化重构（Phase 0-5），基础架构层就绪（PG+Redis+AgentFactory），
 但 SaaS 就绪度审计显示三个维度存在系统性缺口：
 
 1. **并发安全 (2.5/5)**: `sync.Once` 重赋值导致数据竞争，rate limiter 无界增长为 DoS 向量。

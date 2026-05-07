@@ -9,9 +9,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 func TestSkill_WithSandbox_MetadataParsed(t *testing.T) {

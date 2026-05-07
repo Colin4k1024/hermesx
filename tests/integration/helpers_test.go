@@ -17,12 +17,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/api"
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
-	"github.com/hermes-agent/hermes-agent-go/internal/store/pg"
+	"github.com/Colin4k1024/hermesx/internal/api"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

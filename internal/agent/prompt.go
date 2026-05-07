@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 )
 
 const defaultAgentIdentity = `You are Hermes, a helpful AI assistant built by Nous Research.

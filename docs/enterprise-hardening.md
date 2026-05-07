@@ -1,11 +1,11 @@
 # 企业级平台加固总结
 
-> Hermes Agent Go 企业级分布式平台加固全链路完成记录。
+> HermesX 企业级分布式平台加固全链路完成记录。
 > 起始版本：v0.7.0 | 完成版本：v1.0.0 | 完成时间：2026-05-01
 
 ## 目标
 
-将 Hermes Agent Go 从 POC / Early SaaS 提升至**企业级分布式 Agent 平台**，满足：
+将 HermesX 从 POC / Early SaaS 提升至**企业级分布式 Agent 平台**，满足：
 
 - 1000+ 租户 / 10,000+ 并发会话稳定运行
 - 企业 IdP（OIDC）接入与细粒度权限控制

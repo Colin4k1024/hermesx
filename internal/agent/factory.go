@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
-	storeRedis "github.com/hermes-agent/hermes-agent-go/internal/store/rediscache"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/store"
+	storeRedis "github.com/Colin4k1024/hermesx/internal/store/rediscache"
 )
 
 // AgentFactory creates stateless agent executions backed by external state.

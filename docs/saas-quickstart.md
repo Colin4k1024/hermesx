@@ -14,8 +14,8 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/MLT-OSS/hermes-agent-go.git
-cd hermes-agent-go
+git clone https://github.com/MLT-OSS/hermesx.git
+cd hermesx
 
 # 2. 构建二进制
 go build -o hermes ./cmd/hermes/

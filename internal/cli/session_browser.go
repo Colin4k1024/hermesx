@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/state"
 )
 
 // SessionBrowser provides a simple session history browser.

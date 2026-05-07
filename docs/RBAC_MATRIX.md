@@ -1,6 +1,6 @@
 # RBAC Permission Matrix
 
-> Role-Based Access Control for Hermes Agent Go SaaS API
+> Role-Based Access Control for HermesX SaaS API
 > Roles are assigned per API Key. A key can hold multiple roles.
 
 ---

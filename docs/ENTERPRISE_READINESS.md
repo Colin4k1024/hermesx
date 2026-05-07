@@ -1,6 +1,6 @@
 # Enterprise Readiness Matrix
 
-> Hermes Agent Go — Enterprise Agent Runtime / SaaS Control Plane
+> HermesX — Enterprise Agent Runtime / SaaS Control Plane
 > Version: v1.3.0 | Last Updated: 2026-05-07
 
 ---

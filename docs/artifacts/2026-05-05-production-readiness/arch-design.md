@@ -1,4 +1,4 @@
-# Architecture Design: Hermes Agent Go — Production Readiness
+# Architecture Design: HermesX — Production Readiness
 
 **状态**: Draft  
 **主责**: architect  

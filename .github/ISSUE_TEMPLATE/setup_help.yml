@@ -1,5 +1,5 @@
 name: "🔧 Setup / Build Help"
-description: Having trouble building, installing, or configuring Hermes Agent Go?
+description: Having trouble building, installing, or configuring HermesX?
 title: "[Setup]: "
 labels: ["setup", "question"]
 body:
@@ -29,7 +29,7 @@ body:
       label: Steps Taken
       description: What did you do? Include the exact commands you ran.
       placeholder: |
-        1. Cloned the repo: `git clone https://github.com/MLT-OSS/hermes-agent-go.git`
+        1. Cloned the repo: `git clone https://github.com/MLT-OSS/hermesx.git`
         2. Ran: `go build -o hermes ./cmd/hermes/`
         3. Got error: ...
     validations:

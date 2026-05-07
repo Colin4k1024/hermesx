@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/agent"
 )
 
 // BatchConfig describes the parameters for a batch run.

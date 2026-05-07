@@ -1,6 +1,6 @@
 # 架构概览
 
-> Hermes Agent Go 的系统设计、两种运行模式和 SaaS 多租户架构。
+> HermesX 的系统设计、两种运行模式和 SaaS 多租户架构。
 
 ## 两种运行模式
 
@@ -217,7 +217,7 @@ LLM 调用通过 `Transport` 接口抽象，支持多种提供商：
 ## 项目结构
 
 ```
-hermes-agent-go/
+hermesx/
 ├── cmd/hermes/
 │   ├── main.go           # CLI 入口
 │   └── saas.go           # SaaS API 入口（hermes saas-api）

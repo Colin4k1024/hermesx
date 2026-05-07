@@ -1,4 +1,4 @@
-# Delivery Plan: Hermes Agent Go — SaaS Readiness Phase 1-5
+# Delivery Plan: HermesX — SaaS Readiness Phase 1-5
 
 | 字段 | 值 |
 |------|-----|

@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 )
 
 func TestSkills_Provision_TenantScoped(t *testing.T) {

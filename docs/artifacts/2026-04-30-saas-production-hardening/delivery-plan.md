@@ -4,7 +4,7 @@
 
 ## 版本目标
 
-将 hermes-agent-go 从 POC 级别提升至 Early Production 级别，修复 SaaS 审查中发现的 2 个 Critical + 5 个 Medium 缺口。
+将 hermesx 从 POC 级别提升至 Early Production 级别，修复 SaaS 审查中发现的 2 个 Critical + 5 个 Medium 缺口。
 
 **放行标准**: 全部 Sprint 1 + Sprint 2 任务完成，测试通过率 100%，GDPR 删除覆盖率 100%。
 

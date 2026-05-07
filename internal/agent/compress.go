@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // chatCompleter is the subset of llm.Client used by context compression.

@@ -7,7 +7,7 @@ import (
 	"net/smtp"
 	"os"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
 const PlatformEmail gateway.Platform = "email"

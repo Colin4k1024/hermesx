@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 func TestMCPMessagesToLLM(t *testing.T) {

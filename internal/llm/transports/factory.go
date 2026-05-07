@@ -3,7 +3,7 @@ package transports
 import (
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // NewTransport creates the appropriate transport based on provider/mode detection.

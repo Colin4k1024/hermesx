@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // GeminiTransport implements llm.Transport for Google Gemini (API key only).

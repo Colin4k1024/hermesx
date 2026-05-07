@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools/environments"
+	"github.com/Colin4k1024/hermesx/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/tools/environments"
 )
 
 func TestSandbox_Python_Basic(t *testing.T) {

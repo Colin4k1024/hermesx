@@ -9,12 +9,12 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/hermes-agent/hermes-agent-go/internal/agent"
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
-	"github.com/hermes-agent/hermes-agent-go/internal/observability"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 

@@ -12,7 +12,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 	brdocument "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/document"
 	brtypes "github.com/aws/aws-sdk-go-v2/service/bedrockruntime/types"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // BedrockTransport implements llm.Transport for AWS Bedrock Converse API.

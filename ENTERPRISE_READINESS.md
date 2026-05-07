@@ -1,6 +1,6 @@
 # Enterprise Readiness Assessment
 
-> hermes-agent-go — Enterprise Agent Runtime / SaaS Control Plane  
+> hermesx — Enterprise Agent Runtime / SaaS Control Plane  
 > Assessment Date: 2026-05-07  
 > Version: v1.4.0
 

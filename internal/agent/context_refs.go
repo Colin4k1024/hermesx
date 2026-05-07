@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // threatPattern pairs a human-readable name with a compiled regex.

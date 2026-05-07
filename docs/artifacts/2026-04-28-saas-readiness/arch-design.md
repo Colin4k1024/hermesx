@@ -1,4 +1,4 @@
-# Architecture Design: Hermes Agent Go — SaaS Readiness
+# Architecture Design: HermesX — SaaS Readiness
 
 | 字段 | 值 |
 |------|-----|

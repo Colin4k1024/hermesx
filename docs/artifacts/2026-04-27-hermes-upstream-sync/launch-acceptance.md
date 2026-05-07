@@ -12,7 +12,7 @@
 
 | 项目 | 内容 |
 |------|------|
-| 对象 | hermes-agent-go upstream sync + SaaS stateless MVP |
+| 对象 | hermesx upstream sync + SaaS stateless MVP |
 | 时间 | 2026-04-27 |
 | 角色 | qa-engineer (评审) + tech-lead (决策) |
 | 验收方式 | 自动化测试 + 代码审查 + 安全审查 |

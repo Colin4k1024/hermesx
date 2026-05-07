@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // mockAPIKeyStore implements store.APIKeyStore for testing.

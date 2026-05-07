@@ -1,6 +1,6 @@
-# Hermes Agent Go — 多租户隔离解决方案
+# HermesX — 多租户隔离解决方案
 
-> **项目**: hermes-agent-go  
+> **项目**: hermesx  
 > **分支**: main  
 > **日期**: 2026-04-30  
 > **测试结果**: 13/13 PASS
@@ -32,7 +32,7 @@
 
 ## 1. 背景与目标
 
-Hermes Agent Go 是一个多租户 SaaS AI Agent 平台，核心需求是：**同一套服务实例，不同租户之间的人格（Soul）、记忆（Memory）、技能（Skill）和会话（Session）完全隔离，不能相互感知或泄露。**
+HermesX 是一个多租户 SaaS AI Agent 平台，核心需求是：**同一套服务实例，不同租户之间的人格（Soul）、记忆（Memory）、技能（Skill）和会话（Session）完全隔离，不能相互感知或泄露。**
 
 ### 隔离目标
 

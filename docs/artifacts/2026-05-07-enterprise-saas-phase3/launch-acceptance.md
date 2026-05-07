@@ -11,7 +11,7 @@
 
 | Field | Value |
 |-------|-------|
-| Object | hermes-agent-go Phase 3 (enterprise-saas-phase3) |
+| Object | hermesx Phase 3 (enterprise-saas-phase3) |
 | Time | 2026-05-07 |
 | Verification Method | Automated tests + manual code review + security review |
 

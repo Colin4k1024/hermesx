@@ -9,7 +9,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 // CoreTools is the shared tool list for CLI and all messaging platform toolsets.

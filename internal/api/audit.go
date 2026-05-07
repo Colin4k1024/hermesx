@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // AuditHandler serves GET /v1/audit-logs for the current tenant.

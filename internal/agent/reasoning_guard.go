@@ -1,6 +1,6 @@
 package agent
 
-import "github.com/hermes-agent/hermes-agent-go/internal/llm"
+import "github.com/Colin4k1024/hermesx/internal/llm"
 
 // reasoningProviders lists providers that natively support reasoning fields.
 // For all other providers, reasoning content is stripped to prevent leaks.

@@ -1,6 +1,6 @@
 # Architecture
 
-> hermes-agent-go — Enterprise Agent Runtime  
+> hermesx — Enterprise Agent Runtime  
 > Single binary, multi-tenant, auditable execution
 
 ---
@@ -321,7 +321,7 @@ POST /v1/agent/chat
 ## Project Structure
 
 ```
-hermes-agent-go/
+hermesx/
 ├── cmd/hermes/             Entry points (CLI + SaaS)
 ├── internal/
 │   ├── agent/              Agent runtime (tool loop, soul, memory, compress)

@@ -3,7 +3,7 @@ package transports
 import (
 	"context"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // AnthropicTransport implements llm.Transport using the native Anthropic Messages API.

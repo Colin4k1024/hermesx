@@ -15,11 +15,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
-	"github.com/hermes-agent/hermes-agent-go/internal/agent"
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
-	"github.com/hermes-agent/hermes-agent-go/internal/toolsets"
+	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/toolsets"
 )
 
 // isTerminal returns true if stdout is a terminal.

@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/agent"
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/config"
 	robfigcron "github.com/robfig/cron/v3"
 )
 

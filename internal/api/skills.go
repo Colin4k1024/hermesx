@@ -8,10 +8,10 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
-	"github.com/hermes-agent/hermes-agent-go/internal/objstore"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 )
 
 type SkillHandler struct {

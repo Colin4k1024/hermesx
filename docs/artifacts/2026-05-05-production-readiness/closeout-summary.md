@@ -1,4 +1,4 @@
-# Closeout Summary: Hermes Agent Go — Production Readiness v1.1.0
+# Closeout Summary: HermesX — Production Readiness v1.1.0
 
 **状态**: follow-up-required  
 **主责**: tech-lead  

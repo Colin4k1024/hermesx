@@ -29,7 +29,7 @@
                │ HTTP (内部)
                ▼
 ┌──────────────────────────────────────────┐
-│ hermes-agent-go  (Go API 服务)            │
+│ hermesx  (Go API 服务)            │
 │  :8080                                   │
 │  corsMiddleware → Auth → Tenant → RBAC   │
 │  WriteTimeout: 150s  ← 需修复 (当前 60s) │

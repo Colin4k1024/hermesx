@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 // AgentHandler is the interface that the ACP server uses to interact with

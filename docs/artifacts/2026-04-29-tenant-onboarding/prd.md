@@ -6,7 +6,7 @@
 
 ## 背景
 
-Hermes Agent Go 已完成 SaaS 多租户基础架构（认证链、RBAC、速率限制、审计、租户隔离），但本地测试发现 **租户创建后无法真正使用 Agent 能力**，存在以下严重缺陷：
+HermesX 已完成 SaaS 多租户基础架构（认证链、RBAC、速率限制、审计、租户隔离），但本地测试发现 **租户创建后无法真正使用 Agent 能力**，存在以下严重缺陷：
 
 1. **记忆/画像零初始化**：租户用户绑定 API Key 后发起 Chat 请求，无记忆存储、无用户画像、无 Soul 配置。`memories` 和 `user_profiles` 表存在但 `mockchat` handler 完全未接入 `PGMemoryProvider`。
 2. **技能库未挂载**：新建租户在 MinIO 中无任何 SKILL.md 文件，Agent 无法提供领域能力。当前 `SyncBuiltinSkills()` 仅针对本地文件系统，无租户级 bootstrap。

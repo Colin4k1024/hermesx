@@ -1,4 +1,4 @@
-# Delivery Plan: Hermes Agent Go — Production Readiness
+# Delivery Plan: HermesX — Production Readiness
 
 **状态**: Draft  
 **主责**: tech-lead  
@@ -9,7 +9,7 @@
 
 ## 1. 版本目标
 
-将 hermes-agent-go 从 v1.0.0（安全架构验证完成）推进到 v1.1.0（可接入首批企业客户的生产就绪状态）。
+将 hermesx 从 v1.0.0（安全架构验证完成）推进到 v1.1.0（可接入首批企业客户的生产就绪状态）。
 
 ### 放行标准
 

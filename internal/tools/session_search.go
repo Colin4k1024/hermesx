@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/state"
 )
 
 func init() {

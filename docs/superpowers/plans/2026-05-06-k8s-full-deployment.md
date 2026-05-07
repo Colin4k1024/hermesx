@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Deploy the complete hermes-agent-go platform on local Kubernetes (Kind/Minikube) with all services, monitoring, service discovery, and production-ready health probes.
+**Goal:** Deploy the complete hermesx platform on local Kubernetes (Kind/Minikube) with all services, monitoring, service discovery, and production-ready health probes.
 
 **Architecture:**
 - Unified Helm chart (`deploy/helm/hermes/`) managing all application components

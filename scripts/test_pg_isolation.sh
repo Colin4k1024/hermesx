@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PostgreSQL-backed integration test for hermes-agent-go.
+# PostgreSQL-backed integration test for hermesx.
 # Prerequisites: PostgreSQL running on localhost:5432 (docker exec hermes-pg).
 
 DATABASE_URL="${DATABASE_URL:-postgres://hermes:hermes@localhost:5432/hermes?sslmode=disable}"

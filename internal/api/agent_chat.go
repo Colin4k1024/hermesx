@@ -8,12 +8,12 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/agent"
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 // ServeAgentHTTP handles POST /v1/agent/chat using the full AIAgent (tool loop, soul, skills, memory).

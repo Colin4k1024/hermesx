@@ -1,6 +1,6 @@
 # Enterprise SaaS Demo
 
-End-to-end demonstration of Hermes Agent Go as an Enterprise Agent Runtime.
+End-to-end demonstration of HermesX as an Enterprise Agent Runtime.
 
 ## Scenario: Internal Customer Support Agent SaaS
 

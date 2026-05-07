@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // ResultStore caches large tool outputs to files and returns reference IDs.

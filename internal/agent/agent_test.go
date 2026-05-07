@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/state"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/state"
 )
 
 func TestAgentOptions(t *testing.T) {

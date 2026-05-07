@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/metering"
-	"github.com/hermes-agent/hermes-agent-go/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/metering"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
 )
 
 // UsageV2Handler serves the enhanced usage API endpoints.

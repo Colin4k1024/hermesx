@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // SamplingHandler handles MCP sampling/createMessage requests from MCP servers.

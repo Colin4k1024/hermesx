@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/hermes-agent/hermes-agent-go/internal/gateway"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
 // TelegramAdapter implements PlatformAdapter for Telegram Bot API.

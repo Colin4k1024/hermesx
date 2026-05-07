@@ -3,7 +3,7 @@ package middleware
 import (
 	"net/http"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/auth"
 )
 
 // RequireScope returns a middleware that enforces the given scope on the

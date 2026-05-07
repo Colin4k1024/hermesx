@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 var errSQLiteUnsupported = fmt.Errorf("not supported in SQLite mode — use PostgreSQL for SaaS features")

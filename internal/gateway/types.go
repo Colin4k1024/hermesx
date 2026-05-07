@@ -4,7 +4,7 @@ package gateway
 import (
 	"context"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 )
 
 // MessageType represents the type of an incoming message.

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/config"
 )
 
 // maxLogFiles is the number of rotated log files to keep.

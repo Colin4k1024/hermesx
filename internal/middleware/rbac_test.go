@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/hermes-agent/hermes-agent-go/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/auth"
 )
 
 func TestRBACMiddleware(t *testing.T) {

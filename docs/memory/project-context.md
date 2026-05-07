@@ -1,6 +1,6 @@
-# Project Context: hermes-agent-go
+# Project Context: hermesx
 
-**项目名**: hermes-agent-go  
+**项目名**: hermesx  
 **当前任务**: 2026-05-07-v012-absorption  
 **阶段**: closed  
 **版本目标**: v1.4.0

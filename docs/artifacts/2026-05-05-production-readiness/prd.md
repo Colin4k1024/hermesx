@@ -1,4 +1,4 @@
-# PRD: Hermes Agent Go — Production Readiness
+# PRD: HermesX — Production Readiness
 
 **状态**: Draft  
 **主责**: tech-lead  
@@ -11,7 +11,7 @@
 
 ### 1.1 业务问题
 
-Hermes Agent Go 已完成 SaaS 多租户核心架构（v1.0.0），通过 38 个集成测试验证了 7 层安全隔离机制。但当前系统仍处于验证原型阶段，距离承接真实企业客户流量存在明确差距。
+HermesX 已完成 SaaS 多租户核心架构（v1.0.0），通过 38 个集成测试验证了 7 层安全隔离机制。但当前系统仍处于验证原型阶段，距离承接真实企业客户流量存在明确差距。
 
 ### 1.2 触发原因
 
@@ -48,7 +48,7 @@ Hermes Agent Go 已完成 SaaS 多租户核心架构（v1.0.0），通过 38 个
 
 ### 2.1 业务目标
 
-将 Hermes Agent Go 从"安全架构已验证"推进到"可接入首批企业客户"的 production-ready 状态。
+将 HermesX 从"安全架构已验证"推进到"可接入首批企业客户"的 production-ready 状态。
 
 ### 2.2 用户价值
 

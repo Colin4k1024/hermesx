@@ -1,4 +1,4 @@
-# Contributing to Hermes Agent Go
+# Contributing to HermesX
 
 Thank you for your interest in contributing! This document covers the guidelines and conventions for the project.
 
@@ -12,8 +12,8 @@ Thank you for your interest in contributing! This document covers the guidelines
 ### Building
 
 ```bash
-git clone https://github.com/MLT-OSS/hermes-agent-go.git
-cd hermes-agent-go
+git clone https://github.com/MLT-OSS/hermesx.git
+cd hermesx
 go build -o hermes ./cmd/hermes/
 ```
 

@@ -1,6 +1,6 @@
 package platforms
 
-import "github.com/hermes-agent/hermes-agent-go/internal/gateway"
+import "github.com/Colin4k1024/hermesx/internal/gateway"
 
 func init() {
 	r := gateway.GlobalRegistry()

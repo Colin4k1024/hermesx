@@ -1,4 +1,4 @@
-# PRD: Hermes Agent Go — SaaS Readiness Phase 1-5
+# PRD: HermesX — SaaS Readiness Phase 1-5
 
 | 字段 | 值 |
 |------|-----|
@@ -14,7 +14,7 @@
 
 ## 背景
 
-hermes-agent-go 已完成 SaaS 无状态化 MVP（Phase 0-2）：
+hermesx 已完成 SaaS 无状态化 MVP（Phase 0-2）：
 - Phase 0: 并发缺陷修复（8 项，通过架构重设计消除）
 - Phase 1: 状态外置（Store interface + PG/SQLite 双实现 + Redis + Tenant middleware）
 - Phase 2: Gateway 无状态化（AgentFactory + ContextLoader）

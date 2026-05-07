@@ -1,9 +1,9 @@
 package agent
 
 import (
-	"github.com/hermes-agent/hermes-agent-go/internal/llm"
-	"github.com/hermes-agent/hermes-agent-go/internal/skills"
-	"github.com/hermes-agent/hermes-agent-go/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 // ConversationResult holds the result of a conversation turn.
