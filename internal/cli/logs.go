@@ -42,11 +42,11 @@ func SetupLogging(debug bool) *slog.Logger {
 
 // GetLogFile returns the path to the current log file.
 func GetLogFile() string {
-	return filepath.Join(config.HermesHome(), "logs", "hermes.log")
+	return filepath.Join(config.HermesHome(), "logs", "hermesx.log")
 }
 
 // RotateLogs rotates the current log file and keeps the last maxLogFiles backups.
-// hermes.log -> hermes.log.1 -> hermes.log.2 -> ... -> hermes.log.5 (deleted)
+// hermesx.log -> hermesx.log.1 -> hermesx.log.2 -> ... -> hermesx.log.5 (deleted)
 func RotateLogs() error {
 	logPath := GetLogFile()
 

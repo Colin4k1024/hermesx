@@ -42,7 +42,7 @@ func HasClipboardImage() bool {
 
 func getClipboardImageMacOS() (string, error) {
 	outputPath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("hermes-clipboard-%d.png", time.Now().UnixNano()))
+		fmt.Sprintf("hermesx-clipboard-%d.png", time.Now().UnixNano()))
 
 	// Try pngpaste first (brew install pngpaste).
 	if pngpastePath, err := exec.LookPath("pngpaste"); err == nil {
@@ -116,7 +116,7 @@ func getClipboardImageLinux() (string, error) {
 	}
 
 	outputPath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("hermes-clipboard-%d.png", time.Now().UnixNano()))
+		fmt.Sprintf("hermesx-clipboard-%d.png", time.Now().UnixNano()))
 
 	// Check if clipboard has an image.
 	cmd := exec.Command(xclipPath, "-selection", "clipboard", "-t", "image/png", "-o")

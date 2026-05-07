@@ -30,9 +30,9 @@ func TestResolveToolsetTerminal(t *testing.T) {
 }
 
 func TestResolveToolsetHermesCLI(t *testing.T) {
-	tools := ResolveToolset("hermes-cli")
+	tools := ResolveToolset("hermesx-cli")
 	if len(tools) < 20 {
-		t.Errorf("Expected hermes-cli to have 20+ tools, got %d", len(tools))
+		t.Errorf("Expected hermesx-cli to have 20+ tools, got %d", len(tools))
 	}
 }
 
@@ -54,8 +54,8 @@ func TestValidateToolset(t *testing.T) {
 	if !ValidateToolset("web") {
 		t.Error("Expected 'web' to be valid")
 	}
-	if !ValidateToolset("hermes-cli") {
-		t.Error("Expected 'hermes-cli' to be valid")
+	if !ValidateToolset("hermesx-cli") {
+		t.Error("Expected 'hermesx-cli' to be valid")
 	}
 	if !ValidateToolset("all") {
 		t.Error("Expected 'all' to be valid")
@@ -71,9 +71,9 @@ func TestGetAllToolsets(t *testing.T) {
 		t.Errorf("Expected at least 10 toolsets, got %d", len(all))
 	}
 
-	// Check that hermes-cli exists
-	if _, ok := all["hermes-cli"]; !ok {
-		t.Error("Expected hermes-cli in all toolsets")
+	// Check that hermesx-cli exists
+	if _, ok := all["hermesx-cli"]; !ok {
+		t.Error("Expected hermesx-cli in all toolsets")
 	}
 }
 
@@ -85,9 +85,9 @@ func TestGetToolsetNames(t *testing.T) {
 }
 
 func TestResolveToolsetCycleDetection(t *testing.T) {
-	// hermes-gateway includes hermes-telegram which doesn't include hermes-gateway
+	// hermesx-gateway includes hermesx-telegram which doesn't include hermesx-gateway
 	// so no cycle, but test that resolution completes
-	tools := ResolveToolset("hermes-gateway")
+	tools := ResolveToolset("hermesx-gateway")
 	// Should not panic or hang
 	_ = tools
 }

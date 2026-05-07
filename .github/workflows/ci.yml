@@ -96,11 +96,11 @@ jobs:
         run: |
           ext=""
           if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
-          go build -ldflags="-s -w" -o hermes-${{ matrix.os }}-${{ matrix.arch }}${ext} ./cmd/hermes/
+          go build -ldflags="-s -w" -o hermesx-${{ matrix.os }}-${{ matrix.arch }}${ext} ./cmd/hermesx/
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hermes-${{ matrix.os }}-${{ matrix.arch }}
+          name: hermesx-${{ matrix.os }}-${{ matrix.arch }}
           path: hermes-*
 
   docker:
@@ -150,13 +150,13 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: hermes_test
-          POSTGRES_USER: hermes_test
-          POSTGRES_PASSWORD: hermes_test
+          POSTGRES_DB: hermesx_test
+          POSTGRES_USER: hermesx_test
+          POSTGRES_PASSWORD: hermesx_test
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U hermes_test -d hermes_test"
+          --health-cmd "pg_isready -U hermesx_test -d hermes_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -172,8 +172,8 @@ jobs:
     env:
       TEST_DATABASE_URL: postgres://hermes_test:hermes_test@localhost:5432/hermes_test?sslmode=disable
       TEST_MINIO_ENDPOINT: localhost:9000
-      TEST_MINIO_ACCESS_KEY: hermes_test
-      TEST_MINIO_SECRET_KEY: hermes_test
+      TEST_MINIO_ACCESS_KEY: hermesx_test
+      TEST_MINIO_SECRET_KEY: hermesx_test
     steps:
       - uses: actions/checkout@v4
 

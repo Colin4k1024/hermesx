@@ -24,7 +24,7 @@ exporters:
 
   prometheus:
     endpoint: 0.0.0.0:8889
-    namespace: hermes
+    namespace: hermesx
 
   logging:
     loglevel: warn

@@ -33,7 +33,7 @@ func signJWT(t *testing.T, key *rsa.PrivateKey, claims jwt.MapClaims) string {
 func TestJWTExtractor(t *testing.T) {
 	key := generateTestKey(t)
 	wrongKey := generateTestKey(t)
-	const issuer = "hermes-test"
+	const issuer = "hermesx-test"
 
 	extractor := NewJWTExtractor(&key.PublicKey, issuer)
 

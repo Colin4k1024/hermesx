@@ -38,7 +38,7 @@ func init() {
 		}
 
 		// Create a scratch directory for temporary files.
-		scratchDir, err := os.MkdirTemp("", "hermes-singularity-*")
+		scratchDir, err := os.MkdirTemp("", "hermesx-singularity-*")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create scratch directory: %w", err)
 		}

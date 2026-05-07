@@ -23,7 +23,7 @@ func TestDefaultSources(t *testing.T) {
 				t.Errorf("Expected agentskills.io trust 'community', got '%s'", s.Trust)
 			}
 		}
-		if s.Name == "hermes-official" {
+		if s.Name == "hermesx-official" {
 			hasHermesOfficial = true
 			if s.Type != "github" {
 				t.Errorf("Expected hermes-official type 'github', got '%s'", s.Type)

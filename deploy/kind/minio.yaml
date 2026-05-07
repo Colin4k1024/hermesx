@@ -1,5 +1,5 @@
 ---
-# MinIO StatefulSet for hermes-agent object storage
+# MinIO StatefulSet for hermesx object storage
 # Stores per-tenant skills and soul YAML files.
 apiVersion: apps/v1
 kind: StatefulSet
@@ -105,5 +105,5 @@ metadata:
   name: minio-secret
 type: Opaque
 stringData:
-  MINIO_ROOT_USER: hermes-minio
-  MINIO_ROOT_PASSWORD: hermes-minio-password
+  MINIO_ROOT_USER: hermesxx-minio
+  MINIO_ROOT_PASSWORD: hermesx-minio-password

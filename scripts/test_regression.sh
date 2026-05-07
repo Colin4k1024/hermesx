@@ -351,10 +351,10 @@ PARALLEL_ALICE_SESSION="reg-parallel-alice-$(date +%s)"
 PARALLEL_BOB_SESSION="reg-parallel-bob-$(date +%s)"
 
 # Fire both requests in background
-chat "tenant-alice" "$PARALLEL_ALICE_SESSION" "$ALICE_SOUL" "Say 'Ahoy matey!' and nothing else." > /tmp/hermes_parallel_alice.json &
+chat "tenant-alice" "$PARALLEL_ALICE_SESSION" "$ALICE_SOUL" "Say 'Ahoy matey!' and nothing else." > /tmp/hermesx_parallel_alice.json &
 PID_ALICE=$!
 
-chat "tenant-bob" "$PARALLEL_BOB_SESSION" "$BOB_SOUL" "Say 'Eureka!' and nothing else." > /tmp/hermes_parallel_bob.json &
+chat "tenant-bob" "$PARALLEL_BOB_SESSION" "$BOB_SOUL" "Say 'Eureka!' and nothing else." > /tmp/hermesx_parallel_bob.json &
 PID_BOB=$!
 
 # Wait for both with timeout
@@ -372,8 +372,8 @@ while kill -0 $PID_ALICE 2>/dev/null || kill -0 $PID_BOB 2>/dev/null; do
 done
 
 if [ "$WAITED" -lt "$TIMEOUT" ]; then
-    ALICE_PAR=$(extract "$(cat /tmp/hermes_parallel_alice.json 2>/dev/null)")
-    BOB_PAR=$(extract "$(cat /tmp/hermes_parallel_bob.json 2>/dev/null)")
+    ALICE_PAR=$(extract "$(cat /tmp/hermesx_parallel_alice.json 2>/dev/null)")
+    BOB_PAR=$(extract "$(cat /tmp/hermesx_parallel_bob.json 2>/dev/null)")
     echo "  Alice parallel: $(echo "$ALICE_PAR" | head -1)"
     echo "  Bob parallel:   $(echo "$BOB_PAR" | head -1)"
 
@@ -401,7 +401,7 @@ if [ "$WAITED" -lt "$TIMEOUT" ]; then
     fi
 fi
 
-rm -f /tmp/hermes_parallel_alice.json /tmp/hermes_parallel_bob.json
+rm -f /tmp/hermesx_parallel_alice.json /tmp/hermesx_parallel_bob.json
 
 # ══════════════════════════════════════════════════════════
 echo ""

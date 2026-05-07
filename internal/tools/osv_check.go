@@ -186,7 +186,7 @@ func queryOSV(pkg, ecosystem, version string) ([]osvVuln, error) {
 		return nil, fmt.Errorf("create request: %w", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "hermes-agent-osv-check/1.0")
+	req.Header.Set("User-Agent", "hermesx-osv-check/2.0")
 
 	resp, err := client.Do(req)
 	if err != nil {

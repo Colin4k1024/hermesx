@@ -28,7 +28,7 @@ body:
       label: Steps to Reproduce
       description: Minimal steps to trigger the bug. The more specific, the faster we can fix it.
       placeholder: |
-        1. Build: `go build -o hermes ./cmd/hermes/`
+        1. Build: `go build -o hermesx ./cmd/hermesx/`
         2. Run: `./hermes chat "..."`
         3. Agent calls tool X
         4. Error appears: ...

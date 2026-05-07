@@ -77,11 +77,11 @@ sleep 3  # wait for async provisioning
 # ============================================================
 blue "=== Phase 3: Verify Skills Provisioned (MinIO) ==="
 # ============================================================
-SKILL_COUNT=$(docker exec hermes-minio mc ls local/hermes-skills/${TENANT_ID}/ 2>/dev/null | grep -c "/$" || echo "0")
+SKILL_COUNT=$(docker exec hermesx-minio mc ls local/hermesx-skills/${TENANT_ID}/ 2>/dev/null | grep -c "/$" || echo "0")
 assert_gt "tenant has skills directories" 10 "$SKILL_COUNT"
 blue "  Skills directories found: $SKILL_COUNT"
 
-MANIFEST=$(docker exec hermes-minio mc cat local/hermes-skills/${TENANT_ID}/.manifest.json 2>/dev/null || echo "{}")
+MANIFEST=$(docker exec hermesx-minio mc cat local/hermesx-skills/${TENANT_ID}/.manifest.json 2>/dev/null || echo "{}")
 assert_contains "manifest has skills key" '"skills"' "$MANIFEST"
 assert_contains "manifest has synced_at" '"synced_at"' "$MANIFEST"
 
@@ -92,7 +92,7 @@ blue "  Skills in manifest: $MANIFEST_SKILL_COUNT"
 # ============================================================
 blue "=== Phase 4: Verify Soul Provisioned ==="
 # ============================================================
-SOUL=$(docker exec hermes-minio mc cat local/hermes-skills/${TENANT_ID}/_soul/SOUL.md 2>/dev/null || echo "NOT_FOUND")
+SOUL=$(docker exec hermesx-minio mc cat local/hermesx-skills/${TENANT_ID}/_soul/SOUL.md 2>/dev/null || echo "NOT_FOUND")
 assert_contains "soul file exists" "Agent Soul" "$SOUL"
 assert_contains "soul contains tenant ref" "Hermes" "$SOUL"
 blue "  Soul content (first 100 chars): $(echo "$SOUL" | head -c 100)"
@@ -221,7 +221,7 @@ print('true' if found and found[0].get('user_modified') else 'false')
 assert_eq "uploaded skill marked user_modified" "true" "$IS_USER_MOD"
 
 # Verify in MinIO manifest
-MANIFEST2=$(docker exec hermes-minio mc cat local/hermes-skills/${TENANT_ID}/.manifest.json 2>/dev/null || echo "{}")
+MANIFEST2=$(docker exec hermesx-minio mc cat local/hermesx-skills/${TENANT_ID}/.manifest.json 2>/dev/null || echo "{}")
 MANIFEST_MOD=$(echo "$MANIFEST2" | python3 -c "
 import sys,json
 m = json.load(sys.stdin)
@@ -306,7 +306,7 @@ T2_TOTAL=$(curl -sf "$BASE/v1/skills" -H "Authorization: Bearer $API_KEY2" | pyt
 assert_gt "tenant 2 also has 70+ provisioned skills" 70 "$T2_TOTAL"
 
 # Verify tenant 2 got its own Soul
-T2_SOUL=$(docker exec hermes-minio mc cat local/hermes-skills/${TENANT2_ID}/_soul/SOUL.md 2>/dev/null || echo "NOT_FOUND")
+T2_SOUL=$(docker exec hermesx-minio mc cat local/hermesx-skills/${TENANT2_ID}/_soul/SOUL.md 2>/dev/null || echo "NOT_FOUND")
 assert_contains "tenant 2 has soul" "Agent Soul" "$T2_SOUL"
 
 # ============================================================

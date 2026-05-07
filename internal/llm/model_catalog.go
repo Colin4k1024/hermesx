@@ -132,7 +132,7 @@ func (c *Catalog) fetchRemote() (*CatalogManifest, error) {
 	if err != nil {
 		return nil, fmt.Errorf("catalog: build request: %w", err)
 	}
-	req.Header.Set("User-Agent", "hermes-agent-go/1.0")
+	req.Header.Set("User-Agent", "hermesx/2.0")
 
 	resp, err := c.config.HTTPClient.Do(req)
 	if err != nil {

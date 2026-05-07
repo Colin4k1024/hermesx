@@ -1,5 +1,5 @@
 ---
-# PostgreSQL StatefulSet for hermes-agent
+# PostgreSQL StatefulSet for hermesx
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:

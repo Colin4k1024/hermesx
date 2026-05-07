@@ -15,7 +15,7 @@ import (
 var (
 	httpRequestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "hermes_http_requests_total",
+			Name: "hermesx_http_requests_total",
 			Help: "Total HTTP requests by method, path, status code, and tenant.",
 		},
 		[]string{"method", "path", "status", "tenant_id"},
@@ -23,7 +23,7 @@ var (
 
 	httpRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "hermes_http_request_duration_seconds",
+			Name:    "hermesx_http_request_duration_seconds",
 			Help:    "HTTP request latency in seconds.",
 			Buckets: prometheus.DefBuckets,
 		},
@@ -32,7 +32,7 @@ var (
 
 	httpRequestsInFlight = promauto.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "hermes_http_requests_in_flight",
+			Name: "hermesx_http_requests_in_flight",
 			Help: "Current number of HTTP requests being processed.",
 		},
 	)

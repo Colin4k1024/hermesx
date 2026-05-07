@@ -18,7 +18,7 @@ success() { echo -e "${GREEN}[OK]${NC} $1"; }
 section() { echo -e "\n${YELLOW}═══ Step $1: $2 ═══${NC}\n"; }
 
 # State file for cross-step data
-STATE_FILE="/tmp/hermes-demo-state.json"
+STATE_FILE="/tmp/hermesx-demo-state.json"
 echo '{}' > "$STATE_FILE"
 
 save_state() { jq --arg k "$1" --arg v "$2" '.[$k] = $v' "$STATE_FILE" > /tmp/state_tmp && mv /tmp/state_tmp "$STATE_FILE"; }

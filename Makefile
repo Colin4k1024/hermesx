@@ -1,5 +1,5 @@
-BINARY=hermes
-VERSION=0.7.0
+BINARY=hermesx
+VERSION=2.0.0
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
@@ -8,7 +8,7 @@ LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 all: build
 
 build:
-	go build $(LDFLAGS) -o $(BINARY) ./cmd/hermes/
+	go build $(LDFLAGS) -o $(BINARY) ./cmd/hermesx/
 
 install: build
 	mkdir -p ~/.local/bin
@@ -47,12 +47,12 @@ fmt:
 
 # Cross-compilation
 build-linux:
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-linux-amd64 ./cmd/hermes/
-	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-linux-arm64 ./cmd/hermes/
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-linux-amd64 ./cmd/hermesx/
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-linux-arm64 ./cmd/hermesx/
 
 build-darwin:
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-darwin-amd64 ./cmd/hermes/
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-darwin-arm64 ./cmd/hermes/
+	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-darwin-amd64 ./cmd/hermesx/
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-darwin-arm64 ./cmd/hermesx/
 
 build-all: build-linux build-darwin
 

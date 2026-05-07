@@ -63,7 +63,7 @@ func TestMain(m *testing.M) {
 func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 	dbURL := os.Getenv("TEST_DATABASE_URL")
 	if dbURL == "" {
-		dbURL = "postgres://hermes_test:hermes_test@localhost:5433/hermes_test?sslmode=disable"
+		dbURL = "postgres://hermesx_test:hermesx_test@localhost:5433/hermesx_test?sslmode=disable"
 	}
 
 	minioEndpoint := os.Getenv("TEST_MINIO_ENDPOINT")
@@ -88,19 +88,19 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 	// Create RLS test role (idempotent)
 	rlsSetupSQL := `
 		DO $$ BEGIN
-			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'hermes_rls') THEN
-				CREATE ROLE hermes_rls LOGIN PASSWORD 'hermes_rls';
+			IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'hermesx_rls') THEN
+				CREATE ROLE hermesx_rls LOGIN PASSWORD 'hermesx_rls';
 			END IF;
 		END $$;
-		GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hermes_rls;
-		GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO hermes_rls;
+		GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO hermesx_rls;
+		GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO hermesx_rls;
 	`
 	if _, err := pool.Exec(ctx, rlsSetupSQL); err != nil {
 		return nil, fmt.Errorf("rls role setup: %w", err)
 	}
 
 	// RLS pool (restricted user)
-	rlsURL := strings.Replace(dbURL, "hermes_test:hermes_test", "hermes_rls:hermes_rls", 1)
+	rlsURL := strings.Replace(dbURL, "hermes_test:hermes_test", "hermesx_rls:hermesx_rls", 1)
 	rlsPool, err := pgxpool.New(ctx, rlsURL)
 	if err != nil {
 		return nil, fmt.Errorf("rls pool: %w", err)
@@ -111,7 +111,7 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 	if minioBucket == "" {
 		minioBucket = "hermes-test"
 	}
-	minioClient, err := objstore.NewMinIOClient(minioEndpoint, "hermes_test", "hermes_test", minioBucket, false)
+	minioClient, err := objstore.NewMinIOClient(minioEndpoint, "hermesx_test", "hermesx_test", minioBucket, false)
 	if err != nil {
 		return nil, fmt.Errorf("minio: %w", err)
 	}

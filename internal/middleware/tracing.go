@@ -11,7 +11,7 @@ import (
 // TracingMiddleware creates a root span for each HTTP request and injects
 // trace_id into the response header X-Trace-ID.
 func TracingMiddleware(next http.Handler) http.Handler {
-	tracer := otel.Tracer("hermes-http")
+	tracer := otel.Tracer("hermesx-http")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx, span := tracer.Start(r.Context(), r.Method+" "+r.URL.Path,
 			trace.WithAttributes(

@@ -8,7 +8,7 @@ import (
 var (
 	llmRequestDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
-			Name:    "hermes_llm_request_duration_seconds",
+			Name:    "hermesx_llm_request_duration_seconds",
 			Help:    "LLM API request latency in seconds.",
 			Buckets: []float64{0.1, 0.25, 0.5, 1, 2.5, 5, 10, 30, 60},
 		},
@@ -17,7 +17,7 @@ var (
 
 	llmTokensTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "hermes_llm_tokens_total",
+			Name: "hermesx_llm_tokens_total",
 			Help: "Total LLM tokens consumed.",
 		},
 		[]string{"provider", "model", "direction", "tenant_id"},

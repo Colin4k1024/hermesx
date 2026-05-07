@@ -25,7 +25,7 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
-            - /usr/local/bin/hermes
+            - /usr/local/bin/hermesx
           args:
             {{- range .Values.args }}
             - {{ . }}

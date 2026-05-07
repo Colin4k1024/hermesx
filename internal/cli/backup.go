@@ -19,7 +19,7 @@ func CreateBackup(outputPath string) error {
 	hermesDir := config.HermesHome()
 
 	if outputPath == "" {
-		outputPath = fmt.Sprintf("hermes-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
+		outputPath = fmt.Sprintf("hermesx-backup-%s.tar.gz", time.Now().Format("20060102-150405"))
 	}
 
 	outFile, err := os.Create(outputPath)

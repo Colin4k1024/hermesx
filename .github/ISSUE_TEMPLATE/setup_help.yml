@@ -10,7 +10,7 @@ body:
 
         **Quick checks first:**
         - Ensure you have Go 1.22+ installed: `go version`
-        - Try building from latest main: `git pull && go build ./cmd/hermes/`
+        - Try building from latest main: `git pull && go build ./cmd/hermesx/`
         - Run diagnostics: `./hermes doctor`
 
   - type: textarea
@@ -30,7 +30,7 @@ body:
       description: What did you do? Include the exact commands you ran.
       placeholder: |
         1. Cloned the repo: `git clone https://github.com/MLT-OSS/hermesx.git`
-        2. Ran: `go build -o hermes ./cmd/hermes/`
+        2. Ran: `go build -o hermesx ./cmd/hermesx/`
         3. Got error: ...
     validations:
       required: true

@@ -113,7 +113,7 @@ func TestHasEnv(t *testing.T) {
 
 func TestEnsureHermesHome(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", filepath.Join(tmpDir, "hermes-test"))
+	os.Setenv("HERMES_HOME", filepath.Join(tmpDir, "hermesx-test"))
 	defer os.Unsetenv("HERMES_HOME")
 
 	err := EnsureHermesHome()
@@ -124,7 +124,7 @@ func TestEnsureHermesHome(t *testing.T) {
 	// Check directories created
 	expectedDirs := []string{"sessions", "logs", "memories", "skills", "cron", "cache"}
 	for _, dir := range expectedDirs {
-		path := filepath.Join(tmpDir, "hermes-test", dir)
+		path := filepath.Join(tmpDir, "hermesx-test", dir)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			t.Errorf("Expected directory %s to exist", dir)
 		}

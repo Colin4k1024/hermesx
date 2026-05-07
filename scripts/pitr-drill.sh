@@ -19,9 +19,9 @@ set -euo pipefail
 
 # --- Configuration ---
 COMPOSE_FILE="deploy/pitr/docker-compose.pitr.yml"
-PG_CONTAINER="hermes-pg-pitr"
-PG_USER="hermes"
-PG_DB="hermes"
+PG_CONTAINER="hermesx-pg-pitr"
+PG_USER="hermesx"
+PG_DB="hermesx"
 DRILL_TABLE="pitr_drill_test"
 DRILL_ROWS=100
 
@@ -83,7 +83,7 @@ sleep 3  # Wait for archive
 # --- Step 2: Take incremental backup ---
 log_step "Take incremental backup"
 
-pgbackrest_exec --stanza=hermes backup --type=diff 2>&1 | tail -5
+pgbackrest_exec --stanza=hermesx backup --type=diff 2>&1 | tail -5
 log_info "Differential backup complete."
 
 # --- Step 3: Simulate data loss ---
@@ -117,7 +117,7 @@ docker run --rm \
   -v "$(pwd)/deploy/pitr/pgbackrest.conf:/etc/pgbackrest/pgbackrest.conf:ro" \
   postgres:16-bookworm bash -c "
     apt-get update -qq && apt-get install -y -qq pgbackrest > /dev/null 2>&1
-    pgbackrest --stanza=hermes restore \
+    pgbackrest --stanza=hermesx restore \
       --type=time \
       --target=\"${RECOVERY_TARGET}\" \
       --target-action=promote

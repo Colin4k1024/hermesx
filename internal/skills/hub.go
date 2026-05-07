@@ -44,7 +44,7 @@ func DefaultSources() []HubSource {
 			Trust: "community",
 		},
 		{
-			Name:  "hermes-official",
+			Name:  "hermesx-official",
 			Type:  "github",
 			URL:   "https://api.github.com/repos/NousResearch/hermes-agent/contents/optional-skills",
 			Trust: "trusted",

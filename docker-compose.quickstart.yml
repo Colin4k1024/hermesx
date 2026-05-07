@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: hermes-qs-pg
+    container_name: hermesx-qs-pg
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hermes}
       POSTGRES_USER: ${POSTGRES_USER:-hermes}
@@ -9,14 +9,14 @@ services:
     volumes:
       - qs_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      test: ["CMD-SHELL", "pg_isready -U hermesx"]
       interval: 5s
       timeout: 5s
       retries: 10
 
   redis:
     image: redis:7
-    container_name: hermes-qs-redis
+    container_name: hermesx-qs-redis
     command: >
       sh -c 'if [ -n "$$REDIS_PASSWORD" ]; then
         redis-server --requirepass "$$REDIS_PASSWORD" --appendonly yes;
@@ -35,11 +35,11 @@ services:
 
   minio:
     image: minio/minio:RELEASE.2024-11-07T00-52-20Z
-    container_name: hermes-qs-minio
+    container_name: hermesx-qs-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-hermes}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-hermespass}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-hermesxpass}
     volumes:
       - qs_minio_data:/data
     healthcheck:
@@ -48,11 +48,11 @@ services:
       timeout: 5s
       retries: 10
 
-  hermes-saas:
+  hermesx-saas:
     build:
       context: .
       dockerfile: Dockerfile.saas
-    container_name: hermes-qs-saas
+    container_name: hermesx-qs-saas
     command: ["saas-api"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -63,7 +63,7 @@ services:
       # MinIO
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-hermes}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-hermespass}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-hermesxpass}
       MINIO_BUCKET: hermes-skills
       # SaaS API
       SAAS_API_PORT: "8080"
@@ -77,7 +77,7 @@ services:
       # Debug
       HERMES_DEBUG: "false"
     volumes:
-      - ./skills:/home/hermes/skills:ro
+      - ./skills:/home/hermesx/skills:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,7 +96,7 @@ services:
 
   bootstrap:
     image: alpine:3.19
-    container_name: hermes-qs-bootstrap
+    container_name: hermesx-qs-bootstrap
     command: >
       sh -c "apk add --no-cache bash curl wget python3 ca-certificates 2>/dev/null
              && /scripts/bootstrap.sh"
@@ -104,15 +104,15 @@ services:
       - ./scripts:/scripts:ro
       - ./tests/fixtures:/fixtures
     environment:
-      BASE_URL: http://hermes-saas:8080
+      BASE_URL: http://hermesx-saas:8080
       HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN:-dev-bootstrap-token}
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-hermes}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-hermespass}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-hermesxpass}
       MINIO_BUCKET: hermes-skills
       FIXTURES_DIR: /fixtures
     depends_on:
-      hermes-saas:
+      hermesx-saas:
         condition: service_healthy
     restart: "no"
 

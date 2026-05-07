@@ -1,7 +1,7 @@
 services:
   postgres:
     image: postgres:16
-    container_name: hermes-pg
+    container_name: hermesx-pg
     environment:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_USER: ${POSTGRES_USER}
@@ -18,7 +18,7 @@ services:
 
   redis:
     image: redis:7
-    container_name: hermes-redis
+    container_name: hermesx-redis
     ports:
       - "6379:6379"
     volumes:
@@ -31,7 +31,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: hermes-minio
+    container_name: hermesx-minio
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
@@ -47,11 +47,11 @@ services:
       timeout: 5s
       retries: 5
 
-  hermes-saas:
+  hermesx-saas:
     build:
       context: .
       dockerfile: Dockerfile.saas
-    container_name: hermes-saas
+    container_name: hermesx-saas
     command: ["saas-api"]
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -78,7 +78,7 @@ services:
       HERMES_API_MODE: ${HERMES_API_MODE:-openai}
       HERMES_DEBUG: ${HERMES_DEBUG:-false}
     volumes:
-      - ./skills:/home/hermes/skills:ro
+      - ./skills:/home/hermesx/skills:ro
     depends_on:
       postgres:
         condition: service_healthy

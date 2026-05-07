@@ -73,7 +73,7 @@ func TestOIDCExtractor_ValidToken(t *testing.T) {
 	srv, key := setupMockIdP(t)
 	defer srv.Close()
 
-	clientID := "hermes-test"
+	clientID := "hermesx-test"
 	extractor, err := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
 		ClientID:  clientID,
@@ -121,7 +121,7 @@ func TestOIDCExtractor_NoBearer(t *testing.T) {
 
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
-		ClientID:  "hermes-test",
+		ClientID:  "hermesx-test",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -140,7 +140,7 @@ func TestOIDCExtractor_InvalidToken(t *testing.T) {
 
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
-		ClientID:  "hermes-test",
+		ClientID:  "hermesx-test",
 	})
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -158,7 +158,7 @@ func TestOIDCExtractor_CustomClaimMapper(t *testing.T) {
 	srv, key := setupMockIdP(t)
 	defer srv.Close()
 
-	clientID := "hermes-test"
+	clientID := "hermesx-test"
 	extractor, err := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
 		ClientID:  clientID,
@@ -203,7 +203,7 @@ func TestOIDCExtractor_DefaultRoles(t *testing.T) {
 	srv, key := setupMockIdP(t)
 	defer srv.Close()
 
-	clientID := "hermes-test"
+	clientID := "hermesx-test"
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
 		ClientID:  clientID,
@@ -231,7 +231,7 @@ func TestOIDCExtractor_WrongAudience(t *testing.T) {
 
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
-		ClientID:  "hermes-test",
+		ClientID:  "hermesx-test",
 	})
 
 	token := signToken(t, key, srv.URL, "wrong-audience", "user-x", map[string]any{})
@@ -252,7 +252,7 @@ func TestOIDCExtractor_ExpiredToken(t *testing.T) {
 	srv, key := setupMockIdP(t)
 	defer srv.Close()
 
-	clientID := "hermes-test"
+	clientID := "hermesx-test"
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
 		ClientID:  clientID,
@@ -283,7 +283,7 @@ func TestOIDCExtractor_MissingTenantClaim(t *testing.T) {
 	srv, key := setupMockIdP(t)
 	defer srv.Close()
 
-	clientID := "hermes-test"
+	clientID := "hermesx-test"
 	extractor, _ := NewOIDCExtractor(context.Background(), OIDCConfig{
 		IssuerURL: srv.URL,
 		ClientID:  clientID,

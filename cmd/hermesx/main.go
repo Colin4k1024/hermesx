@@ -1,4 +1,4 @@
-// Package main implements the hermes CLI entry point using Cobra.
+// Package main implements the hermesx CLI entry point using Cobra.
 package main
 
 import (
@@ -62,7 +62,7 @@ var (
 // --- Root command ---
 
 var rootCmd = &cobra.Command{
-	Use:   "hermes",
+	Use:   "hermesx",
 	Short: "Hermes Agent - AI assistant framework",
 	Long: `Hermes Agent is an AI assistant framework by Nous Research.
 It supports interactive CLI, messaging gateways, scheduled tasks, and more.`,
@@ -191,7 +191,7 @@ var modelCmd = &cobra.Command{
 
 		if len(args) == 0 {
 			fmt.Printf("Current model: %s\n", cfg.Model)
-			fmt.Println("\nTo switch: hermes model <model-name>")
+			fmt.Println("\nTo switch: hermesx model <model-name>")
 			return nil
 		}
 
@@ -260,13 +260,13 @@ var skillsCmd = &cobra.Command{
 			return nil
 		case "install":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes skills install <name>")
+				return fmt.Errorf("usage: hermesx skills install <name>")
 			}
 			cli.RunSkillsInstall(args[1])
 			return nil
 		case "inspect":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes skills inspect <name>")
+				return fmt.Errorf("usage: hermesx skills inspect <name>")
 			}
 			skill, err := skills.FindSkill(args[1])
 			if err != nil {
@@ -569,8 +569,8 @@ var batchCmd = &cobra.Command{
 or read from a file (one prompt per line) using --file.
 
 Examples:
-  hermes batch "What is 2+2?" "Explain gravity"
-  hermes batch --file prompts.txt --model openai/gpt-4o --workers 8`,
+  hermesx batch "What is 2+2?" "Explain gravity"
+  hermesx batch --file prompts.txt --model openai/gpt-4o --workers 8`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		setupLogging()
 
@@ -696,26 +696,26 @@ var cronCmd = &cobra.Command{
 		switch args[0] {
 		case "run":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes cron run <job-id>")
+				return fmt.Errorf("usage: hermesx cron run <job-id>")
 			}
 			scheduler := cron.NewScheduler()
 			return scheduler.TriggerJob(args[1])
 
 		case "pause":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes cron pause <job-id>")
+				return fmt.Errorf("usage: hermesx cron pause <job-id>")
 			}
 			return store.Pause(args[1])
 
 		case "resume":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes cron resume <job-id>")
+				return fmt.Errorf("usage: hermesx cron resume <job-id>")
 			}
 			return store.Resume(args[1])
 
 		case "remove":
 			if len(args) < 2 {
-				return fmt.Errorf("usage: hermes cron remove <job-id>")
+				return fmt.Errorf("usage: hermesx cron remove <job-id>")
 			}
 			return store.Remove(args[1])
 

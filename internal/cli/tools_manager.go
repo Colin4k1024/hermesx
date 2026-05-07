@@ -73,7 +73,7 @@ func toolsManagerList(cfg *config.Config) {
 	var basic, scenario, platform []string
 	for _, name := range names {
 		switch {
-		case strings.HasPrefix(name, "hermes-"):
+		case strings.HasPrefix(name, "hermesx-"):
 			platform = append(platform, name)
 		case hasIncludes(allTS[name]):
 			scenario = append(scenario, name)

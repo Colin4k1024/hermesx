@@ -21,7 +21,7 @@ func init() {
 	RegisterEnvironment("modal", func(params map[string]string) (Environment, error) {
 		appName := params["app_name"]
 		if appName == "" {
-			appName = "hermes-sandbox"
+			appName = "hermesx-sandbox"
 		}
 		gpu := params["gpu"]
 		timeoutParam := 0

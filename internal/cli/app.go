@@ -605,7 +605,7 @@ func (app *App) saveConversation() {
 		safeTitle = safeTitle[:40]
 	}
 
-	filename := fmt.Sprintf("hermes_%s_%s.json", timestamp, safeTitle)
+	filename := fmt.Sprintf("hermesx_%s_%s.json", timestamp, safeTitle)
 	savePath := filepath.Join(config.HermesHome(), "sessions", filename)
 
 	// Build export data.

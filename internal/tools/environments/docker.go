@@ -26,7 +26,7 @@ func init() {
 		}
 		containerName := params["container_name"]
 		if containerName == "" {
-			containerName = "hermes-docker-env"
+			containerName = "hermesx-docker-env"
 		}
 
 		var volumes []string

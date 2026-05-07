@@ -5,7 +5,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /hermes ./cmd/hermes/
+RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /hermesx ./cmd/hermesx/
 
 FROM debian:bookworm-slim
 
@@ -20,12 +20,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
-RUN useradd -m -s /bin/bash hermes
+RUN useradd -m -s /bin/bash hermesx
 
-COPY --from=builder /hermes /usr/local/bin/hermes
+COPY --from=builder /hermesx /usr/local/bin/hermesx
 
-USER hermes
-WORKDIR /home/hermes
+USER hermesx
+WORKDIR /home/hermesx
 
-ENTRYPOINT ["hermes"]
+ENTRYPOINT ["hermesx"]
 CMD ["gateway", "start"]

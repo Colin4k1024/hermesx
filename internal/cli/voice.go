@@ -146,7 +146,7 @@ func (v *VoiceMode) transcribeWhisper(audioPath string) (string, error) {
 	}
 
 	// Create a temp directory for output.
-	tmpDir, err := os.MkdirTemp("", "hermes-whisper-*")
+	tmpDir, err := os.MkdirTemp("", "hermesx-whisper-*")
 	if err != nil {
 		return "", fmt.Errorf("create temp dir: %w", err)
 	}
@@ -214,7 +214,7 @@ func (v *VoiceMode) speakEdgeTTS(text string) (string, error) {
 
 	// Generate output path.
 	outputPath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("hermes-tts-%d.mp3", time.Now().UnixNano()))
+		fmt.Sprintf("hermesx-tts-%d.mp3", time.Now().UnixNano()))
 
 	cmd := exec.Command(edgeTTSPath,
 		"--text", text,
@@ -236,7 +236,7 @@ func (v *VoiceMode) speakOpenAI(text string) (string, error) {
 	}
 
 	outputPath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("hermes-tts-%d.mp3", time.Now().UnixNano()))
+		fmt.Sprintf("hermesx-tts-%d.mp3", time.Now().UnixNano()))
 
 	curlPath, err := exec.LookPath("curl")
 	if err != nil {
@@ -266,7 +266,7 @@ func (v *VoiceMode) speakElevenLabs(text string) (string, error) {
 	}
 
 	outputPath := filepath.Join(os.TempDir(),
-		fmt.Sprintf("hermes-tts-%d.mp3", time.Now().UnixNano()))
+		fmt.Sprintf("hermesx-tts-%d.mp3", time.Now().UnixNano()))
 
 	curlPath, err := exec.LookPath("curl")
 	if err != nil {

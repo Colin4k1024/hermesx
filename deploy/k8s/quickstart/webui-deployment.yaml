@@ -1,29 +1,29 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hermes-webui
-  namespace: hermes
+  name: hermesx-webui
+  namespace: hermesx
   labels:
-    app: hermes-webui
+    app: hermesx-webui
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: hermes-webui
+      app: hermesx-webui
   template:
     metadata:
       labels:
-        app: hermes-webui
+        app: hermesx-webui
     spec:
       containers:
         - name: webui
-          image: hermes-webui:local
+          image: hermesx-webui:local
           ports:
             - containerPort: 80
               name: http
           env:
             - name: HERMES_BACKEND_URL
-              value: "hermes-agent:8080"
+              value: "hermesx:8080"
           resources:
             requests:
               cpu: 50m
@@ -47,12 +47,12 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: hermes-webui
-  namespace: hermes
+  name: hermesx-webui
+  namespace: hermesx
 spec:
   type: NodePort
   selector:
-    app: hermes-webui
+    app: hermesx-webui
   ports:
     - port: 80
       targetPort: 80

@@ -19,7 +19,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-var llmTracer = otel.Tracer("hermes-llm")
+var llmTracer = otel.Tracer("hermesx-llm")
 
 type llmTenantKey struct{}
 

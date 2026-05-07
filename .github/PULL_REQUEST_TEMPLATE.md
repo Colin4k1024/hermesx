@@ -36,7 +36,7 @@ Fixes #
 
 <!-- Steps to verify this change works correctly. For bugs: include reproduction steps + proof the fix works. -->
 
-1. Build: `go build -o hermes ./cmd/hermes/`
+1. Build: `go build -o hermesx ./cmd/hermesx/`
 2. ...
 3. Expected result: ...
 
@@ -46,16 +46,16 @@ Fixes #
 
 ### Required
 
-- [ ] `go build ./cmd/hermes/` — compiles without errors
+- [ ] `go build ./cmd/hermesx/` — compiles without errors
 - [ ] `go test ./...` — all tests pass
 - [ ] `go vet ./...` — no issues
 - [ ] No unrelated changes included in this PR
 
 ### Cross-platform (if touching build tags, CGo, or platform-specific code)
 
-- [ ] `GOOS=linux GOARCH=amd64 go build ./cmd/hermes/` — Linux OK
-- [ ] `GOOS=darwin GOARCH=arm64 go build ./cmd/hermes/` — macOS OK
-- [ ] `GOOS=windows GOARCH=amd64 go build ./cmd/hermes/` — Windows OK
+- [ ] `GOOS=linux GOARCH=amd64 go build ./cmd/hermesx/` — Linux OK
+- [ ] `GOOS=darwin GOARCH=arm64 go build ./cmd/hermesx/` — macOS OK
+- [ ] `GOOS=windows GOARCH=amd64 go build ./cmd/hermesx/` — Windows OK
 
 ### Quality (strongly encouraged)
 

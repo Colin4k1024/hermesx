@@ -13,12 +13,12 @@ import (
 
 var (
 	breakerState = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "hermes_breaker_state",
+		Name: "hermesx_breaker_state",
 		Help: "Circuit breaker state: 0=closed, 1=half-open, 2=open",
 	}, []string{"model"})
 
 	breakerRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "hermes_breaker_requests_total",
+		Name: "hermesx_breaker_requests_total",
 		Help: "Total requests through circuit breaker by result",
 	}, []string{"model", "result"})
 

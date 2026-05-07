@@ -733,7 +733,7 @@ func resolveTools(enabled, disabled []string) map[string]bool {
 		toolList = toolsets.ResolveMultipleToolsets(enabled)
 	} else {
 		// Default: use hermes-cli toolset (which equals CoreTools)
-		toolList = toolsets.ResolveToolset("hermes-cli")
+		toolList = toolsets.ResolveToolset("hermesx-cli")
 	}
 
 	result := make(map[string]bool, len(toolList))

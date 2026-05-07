@@ -12,7 +12,7 @@ RUN go mod download
 COPY . .
 
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -ldflags="-s -w" -o /hermes ./cmd/hermes/
+    go build -ldflags="-s -w" -o /hermesx ./cmd/hermesx/
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -20,16 +20,16 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
-    && useradd -m -s /bin/bash hermes
+    && useradd -m -s /bin/bash hermesx
 
-COPY --from=builder /hermes /usr/local/bin/hermes
+COPY --from=builder /hermesx /usr/local/bin/hermesx
 
 # Bundle admin SPA static files into the image.
 # SAAS_STATIC_DIR defaults to /static in values.yaml.
 COPY --from=builder /app/internal/dashboard/static /static
 
-USER hermes
-WORKDIR /home/hermes
+USER hermesx
+WORKDIR /home/hermesx
 
-ENTRYPOINT ["/usr/local/bin/hermes"]
+ENTRYPOINT ["/usr/local/bin/hermesx"]
 CMD ["saas-api"]

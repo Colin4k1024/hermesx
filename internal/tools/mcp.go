@@ -387,7 +387,7 @@ func (c *MCPClient) Connect(ctx context.Context) error {
 			"protocolVersion": "2024-11-05",
 			"capabilities":    map[string]any{"sampling": map[string]any{}},
 			"clientInfo": map[string]any{
-				"name":    "hermes-agent",
+				"name":    "hermesx",
 				"version": "1.0.0",
 			},
 		},

@@ -2,13 +2,13 @@ FROM node:20-alpine
 
 RUN apk add --no-cache ca-certificates git curl jq bash
 
-RUN adduser -D -s /bin/bash hermes
+RUN adduser -D -s /bin/bash hermesx
 
-COPY hermes-linux /usr/local/bin/hermes
-RUN chmod +x /usr/local/bin/hermes
+COPY hermesx-linux /usr/local/bin/hermesx
+RUN chmod +x /usr/local/bin/hermesx
 
-USER hermes
-WORKDIR /home/hermes
+USER hermesx
+WORKDIR /home/hermesx
 
-ENTRYPOINT ["hermes"]
+ENTRYPOINT ["hermesx"]
 CMD ["gateway", "start"]

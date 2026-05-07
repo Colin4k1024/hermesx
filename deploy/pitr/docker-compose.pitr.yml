@@ -9,11 +9,11 @@
 services:
   pg:
     image: postgres:16-bookworm
-    container_name: hermes-pg-pitr
+    container_name: hermesx-pg-pitr
     environment:
-      POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes_secret
-      POSTGRES_DB: hermes
+      POSTGRES_USER: hermesx
+      POSTGRES_PASSWORD: hermesx_secret
+      POSTGRES_DB: hermesx
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./postgresql.conf.pitr:/etc/postgresql/conf.d/pitr.conf:ro
@@ -28,7 +28,7 @@ services:
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hermes"]
+      test: ["CMD-SHELL", "pg_isready -U hermesx"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -37,7 +37,7 @@ services:
   # This init service bootstraps pgBackRest after PG is ready.
   pgbackrest-init:
     image: postgres:16-bookworm
-    container_name: hermes-pgbackrest-init
+    container_name: hermesx-pgbackrest-init
     depends_on:
       pg:
         condition: service_healthy

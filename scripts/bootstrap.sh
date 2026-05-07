@@ -10,7 +10,7 @@ ADMIN_TOKEN="${HERMES_ACP_TOKEN:-dev-bootstrap-token}"
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
 MINIO_ACCESS="${MINIO_ACCESS_KEY:-hermes}"
 MINIO_SECRET="${MINIO_SECRET_KEY:-hermespass}"
-MINIO_BUCKET="${MINIO_BUCKET:-hermes-skills}"
+MINIO_BUCKET="${MINIO_BUCKET:-hermesx-skills}"
 FIXTURES_DIR="${FIXTURES_DIR:-tests/fixtures}"
 
 # ─── Soul content ─────────────────────────────────────────────────────────────
@@ -121,17 +121,17 @@ SKILL_EOF
 log() { echo "$*" >&2; }
 
 wait_for_health() {
-    log "⏳ Waiting for hermes-saas at ${BASE_URL} ..."
+    log "⏳ Waiting for hermesx-saas at ${BASE_URL} ..."
     local i=0
     while [ $i -lt 60 ]; do
         if curl -sf "${BASE_URL}/health/ready" -o /dev/null 2>/dev/null; then
-            log "✅ hermes-saas is ready"
+            log "✅ hermesx-saas is ready"
             return 0
         fi
         sleep 2
         i=$((i + 2))
     done
-    log "❌ Timeout: hermes-saas did not become ready in 60s"
+    log "❌ Timeout: hermesx-saas did not become ready in 60s"
     exit 1
 }
 
@@ -153,7 +153,7 @@ setup_mc() {
 }
 
 mc_alias_set() {
-    mc alias set hermesstore "http://${MINIO_ENDPOINT}" "$MINIO_ACCESS" "$MINIO_SECRET" \
+    mc alias set hermesxstore "http://${MINIO_ENDPOINT}" "$MINIO_ACCESS" "$MINIO_SECRET" \
         --api S3v4 >/dev/null 2>&1
 }
 
@@ -163,7 +163,7 @@ upload_soul() {
     local tmpfile
     tmpfile=$(mktemp)
     printf "%s\n" "$content" > "$tmpfile"
-    mc cp "$tmpfile" "hermesstore/${MINIO_BUCKET}/${tenant_id}/SOUL.md" >/dev/null 2>&1
+    mc cp "$tmpfile" "hermesxstore/${MINIO_BUCKET}/${tenant_id}/SOUL.md" >/dev/null 2>&1
     rm -f "$tmpfile"
     log "  ✅ Soul uploaded → ${tenant_id}/SOUL.md"
 }

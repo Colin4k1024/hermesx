@@ -4,7 +4,7 @@ set -euo pipefail
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://127.0.0.1:9000}"
 MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-hermes}"
 MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-hermespass}"
-MINIO_BUCKET="${MINIO_BUCKET:-hermes-skills}"
+MINIO_BUCKET="${MINIO_BUCKET:-hermesx-skills}"
 MC_ALIAS="hermes-local"
 SKILLS_DIR="$(cd "$(dirname "$0")/../skills" && pwd)"
 

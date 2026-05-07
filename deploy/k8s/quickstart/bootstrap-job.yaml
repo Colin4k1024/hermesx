@@ -1,17 +1,17 @@
 apiVersion: batch/v1
 kind: Job
 metadata:
-  name: hermes-bootstrap
-  namespace: hermes
+  name: hermesx-bootstrap
+  namespace: hermesx
   labels:
-    app: hermes-bootstrap
+    app: hermesx-bootstrap
 spec:
   ttlSecondsAfterFinished: 300
   backoffLimit: 3
   template:
     metadata:
       labels:
-        app: hermes-bootstrap
+        app: hermesx-bootstrap
     spec:
       restartPolicy: OnFailure
       containers:
@@ -25,13 +25,13 @@ spec:
               /scripts/bootstrap.sh
           env:
             - name: BASE_URL
-              value: "http://hermes-agent:8080"
+              value: "http://hermesx:8080"
             - name: MINIO_ENDPOINT
               value: "minio:9000"
             - name: MINIO_ACCESS_KEY
-              value: "hermes-minio"
+              value: "hermesx-minio"
             - name: MINIO_SECRET_KEY
-              value: "hermes-minio-password"
+              value: "hermesx-minio-password"
             - name: MINIO_BUCKET
               value: "hermes-skills"
             - name: FIXTURES_DIR
@@ -47,5 +47,5 @@ spec:
       volumes:
         - name: bootstrap-script
           configMap:
-            name: hermes-bootstrap-script
+            name: hermesx-bootstrap-script
             defaultMode: 0755

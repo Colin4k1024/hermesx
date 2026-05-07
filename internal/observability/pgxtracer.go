@@ -15,14 +15,14 @@ import (
 
 var pgxQueryDuration = promauto.NewHistogramVec(
 	prometheus.HistogramOpts{
-		Name:    "hermes_pgx_query_duration_seconds",
+		Name:    "hermesx_pgx_query_duration_seconds",
 		Help:    "PostgreSQL query latency via pgx tracer.",
 		Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2.5},
 	},
 	[]string{"sql_prefix"},
 )
 
-var pgxTracer = otel.Tracer("hermes-pgx")
+var pgxTracer = otel.Tracer("hermesx-pgx")
 
 type pgxTracerStartKey struct{}
 

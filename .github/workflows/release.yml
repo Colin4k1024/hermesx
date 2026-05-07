@@ -49,11 +49,11 @@ jobs:
             ext=""
             if [ "$os" = "windows" ]; then ext=".exe"; fi
 
-            output="dist/hermes-${os}-${arch}${ext}"
+            output="dist/hermesx-${os}-${arch}${ext}"
             echo "Building ${output}..."
 
             CGO_ENABLED=0 GOOS=$os GOARCH=$arch \
-              go build -ldflags="$LDFLAGS" -o "$output" ./cmd/hermes/
+              go build -ldflags="$LDFLAGS" -o "$output" ./cmd/hermesx/
           done
 
           # Create checksums

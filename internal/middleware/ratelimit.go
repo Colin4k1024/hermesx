@@ -16,7 +16,7 @@ import (
 
 var rateLimitRejectedTotal = promauto.NewCounterVec(
 	prometheus.CounterOpts{
-		Name: "hermes_rate_limit_rejected_total",
+		Name: "hermesx_rate_limit_rejected_total",
 		Help: "Total requests rejected by rate limiting.",
 	},
 	[]string{"tenant_id"},

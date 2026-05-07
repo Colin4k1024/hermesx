@@ -15,7 +15,7 @@ import (
 
 var activeSessionsGauge = promauto.NewGaugeVec(
 	prometheus.GaugeOpts{
-		Name: "hermes_active_sessions",
+		Name: "hermesx_active_sessions",
 		Help: "Number of currently active sessions.",
 	},
 	[]string{"tenant_id"},

@@ -1,6 +1,6 @@
 // Package plugins implements plugin discovery and loading for Hermes.
 // Plugins are discovered from user-level (~/.hermes/plugins/) and
-// project-level (./hermes_plugins/) directories.
+// project-level (./hermesx_plugins/) directories.
 package plugins
 
 import (
@@ -55,10 +55,10 @@ func DiscoverPlugins() []Plugin {
 	userPluginsDir := filepath.Join(config.HermesHome(), "plugins")
 	plugins = append(plugins, scanPluginDir(userPluginsDir, "user")...)
 
-	// 2. Project plugins: ./hermes_plugins/
+	// 2. Project plugins: ./hermesx_plugins/
 	cwd, err := os.Getwd()
 	if err == nil {
-		projectPluginsDir := filepath.Join(cwd, "hermes_plugins")
+		projectPluginsDir := filepath.Join(cwd, "hermesx_plugins")
 		plugins = append(plugins, scanPluginDir(projectPluginsDir, "project")...)
 	}
 

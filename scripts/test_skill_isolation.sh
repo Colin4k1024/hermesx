@@ -72,7 +72,7 @@ upload_skill_b64() {
     local t1="$1" skill_file="$2" dest="$3"
     local b64
     b64=$(base64 -b 0 < "$skill_file")
-    kubectl exec minio-0 -- sh -c "echo '$b64' | base64 -d | mc pipe 'local/hermes-skills/${dest}'" 2>/dev/null
+    kubectl exec minio-0 -- sh -c "echo '$b64' | base64 -d | mc pipe 'local/hermesx-skills/${dest}'" 2>/dev/null
     return 0
 }
 

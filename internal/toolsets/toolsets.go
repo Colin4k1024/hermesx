@@ -162,7 +162,7 @@ var Toolsets = map[string]*ToolsetDef{
 	},
 
 	// Full Hermes toolsets (CLI + messaging platforms)
-	"hermes-acp": {
+	"hermesx-acp": {
 		Description: "Editor integration (VS Code, Zed, JetBrains) -- coding-focused tools without messaging, audio, or clarify UI",
 		Tools: []string{
 			"web_search", "web_extract",
@@ -179,7 +179,7 @@ var Toolsets = map[string]*ToolsetDef{
 			"execute_code", "delegate_task",
 		},
 	},
-	"hermes-api-server": {
+	"hermesx-api-server": {
 		Description: "OpenAI-compatible API server -- full agent tools accessible via HTTP (no interactive UI tools like clarify or send_message)",
 		Tools: []string{
 			"web_search", "web_extract",
@@ -198,74 +198,74 @@ var Toolsets = map[string]*ToolsetDef{
 			"ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service",
 		},
 	},
-	"hermes-cli": {
+	"hermesx-cli": {
 		Description: "Full interactive CLI toolset - all default tools plus cronjob management",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-telegram": {
+	"hermesx-telegram": {
 		Description: "Telegram bot toolset - full access for personal use (terminal has safety checks)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-discord": {
+	"hermesx-discord": {
 		Description: "Discord bot toolset - full access (terminal has safety checks via dangerous command approval)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-whatsapp": {
+	"hermesx-whatsapp": {
 		Description: "WhatsApp bot toolset - similar to Telegram (personal messaging, more trusted)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-slack": {
+	"hermesx-slack": {
 		Description: "Slack bot toolset - full access for workspace use (terminal has safety checks)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-signal": {
+	"hermesx-signal": {
 		Description: "Signal bot toolset - encrypted messaging platform (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-homeassistant": {
+	"hermesx-homeassistant": {
 		Description: "Home Assistant bot toolset - smart home event monitoring and control",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-email": {
+	"hermesx-email": {
 		Description: "Email bot toolset - interact with Hermes via email (IMAP/SMTP)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-mattermost": {
+	"hermesx-mattermost": {
 		Description: "Mattermost bot toolset - self-hosted team messaging (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-matrix": {
+	"hermesx-matrix": {
 		Description: "Matrix bot toolset - decentralized encrypted messaging (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-dingtalk": {
+	"hermesx-dingtalk": {
 		Description: "DingTalk bot toolset - enterprise messaging platform (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-feishu": {
+	"hermesx-feishu": {
 		Description: "Feishu/Lark bot toolset - enterprise messaging via Feishu/Lark (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-wecom": {
+	"hermesx-wecom": {
 		Description: "WeCom bot toolset - enterprise WeChat messaging (full access)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-sms": {
+	"hermesx-sms": {
 		Description: "SMS bot toolset - interact with Hermes via SMS (Twilio)",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-webhook": {
+	"hermesx-webhook": {
 		Description: "Webhook toolset - receive and process external webhook events",
 		Tools:       copyStrings(CoreTools),
 	},
-	"hermes-gateway": {
+	"hermesx-gateway": {
 		Description: "Gateway toolset - union of all messaging platform tools",
 		Includes: []string{
-			"hermes-telegram", "hermes-discord", "hermes-whatsapp",
-			"hermes-slack", "hermes-signal", "hermes-homeassistant",
-			"hermes-email", "hermes-sms", "hermes-mattermost",
-			"hermes-matrix", "hermes-dingtalk", "hermes-feishu",
-			"hermes-wecom", "hermes-webhook",
+			"hermesx-telegram", "hermesx-discord", "hermesx-whatsapp",
+			"hermesx-slack", "hermesx-signal", "hermesx-homeassistant",
+			"hermesx-email", "hermesx-sms", "hermesx-mattermost",
+			"hermesx-matrix", "hermesx-dingtalk", "hermesx-feishu",
+			"hermesx-wecom", "hermesx-webhook",
 		},
 	},
 }
