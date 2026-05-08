@@ -261,7 +261,7 @@ func TestSPAFallback_RootServesIndex(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := spaFallback(mux, nil, "/nonexistent")
+	handler := spaFallback(mux, "/nonexistent")
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
@@ -280,7 +280,7 @@ func TestSPAFallback_AdminHtmlServed(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := spaFallback(mux, nil, "/nonexistent")
+	handler := spaFallback(mux, "/nonexistent")
 
 	req := httptest.NewRequest(http.MethodGet, "/admin.html", nil)
 	rec := httptest.NewRecorder()
@@ -299,7 +299,7 @@ func TestSPAFallback_ApiPathDelegates(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := spaFallback(mux, nil, "/nonexistent")
+	handler := spaFallback(mux, "/nonexistent")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/me", nil)
 	rec := httptest.NewRecorder()
@@ -316,7 +316,7 @@ func TestSPAFallback_UnknownPathDelegates(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	handler := spaFallback(mux, nil, "/nonexistent")
+	handler := spaFallback(mux, "/nonexistent")
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/nonexistent-path", nil)
 	rec := httptest.NewRecorder()

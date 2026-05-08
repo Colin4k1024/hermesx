@@ -55,6 +55,7 @@ func (h *AdminHandler) Handler() http.Handler {
 	mux.HandleFunc("DELETE /admin/v1/tenants/{id}/sandbox-policy", h.deleteSandboxPolicy)
 
 	// API key management endpoints.
+	mux.HandleFunc("GET /admin/v1/tenants/{id}/api-keys", h.listAPIKeys)
 	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys", h.createAPIKey)
 	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys/{kid}/rotate", h.rotateAPIKey)
 	mux.HandleFunc("DELETE /admin/v1/tenants/{id}/api-keys/{kid}", h.revokeAPIKey)

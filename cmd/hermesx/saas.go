@@ -21,6 +21,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	_ "github.com/Colin4k1024/hermesx/internal/store/mysql"
 	pgstore "github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/Colin4k1024/hermesx/internal/store/rediscache"
 	"github.com/jackc/pgx/v5"

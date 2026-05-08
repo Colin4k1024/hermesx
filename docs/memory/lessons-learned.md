@@ -176,3 +176,43 @@
 3. Makefile 的 `make lint` target 应包含 gofmt 检查，作为本地门禁。
 
 ---
+
+---
+
+## 2026-05-08 — sessionStorage 不应存储原始 API Key
+
+**场景**: hermesx-webui 初版 auth.ts 将 raw API key 写入 sessionStorage，code-reviewer 和 security-reviewer 均标记为 CRITICAL。
+
+**问题**:
+1. sessionStorage 对同源 JS 完全可读，XSS 攻击可直接窃取凭证。
+2. `isAdmin` 仅检查 key 存在性 (`adminApiKey.length > 0`)，绕过 connectAdmin 直接写 key 即可获得 admin 权限。
+
+**建议**:
+1. 凭证类数据（token、API key）只存内存（Pinia/Zustand ref），不写任何浏览器持久化存储。
+2. 非敏感元数据（uid、tenant_id）可写 sessionStorage，方便 UX，不构成安全风险。
+3. 权限状态依赖服务端返回的 roles 数组，单独持久化；key 存在性不等于权限有效。
+
+---
+
+## 2026-05-08 — 下线静态文件前必须全局 grep 隐式依赖
+
+**场景**: 下线 isolation-test.html 时，发现 `scripts/test_web_isolation.sh` Phase 1 显式 curl 检查该文件返回 200。
+
+**问题**: 交付计划中记录了"下线前需排查 CI 依赖"，但排查范围仅限 GitHub Actions workflow，遗漏了本地 shell 脚本。
+
+**建议**:
+1. 下线任何静态文件前执行 `grep -r "filename" scripts/ .github/ Makefile` 全量搜索。
+2. 测试脚本对静态页面的检查应改为只验证 API 端点健康，不硬编码 HTML 文件路径。
+
+---
+
+## 2026-05-08 — ACP Token 字符串比较应使用 crypto/subtle
+
+**场景**: bootstrap.go 初版使用 `authHeader != "Bearer "+h.acpToken` 比较 ACP token，security-reviewer 标记为 CRITICAL（timing attack）。
+
+**问题**: Go 字符串比较在遇到第一个不匹配字节时短路返回，攻击者可通过响应时间差推断 token 前缀。
+
+**建议**:
+1. 任何密码/token 等值比较都使用 `crypto/subtle.ConstantTimeCompare`。
+2. 空 token 守卫放在常量时间比较之前（不进入比较逻辑），避免空字符串绕过。
+3. 搭配 `sync.Mutex` 序列化 check-then-create，防止单实例场景下的 TOCTOU 竞争。

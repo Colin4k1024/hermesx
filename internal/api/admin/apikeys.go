@@ -92,6 +92,54 @@ func (h *AdminHandler) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+type apiKeyItem struct {
+	ID        string     `json:"id"`
+	TenantID  string     `json:"tenant_id"`
+	Name      string     `json:"name"`
+	Prefix    string     `json:"prefix"`
+	Roles     []string   `json:"roles"`
+	Scopes    []string   `json:"scopes"`
+	ExpiresAt *time.Time `json:"expires_at,omitempty"`
+	RevokedAt *time.Time `json:"revoked_at,omitempty"`
+	CreatedAt time.Time  `json:"created_at"`
+}
+
+func (h *AdminHandler) listAPIKeys(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.PathValue("id")
+	if tenantID == "" {
+		http.Error(w, "tenant id required", http.StatusBadRequest)
+		return
+	}
+
+	keys, err := h.store.APIKeys().List(r.Context(), tenantID)
+	if err != nil {
+		h.logger.Error("failed to list api keys", "tenant_id", tenantID, "error", err)
+		http.Error(w, "list failed", http.StatusInternalServerError)
+		return
+	}
+
+	items := make([]apiKeyItem, 0, len(keys))
+	for _, k := range keys {
+		items = append(items, apiKeyItem{
+			ID:        k.ID,
+			TenantID:  k.TenantID,
+			Name:      k.Name,
+			Prefix:    k.Prefix,
+			Roles:     k.Roles,
+			Scopes:    k.Scopes,
+			ExpiresAt: k.ExpiresAt,
+			RevokedAt: k.RevokedAt,
+			CreatedAt: k.CreatedAt,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"api_keys": items,
+		"total":    len(items),
+	})
+}
+
 func (h *AdminHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.PathValue("id")
 	kid := r.PathValue("kid")

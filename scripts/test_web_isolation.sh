@@ -40,15 +40,13 @@ echo "  Hermes Multi-Tenant Web Isolation Test"
 echo "============================================"
 echo ""
 
-# ── Phase 1: Static pages ────────────────────────────
-info "Phase 1: Static page accessibility"
+# ── Phase 1: Entry points ────────────────────────────
+info "Phase 1: UI entry point accessibility"
 HTTP_ADMIN=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/admin.html")
-HTTP_ISO=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/isolation-test.html")
 HTTP_INDEX=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/")
 HTTP_HEALTH=$(curl -s -o /dev/null -w "%{http_code}" "${BASE_URL}/health/live")
-check "$([ "$HTTP_ADMIN" = "200" ] && echo true || echo false)" "admin.html accessible (HTTP $HTTP_ADMIN)"
-check "$([ "$HTTP_ISO" = "200" ] && echo true || echo false)" "isolation-test.html accessible (HTTP $HTTP_ISO)"
-check "$([ "$HTTP_INDEX" = "200" ] && echo true || echo false)" "index.html accessible (HTTP $HTTP_INDEX)"
+check "$([ "$HTTP_ADMIN" = "200" ] && echo true || echo false)" "admin.html (Admin Console) accessible (HTTP $HTTP_ADMIN)"
+check "$([ "$HTTP_INDEX" = "200" ] && echo true || echo false)" "index.html (User Portal) accessible (HTTP $HTTP_INDEX)"
 check "$([ "$HTTP_HEALTH" = "200" ] && echo true || echo false)" "health endpoint alive (HTTP $HTTP_HEALTH)"
 
 # ── Phase 2: Auth enforcement ────────────────────────

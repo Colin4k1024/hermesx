@@ -1,9 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-08-v21-infra-upgrade  
-**阶段**: plan（handoff-ready，可进入 /team-execute）  
-**版本目标**: v2.1.0
+**当前任务**: 2026-05-08-hermesx-webui  
+**前任务**: 2026-05-08-v21-infra-upgrade（已完成，MySQL adapter + RustFS + pprof + OTel）  
+**阶段**: closed  
+**版本目标**: hermesx-webui v0.1 + 后端安全修复（v2.1.0-webui）
 
 ## Tech Stack
 
@@ -15,6 +16,7 @@
 - Helm v3 (PDB/HPA)
 - Docker multi-stage build → ghcr.io (CI auto-push)
 - GitHub Actions CI (unit + integration + race + coverage + Docker push)
+- **webui**: Vue 3 + Pinia + Vue Router v4 + Naive UI + @tanstack/vue-query v5 + Tailwind CSS v4 + Vite 6 multi-page
 
 ## 当前状态
 
@@ -22,7 +24,8 @@
 - v1.3.0 CLOSED (Phase 3 — OIDC wiring + breaker metrics + CI/CD)
 - v1.4.0 CLOSED (v0.12 upstream absorption — hermes-agent v2026.4.30)
 - v2.0.0 CLOSED (post-release hardening — commit 5ea9c44; LifecycleHooks + SelfImprover wired, URL sanitize + prompt sanitize fixed)
-- v2.1.0 PLANNING (infra upgrade — ObjectStore interface + RustFS, pprof + OTel + Prometheus, MySQL adapter)
+- v2.1.0 CLOSED (infra upgrade — ObjectStore interface + RustFS, pprof + OTel + Prometheus, MySQL adapter; K8s local deployment validated 2026-05-08)
+- hermesx-webui RELEASED (v2.1.0-webui — Admin Console + User Portal; 4 CRITICAL + 4 HIGH 安全修复; Bootstrap 端点; 旧 HTML 下线; webui CI)
 
 ## 已完成
 
@@ -34,6 +37,7 @@
 - v0.12 Absorption Sprint 3: Autonomous Memory Curator, Self-improvement Loop, Gateway Media Parity, Gateway Lifecycle Hooks
 - v2.0.0 Rebrand: complete hermes→hermesx rebrand (247 files), ExecutionReceipt API + idempotency, OpenAPI 3.0.3 spec, Prometheus business metrics, RBAC auditor role, OTel+Jaeger, production docker-compose, backup/restore scripts
 - v2.0.0 Hardening: LifecycleHooks→Runner wired, SelfImprover→Agent loop wired, URL traversal fix, sanitizeForPrompt extracted + applied to compress.go/curator.go
+- v2.1.0-webui: Vue 3 Admin Console (租户/Key/审计/定价/沙箱) + User Portal (SSE Chat/Memories/Skills/Usage) + Bootstrap 引导页; subtle.ConstantTimeCompare + sync.Mutex TOCTOU + sessionStorage key 清除 + isAdmin roles 修复; Vary: Origin CORS; webui.yml 最小权限 CI
 
 ## 依赖
 
@@ -50,10 +54,11 @@
 - v2.1.0 MySQL 全量实现工作量大（~31h 估时，按子接口拆 PR）
 - v2.1.0 pprof admin 端点需严格访问控制（生产默认 disabled）
 
-## 下一步（v2.1.0）
+## 下一步（v2.2.0 候选）
 
-1. [Phase 1 — 低风险] ObjectStore 接口抽象 + RustFS endpoint 切换
-2. [Phase 2 — 独立] pprof admin server + Prometheus 3 类新指标 + OTel store/objstore span + ACP requestId 补挂
-3. [Phase 3 — 高风险] MySQL adapter：PoolProvider 清理 → 驱动注册 → DDL → 12 子 Store 实现 + tenant_id filter
-4. [Deferred] store/pg unit tests — pgxmock introduction
-5. [Deferred] Curator O(n²) dedup optimization
+1. [Security P1] Bootstrap 端点 IP 速率限制（当前无 middleware 覆盖）
+2. [UX P2] useSse.ts 401/403 auto-logout（当前 SSE 流中异常无自动重定向）
+3. [Reliability P2] Bootstrap 跨实例 TOCTOU → DB unique constraint（api_keys.name + tenant_id）
+4. [Infra] store/pg unit tests — pgxmock introduction
+5. [Perf] Curator O(n²) dedup optimization
+6. [Security] GHA actions digest-pin（deferred from v2.1.0）

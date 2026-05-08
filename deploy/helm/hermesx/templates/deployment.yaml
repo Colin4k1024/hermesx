@@ -59,6 +59,8 @@ spec:
               value: {{ .Values.env.LLM_API_KEY | quote }}
             - name: LLM_MODEL
               value: {{ .Values.env.LLM_MODEL | quote }}
+            - name: HERMES_API_MODE
+              value: {{ .Values.env.HERMES_API_MODE | default "openai" | quote }}
             - name: MINIO_ENDPOINT
               value: {{ .Values.env.MINIO_ENDPOINT | quote }}
             - name: MINIO_ACCESS_KEY

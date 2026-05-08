@@ -40,18 +40,17 @@ type APIServer struct {
 	AgentChat *chatHandler
 }
 
-// spaFallback wraps the API mux: serves index.html for root "/" and admin.html,
-// delegates all other paths to the inner mux. This avoids ServeMux conflicts
-// between "/" and "/v1/" patterns.
-func spaFallback(mux, spa http.Handler, staticDir string) http.Handler {
+// spaFallback wraps the API mux: serves index.html for root "/" and admin.html
+// for the Admin Console entry, delegating all other paths to the inner mux.
+func spaFallback(mux http.Handler, staticDir string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
-		if path == "/" {
+		if path == "/" || path == "/index.html" {
 			http.ServeFile(w, r, staticDir+"/index.html")
 			return
 		}
-		if path == "/admin.html" || path == "/index.html" || path == "/isolation-test.html" || path == "/chat.html" {
-			http.ServeFile(w, r, staticDir+path)
+		if path == "/admin.html" {
+			http.ServeFile(w, r, staticDir+"/admin.html")
 			return
 		}
 		mux.ServeHTTP(w, r)
@@ -70,6 +69,8 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
+		// Always add Vary: Origin so caches don't serve a cached CORS response to a different origin.
+		w.Header().Add("Vary", "Origin")
 		if origin != "" && (allowAll || allowed[origin]) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -148,6 +149,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	mux.Handle("/v1/", stack.Wrap(api))
 
+	// Bootstrap endpoints are public (status) or use ACP token (create) — no admin scope required.
+	bootstrapH := admin.NewBootstrapHandler(cfg.Store, nil)
+	mux.HandleFunc("GET /admin/v1/bootstrap/status", bootstrapH.Status)
+	mux.HandleFunc("POST /admin/v1/bootstrap", bootstrapH.Create)
+
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
 	adminH := admin.NewAdminHandler(cfg.Store, nil)
 	mux.Handle("/admin/", stack.Wrap(adminH.Handler()))
@@ -170,7 +176,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	// Wrap mux with SPA fallback: serve index.html for root, else pass through to mux.
 	// Done outside mux to avoid ServeMux path conflict between "/" and "/v1/".
 	if spaHandler != nil {
-		handler = spaFallback(handler, spaHandler, cfg.StaticDir)
+		handler = spaFallback(handler, cfg.StaticDir)
 	}
 
 	// Apply CORS if configured.
