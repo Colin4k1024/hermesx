@@ -82,7 +82,7 @@ Requirements: Go 1.23+
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 
 # Install globally
 sudo cp hermesx /usr/local/bin/
@@ -133,7 +133,7 @@ docker compose -f docker-compose.prod.yml up -d
 
 ```
 hermesx/
-├── cmd/hermes/              Entry point (Cobra CLI + SaaS server)
+├── cmd/hermesx/             Entry point (Cobra CLI + SaaS server)
 ├── internal/
 │   ├── agent/               Core agent loop, streaming, memory curator
 │   ├── api/                 REST API server + handlers
@@ -280,7 +280,7 @@ MIT
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 sudo cp hermesx /usr/local/bin/
 ```
 
