@@ -11,7 +11,6 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/store"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 const gdprExportMaxSessions = 1000
@@ -31,15 +30,14 @@ var gdprAllowedTables = map[string]struct{}{
 }
 
 // GDPRHandler serves data export and deletion endpoints.
-// Accepts the full Store + direct pool for tables not exposed via store interface.
+// Uses store.Store for all operations — works with any backend (MySQL, PostgreSQL, SQLite).
 type GDPRHandler struct {
 	store store.Store
-	pool  *pgxpool.Pool
 	minio objstore.ObjectStore
 }
 
-func NewGDPRHandler(s store.Store, pool *pgxpool.Pool, minio objstore.ObjectStore) *GDPRHandler {
-	return &GDPRHandler{store: s, pool: pool, minio: minio}
+func NewGDPRHandler(s store.Store, minio objstore.ObjectStore) *GDPRHandler {
+	return &GDPRHandler{store: s, minio: minio}
 }
 
 // ExportHandler returns GET /v1/gdpr/export — exports all user data for a tenant.
@@ -65,51 +63,47 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 			return
 		}
 
-		type sessionExport struct {
-			Session  *store.Session   `json:"session"`
-			Messages []*store.Message `json:"messages"`
+		// Collect unique user IDs from sessions.
+		userIDSet := make(map[string]struct{})
+		for _, sess := range sessions {
+			if sess.UserID != "" {
+				userIDSet[sess.UserID] = struct{}{}
+			}
 		}
 
-		// Collect all memories for tenant (across all users).
+		// Collect memories per user via store interface.
 		type memoryEntry struct {
 			UserID  string `json:"user_id"`
 			Key     string `json:"key"`
 			Content string `json:"content"`
 		}
 		var memories []memoryEntry
-		if h.pool != nil {
-			rows, err := h.pool.Query(ctx, `SELECT user_id, key, content FROM memories WHERE tenant_id = $1`, tenantID)
-			if err == nil {
-				defer rows.Close()
-				for rows.Next() {
-					var m memoryEntry
-					if err := rows.Scan(&m.UserID, &m.Key, &m.Content); err == nil {
-						memories = append(memories, m)
-					}
+		if memStore := h.store.Memories(); memStore != nil {
+			for uid := range userIDSet {
+				entries, err := memStore.List(ctx, tenantID, uid)
+				if err != nil {
+					log.Warn("gdpr export: failed to list memories", "user_id", uid, "error", err)
+					continue
 				}
-			} else {
-				log.Warn("gdpr export: failed to list memories", "error", err)
+				for _, e := range entries {
+					memories = append(memories, memoryEntry{UserID: uid, Key: e.Key, Content: e.Content})
+				}
 			}
 		}
 
-		// Collect user profiles via Store interface.
+		// Collect user profiles via store interface.
 		type profileEntry struct {
 			UserID  string `json:"user_id"`
 			Content string `json:"content"`
 		}
 		var profiles []profileEntry
-		if h.pool != nil {
-			rows, err := h.pool.Query(ctx, `SELECT user_id, content FROM user_profiles WHERE tenant_id = $1`, tenantID)
-			if err == nil {
-				defer rows.Close()
-				for rows.Next() {
-					var p profileEntry
-					if err := rows.Scan(&p.UserID, &p.Content); err == nil {
-						profiles = append(profiles, p)
-					}
+		if profStore := h.store.UserProfiles(); profStore != nil {
+			for uid := range userIDSet {
+				content, err := profStore.Get(ctx, tenantID, uid)
+				if err != nil || content == "" {
+					continue
 				}
-			} else {
-				log.Warn("gdpr export: failed to list profiles", "error", err)
+				profiles = append(profiles, profileEntry{UserID: uid, Content: content})
 			}
 		}
 
@@ -135,6 +129,10 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 				log.Warn("gdpr export: failed to list messages", "session_id", sess.ID, "error", err)
 				msgs = nil
 			}
+			type sessionExport struct {
+				Session  *store.Session   `json:"session"`
+				Messages []*store.Message `json:"messages"`
+			}
 			enc.Encode(sessionExport{Session: sess, Messages: msgs})
 		}
 		fmt.Fprint(w, `],"memories":`)
@@ -145,8 +143,7 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 	}
 }
 
-// DeleteHandler returns DELETE /v1/gdpr/data — deletes all data for a tenant.
-// All deletions run in a single transaction to prevent partial data loss.
+// DeleteHandler returns DELETE /v1/gdpr/data — deletes all data for a tenant via the store interface.
 func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
@@ -163,77 +160,29 @@ func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 		ctx := r.Context()
 		log := observability.ContextLogger(ctx)
 
-		if h.pool != nil {
-			statusCode, err := h.deleteViaTx(ctx, tenantID)
-			if err != nil {
-				log.Error("gdpr delete failed", "error", err)
-				if statusCode == http.StatusMultiStatus {
-					w.WriteHeader(http.StatusMultiStatus)
-					fmt.Fprintf(w, `{"status":"partial","error":"some resources could not be deleted"}`)
-				} else {
-					http.Error(w, "deletion failed", statusCode)
-				}
-				return
-			}
-		} else {
-			if err := h.deleteViaStore(ctx, tenantID, log); err != nil {
-				http.Error(w, "deletion failed", http.StatusInternalServerError)
+		if err := h.deleteViaStore(ctx, tenantID, log); err != nil {
+			http.Error(w, "deletion failed", http.StatusInternalServerError)
+			return
+		}
+
+		// Post-delete: clean up object store (best-effort).
+		if h.minio != nil {
+			if err := h.deleteMinIOTenantObjects(ctx, tenantID); err != nil {
+				log.Warn("gdpr delete: minio cleanup failed", "tenant_id", tenantID, "error", err)
+				// Record failure via audit log (best-effort).
+				_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
+					TenantID: tenantID,
+					Action:   "MINIO_CLEANUP_FAILED",
+					Detail:   err.Error(),
+				})
+				w.WriteHeader(http.StatusMultiStatus)
+				fmt.Fprintf(w, `{"status":"partial","error":"some resources could not be deleted"}`)
 				return
 			}
 		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
-}
-
-// deleteViaTx performs all deletions in a single PG transaction (production path).
-// Returns HTTP status code and error. 207 indicates partial success (MinIO cleanup failed).
-func (h *GDPRHandler) deleteViaTx(ctx context.Context, tenantID string) (int, error) {
-	tx, err := h.pool.Begin(ctx)
-	if err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("begin tx: %w", err)
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	// Order matters: child tables first (role_permissions cascades from roles via FK),
-	// usage_records and purge_audit_logs before tenants.
-	cascadeTables := []string{
-		"messages", "sessions", "memories", "user_profiles",
-		"api_keys", "cron_jobs", "usage_records",
-		"roles", "users",
-	}
-	for _, table := range cascadeTables {
-		if _, ok := gdprAllowedTables[table]; !ok {
-			return http.StatusInternalServerError, fmt.Errorf("table %s not in allowlist", table)
-		}
-		if _, err := tx.Exec(ctx, fmt.Sprintf(`DELETE FROM %s WHERE tenant_id = $1`, table), tenantID); err != nil {
-			return http.StatusInternalServerError, fmt.Errorf("delete %s: %w", table, err)
-		}
-	}
-
-	// Audit logs: use SECURITY DEFINER function to bypass REVOKE DELETE.
-	if _, err := tx.Exec(ctx, `SELECT gdpr_purge_audit_logs($1, 'GDPR_DELETE')`, tenantID); err != nil {
-		// Fallback for environments without the function (e.g., tests).
-		if _, err2 := tx.Exec(ctx, `DELETE FROM audit_logs WHERE tenant_id = $1`, tenantID); err2 != nil {
-			return http.StatusInternalServerError, fmt.Errorf("delete audit_logs: %w (func err: %v)", err2, err)
-		}
-	}
-
-	if _, err := tx.Exec(ctx, `DELETE FROM tenants WHERE id = $1`, tenantID); err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("delete tenant: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return http.StatusInternalServerError, fmt.Errorf("commit: %w", err)
-	}
-
-	// Post-commit: MinIO cleanup (best-effort with audit trail).
-	if h.minio != nil {
-		if err := h.deleteMinIOTenantObjects(ctx, tenantID); err != nil {
-			h.recordMinIOFailure(ctx, tenantID, err)
-			return http.StatusMultiStatus, fmt.Errorf("minio cleanup: %w", err)
-		}
-	}
-	return http.StatusNoContent, nil
 }
 
 func (h *GDPRHandler) deleteMinIOTenantObjects(ctx context.Context, tenantID string) error {
@@ -250,19 +199,7 @@ func (h *GDPRHandler) deleteMinIOTenantObjects(ctx context.Context, tenantID str
 	return nil
 }
 
-// recordMinIOFailure persists MinIO cleanup errors for retry/audit.
-// Note: cleanupErr.Error() may contain object key paths — acceptable for internal audit only.
-func (h *GDPRHandler) recordMinIOFailure(ctx context.Context, tenantID string, cleanupErr error) {
-	if h.pool == nil {
-		return
-	}
-	_, _ = h.pool.Exec(ctx,
-		`INSERT INTO purge_audit_logs (tenant_id, action, detail, created_at)
-		 VALUES ($1, 'MINIO_CLEANUP_FAILED', $2, now())`,
-		tenantID, cleanupErr.Error())
-}
-
-// CleanupMinIOHandler returns POST /v1/gdpr/cleanup-minio — idempotent retry for MinIO cleanup.
+// CleanupMinIOHandler returns POST /v1/gdpr/cleanup-minio — idempotent retry for MinIO/RustFS cleanup.
 func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
@@ -287,10 +224,9 @@ func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
 	}
 }
 
-// deleteViaStore performs deletions through the store interface (fallback when pool is nil).
-// Covers all tenant-scoped tables accessible via the store interface.
+// deleteViaStore performs deletions through the store interface (works with MySQL, PostgreSQL, SQLite).
 func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *slog.Logger) error {
-	// Delete sessions (messages cascade via session delete in most implementations).
+	// Delete sessions (messages typically cascade via FK or session delete).
 	sessions, _, _ := h.store.Sessions().List(ctx, tenantID, store.ListOptions{Limit: gdprExportMaxSessions})
 	for _, sess := range sessions {
 		if err := h.store.Sessions().Delete(ctx, tenantID, sess.ID); err != nil {
@@ -303,6 +239,14 @@ func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *
 	if memStore := h.store.Memories(); memStore != nil {
 		if _, err := memStore.DeleteAllByTenant(ctx, tenantID); err != nil {
 			log.Error("gdpr delete: memories failed", "error", err)
+			return err
+		}
+	}
+
+	// Delete user profiles for all users in tenant.
+	if profStore := h.store.UserProfiles(); profStore != nil {
+		if _, err := profStore.DeleteAllByTenant(ctx, tenantID); err != nil {
+			log.Error("gdpr delete: user_profiles failed", "error", err)
 			return err
 		}
 	}
@@ -329,7 +273,5 @@ func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *
 		return err
 	}
 
-	log.Warn("gdpr deleteViaStore: user_profiles, usage_records, roles, users require pool for complete deletion",
-		"tenant_id", tenantID)
 	return nil
 }

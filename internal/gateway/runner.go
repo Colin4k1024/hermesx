@@ -13,6 +13,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,12 +21,13 @@ import (
 
 // Runner manages multiple platform adapters and routes messages to the agent.
 type Runner struct {
-	mu       sync.RWMutex
-	adapters map[Platform]PlatformAdapter
-	sessions GatewaySessionManager
-	pgPool   *pgxpool.Pool
-	cfg      *config.Config
-	gwCfg    *GatewayConfig
+	mu           sync.RWMutex
+	adapters     map[Platform]PlatformAdapter
+	sessions     GatewaySessionManager
+	pgPool       *pgxpool.Pool
+	storeBackend store.Store // optional; used for store-backed memory provider
+	cfg          *config.Config
+	gwCfg        *GatewayConfig
 
 	// Delivery router for sending responses.
 	delivery *DeliveryRouter
@@ -45,6 +47,11 @@ type Runner struct {
 	// Object store client for per-tenant skill loading (MinIO / RustFS).
 	minioClient objstore.ObjectStore
 
+	// provisioner copies tenant skills into per-user OSS namespaces on first request.
+	provisioner *skills.Provisioner
+	// provisionedUsers tracks (tenantID+"/"+userID) pairs already provisioned this run.
+	provisionedUsers sync.Map
+
 	// Media cache for downloaded files.
 	mediaCache MediaCacher
 
@@ -62,7 +69,9 @@ type Runner struct {
 
 // NewRunner creates a new gateway runner.
 // If pgPool is non-nil, sessions are stored in PostgreSQL; otherwise local SQLite+JSON.
-func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
+// storeBackend is optional; when non-nil it provides a store-backed memory provider
+// that works with any SQL backend (MySQL, PostgreSQL, SQLite).
+func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool, storeBackend store.Store) *Runner {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	var sessions GatewaySessionManager
@@ -99,10 +108,16 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 		}
 	}
 
+	var prov *skills.Provisioner
+	if mc != nil {
+		prov = skills.NewProvisioner(mc, "skills")
+	}
+
 	r := &Runner{
 		adapters:      make(map[Platform]PlatformAdapter),
 		sessions:      sessions,
 		pgPool:        pgPool,
+		storeBackend:  storeBackend,
 		cfg:           cfg,
 		gwCfg:         gwCfg,
 		delivery:      NewDeliveryRouter(),
@@ -110,6 +125,7 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 		pairing:       NewPairingStore(),
 		status:        NewRuntimeStatus(),
 		minioClient:   mc,
+		provisioner:   prov,
 		mediaCache:    NewMediaCache(),
 		agentCache:    lru.NewLRU[string, *agent.AIAgent](200, nil, 5*time.Minute),
 		adapterErrors: make(map[Platform]int),
@@ -573,15 +589,40 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 		agent.WithUserID(userID),
 	)
 
-	// Per-tenant memory provider from PostgreSQL.
-	if r.pgPool != nil {
+	// Per-tenant memory provider: prefer store-backed (works with any backend),
+	// fall back to direct PG pool if no store backend configured.
+	if r.storeBackend != nil {
+		mp := agent.NewStoreMemoryProviderAsToolsProvider(r.storeBackend, tenantID, userID)
+		opts = append(opts, agent.WithMemoryProvider(mp))
+	} else if r.pgPool != nil {
 		mp := agent.NewPGMemoryProviderAsToolsProvider(r.pgPool, tenantID, userID)
 		opts = append(opts, agent.WithMemoryProvider(mp))
 	}
 
-	// Per-tenant skill loader from MinIO.
+	// Trigger per-user skill provisioning on first encounter (async, idempotent).
+	if r.provisioner != nil && userID != "default" && userID != "" {
+		cacheKey := tenantID + "/" + userID
+		if _, alreadyDone := r.provisionedUsers.Load(cacheKey); !alreadyDone {
+			go func() {
+				if err := r.provisioner.ProvisionUserSkills(r.ctx, tenantID, userID); err != nil {
+					slog.Warn("user_skill_provision_failed", "tenant", tenantID, "user", userID, "error", err)
+					return
+				}
+				r.provisionedUsers.Store(cacheKey, struct{}{})
+			}()
+		}
+	}
+
+	// Per-tenant skill loader from MinIO (composite: user-scoped first, tenant fallback).
 	if r.minioClient != nil {
-		loader := skills.NewMinIOSkillLoader(r.minioClient, tenantID)
+		tenantLoader := skills.NewMinIOSkillLoader(r.minioClient, tenantID)
+		var loader skills.SkillLoader
+		if userID != "" && userID != "default" {
+			userLoader := skills.NewMinIOUserSkillLoader(r.minioClient, tenantID, userID)
+			loader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+		} else {
+			loader = tenantLoader
+		}
 		opts = append(opts, agent.WithSkillLoader(loader))
 
 		// Per-tenant soul/persona from MinIO (capped at 64KB).

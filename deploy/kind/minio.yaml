@@ -1,15 +1,25 @@
 ---
-# MinIO StatefulSet for hermesx object storage
+# PVC for MinIO persistent storage (survives pod restarts).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# MinIO Deployment for hermesx object storage
 # Stores per-tenant skills and soul YAML files.
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: minio
   labels:
     app: minio
     app.kubernetes.io/name: minio
 spec:
-  serviceName: minio
   replicas: 1
   selector:
     matchLabels:
@@ -63,7 +73,8 @@ spec:
             periodSeconds: 5
       volumes:
         - name: minio-data
-          emptyDir: {}
+          persistentVolumeClaim:
+            claimName: minio-data
 ---
 apiVersion: v1
 kind: Service
@@ -105,5 +116,5 @@ metadata:
   name: minio-secret
 type: Opaque
 stringData:
-  MINIO_ROOT_USER: hermesxx-minio
+  MINIO_ROOT_USER: hermesx-minio
   MINIO_ROOT_PASSWORD: hermesx-minio-password

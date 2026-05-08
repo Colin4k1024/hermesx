@@ -13,8 +13,8 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -26,10 +26,10 @@ type APIServerConfig struct {
 	AuthChain      *auth.ExtractorChain
 	RBAC           middleware.RBACConfig
 	RateLimit      middleware.RateLimitConfig
-	Pool           *pgxpool.Pool         // direct pool access for memory operations
 	AllowedOrigins string                // comma-separated list of allowed origins, or "*" for all
 	StaticDir      string                // directory to serve static files from (optional)
 	SkillsClient   objstore.ObjectStore  // optional; nil disables per-tenant skill loading
+	Provisioner    *skills.Provisioner   // optional; nil disables per-user skill provisioning
 	TenantOpts     []TenantHandlerOption // optional; wired into TenantHandler on creation
 }
 
@@ -121,13 +121,13 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	me := NewMeHandler(cfg.Store)
 	api.Handle("/v1/me", me)
 
-	gdpr := NewGDPRHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)
+	gdpr := NewGDPRHandler(cfg.Store, cfg.SkillsClient)
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
 	api.HandleFunc("POST /v1/gdpr/cleanup-minio", gdpr.CleanupMinIOHandler())
 
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
-	chatH := NewChatHandler(cfg.Store, cfg.Pool, cfg.SkillsClient)
+	chatH := NewChatHandler(cfg.Store, cfg.SkillsClient, cfg.Provisioner)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
 

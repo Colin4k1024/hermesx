@@ -6,12 +6,13 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type chatMessage struct {
@@ -22,13 +23,19 @@ type chatMessage struct {
 // chatHandler holds shared dependencies for agent chat, session, and memory endpoints.
 type chatHandler struct {
 	store        store.Store
-	pool         *pgxpool.Pool
 	llmURL       string
 	llmAPIKey    string
 	llmModel     string
 	apiMode      string
 	httpClient   *http.Client
 	skillsClient objstore.ObjectStore
+
+	// provisioner copies tenant skills into per-user OSS namespaces on first request.
+	provisioner *skills.Provisioner
+	// provisionedUsers tracks which (tenantID, userID) pairs have already been provisioned
+	// in this process lifetime, avoiding redundant OSS HEAD calls on every request.
+	// Value type: struct{} (present = already triggered).
+	provisionedUsers sync.Map
 
 	soulCache *lru.LRU[string, string]
 }
@@ -110,16 +117,17 @@ func (h *chatHandler) sendMsg(ctx context.Context, tenantID, sessionID string, r
 }
 
 // NewChatHandler creates the chat handler wired into the SaaS API server.
-func NewChatHandler(s store.Store, pool *pgxpool.Pool, skillsClient objstore.ObjectStore) *chatHandler {
+// provisioner may be nil when object storage is not configured.
+func NewChatHandler(s store.Store, skillsClient objstore.ObjectStore, provisioner *skills.Provisioner) *chatHandler {
 	return &chatHandler{
 		store:        s,
-		pool:         pool,
 		llmURL:       getEnvOr("LLM_API_URL", "http://localhost:8000"),
 		llmAPIKey:    getEnvOr("LLM_API_KEY", ""),
 		llmModel:     getEnvOr("LLM_MODEL", "Qwen3-Coder-Next-4bit"),
 		apiMode:      getEnvOr("HERMES_API_MODE", ""),
 		httpClient:   &http.Client{Timeout: 120 * time.Second},
 		skillsClient: skillsClient,
+		provisioner:  provisioner,
 		soulCache:    lru.NewLRU[string, string](soulCacheMaxEntries, nil, soulCacheTTL),
 	}
 }

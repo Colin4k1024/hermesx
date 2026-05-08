@@ -1,0 +1,129 @@
+---
+# Secret for RustFS S3-compatible object store credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rustfs-secret
+  namespace: hermesx
+type: Opaque
+stringData:
+  RUSTFS_ACCESS_KEY: hermesx-rustfs
+  RUSTFS_SECRET_KEY: hermesx-rustfs-password
+---
+# PVC for RustFS persistent storage.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rustfs-data
+  namespace: hermesx
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 5Gi
+---
+# RustFS Deployment — S3-compatible object storage, drop-in replacement for MinIO.
+# Uses the same minio-go SDK — no application changes required.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rustfs
+  namespace: hermesx
+  labels:
+    app: rustfs
+    app.kubernetes.io/name: rustfs
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rustfs
+  template:
+    metadata:
+      labels:
+        app: rustfs
+    spec:
+      containers:
+        - name: rustfs
+          image: rustfs/rustfs:latest
+          imagePullPolicy: IfNotPresent
+          command: ["rustfs", "server", "/data", "--console-address", ":9090"]
+          ports:
+            - name: api
+              containerPort: 9000
+            - name: console
+              containerPort: 9090
+          env:
+            - name: RUSTFS_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secret
+                  key: RUSTFS_ACCESS_KEY
+            - name: RUSTFS_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: rustfs-secret
+                  key: RUSTFS_SECRET_KEY
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi
+          volumeMounts:
+            - name: rustfs-data
+              mountPath: /data
+          livenessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 20
+            periodSeconds: 15
+            failureThreshold: 5
+          readinessProbe:
+            tcpSocket:
+              port: 9000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            failureThreshold: 5
+      volumes:
+        - name: rustfs-data
+          persistentVolumeClaim:
+            claimName: rustfs-data
+---
+# Headless service for in-cluster S3 API access.
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs
+  namespace: hermesx
+spec:
+  clusterIP: None
+  selector:
+    app: rustfs
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+    - name: console
+      port: 9090
+      targetPort: 9090
+---
+# NodePort service for external access (kind cluster).
+apiVersion: v1
+kind: Service
+metadata:
+  name: rustfs-nodeport
+  namespace: hermesx
+spec:
+  type: NodePort
+  selector:
+    app: rustfs
+  ports:
+    - name: api
+      port: 9000
+      targetPort: 9000
+      nodePort: 30092
+    - name: console
+      port: 9090
+      targetPort: 9090
+      nodePort: 30093

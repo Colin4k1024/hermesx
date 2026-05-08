@@ -24,6 +24,7 @@ import (
 	pgstore "github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/Colin4k1024/hermesx/internal/store/rediscache"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 )
 
@@ -89,27 +90,47 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	// ── 2. Initialize store ──────────────────────────────────
-	cfg := store.StoreConfig{Driver: "postgres", URL: dbURL}
+	// DATABASE_DRIVER selects the backend: "postgres" (default) or "mysql".
+	// For MySQL, DATABASE_URL must use go-sql-driver DSN format:
+	//   user:pass@tcp(host:3306)/dbname?parseTime=true&charset=utf8mb4
+	driver := os.Getenv("DATABASE_DRIVER")
+	if driver == "" {
+		driver = "postgres"
+	}
+	cfg := store.StoreConfig{Driver: driver, URL: dbURL}
 	dataStore, err := store.NewStore(context.Background(), cfg)
 	if err != nil {
-		return fmt.Errorf("init postgres store: %w", err)
+		return fmt.Errorf("init %s store: %w", driver, err)
 	}
 	defer dataStore.Close()
 
-	poolProvider, ok := dataStore.(pgstore.PoolProvider)
-	if !ok {
-		return fmt.Errorf("store driver does not support pool access (got %T)", dataStore)
+	// Pool access is PostgreSQL-specific; optional for health check and gateway sessions.
+	var pool *pgxpool.Pool
+	if poolProvider, ok := dataStore.(pgstore.PoolProvider); ok {
+		pool = poolProvider.Pool()
+		slog.Info("PostgreSQL pool available", "driver", driver)
+	} else {
+		slog.Info("Store initialized without direct pool access", "driver", driver)
 	}
-	pool := poolProvider.Pool()
-	_ = pool // used by gateway runner and chat handler below
+
+	// Resolve DBPinger for readiness health check (PG pool or store.Ping if available).
+	var dbPinger api.DBPinger
+	if pool != nil {
+		dbPinger = pool
+	} else if pinger, ok := dataStore.(api.DBPinger); ok {
+		dbPinger = pinger
+	}
 
 	// pgStore aliases dataStore for backward compat with .Tenants()/.APIKeys() calls.
 	pgStore := dataStore
 
 	// ── 3. Seed default tenant (for static token auth) ────────
+	var defaultTenantJustSeeded bool
 	if acpToken != "" {
-		if err := seedDefaultTenant(context.Background(), pgStore); err != nil {
-			slog.Warn("failed to seed default tenant", "error", err)
+		var seedErr error
+		defaultTenantJustSeeded, seedErr = seedDefaultTenant(context.Background(), pgStore)
+		if seedErr != nil {
+			slog.Warn("failed to seed default tenant", "error", seedErr)
 		}
 	}
 
@@ -225,18 +246,26 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		syncProv = skills.NewProvisioner(skillsClient, "skills")
 	}
 
+	// ── 7.5. Provision default tenant immediately if just seeded ──
+	if defaultTenantJustSeeded && syncProv != nil {
+		const defaultTenantID = "00000000-0000-0000-0000-000000000001"
+		if err := syncProv.Provision(context.Background(), defaultTenantID); err != nil {
+			slog.Warn("default tenant initial provisioning failed", "error", err)
+		}
+	}
+
 	// ── 8. Build API server config ───────────────────────────
 	serverCfg := api.APIServerConfig{
 		Port:           port,
 		Store:          dataStore,
-		DB:             pool,
-		Pool:           pool,
+		DB:             dbPinger,
 		AuthChain:      authChain,
 		RBAC:           rbacCfg,
 		RateLimit:      rateLimitCfg,
 		AllowedOrigins: allowedOrigins,
 		StaticDir:      staticDir,
 		SkillsClient:   skillsClient,
+		Provisioner:    syncProv,
 		TenantOpts:     tenantOpts,
 	}
 
@@ -262,7 +291,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 			gwCfg.AllowedUsers = map[string]any{
 				"api": []any{"*"},
 			}
-			runner = gateway.NewRunner(gwCfg, pool)
+			runner = gateway.NewRunner(gwCfg, pool, dataStore)
 
 			adapter := platforms.NewAPIServerAdapter(adapterPort, apiKey)
 			runner.RegisterAdapter(adapter)
@@ -347,17 +376,25 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 // seedDefaultTenant creates the default SaaS tenant if it does not already exist.
 // It is idempotent — calling it multiple times is safe.
-func seedDefaultTenant(ctx context.Context, pgStore store.Store) error {
+// Returns (true, nil) when the tenant was just created, (false, nil) when it already existed.
+// Handles both MySQL (nil, nil for not-found) and PostgreSQL (nil, wrapped pgx.ErrNoRows) backends.
+func seedDefaultTenant(ctx context.Context, pgStore store.Store) (bool, error) {
 	const defaultTenantID = "00000000-0000-0000-0000-000000000001"
 
-	_, err := pgStore.Tenants().Get(ctx, defaultTenantID)
-	if err == nil {
+	t, err := pgStore.Tenants().Get(ctx, defaultTenantID)
+	if err != nil {
+		// PG wraps pgx.ErrNoRows as "not found"; MySQL returns nil,nil for not-found.
+		// Any other error is a real failure.
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return false, fmt.Errorf("seedDefaultTenant: get tenant: %w", err)
+		}
+		// ErrNoRows: tenant doesn't exist, fall through to create.
+	}
+	if t != nil {
 		// Tenant already exists.
-		return nil
+		return false, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return fmt.Errorf("seedDefaultTenant: get tenant: %w", err)
-	}
+	// t is nil: either MySQL "not found" (nil,nil) or PG ErrNoRows.
 
 	// Create the default tenant.
 	defaultTenant := &store.Tenant{
@@ -368,9 +405,9 @@ func seedDefaultTenant(ctx context.Context, pgStore store.Store) error {
 		MaxSessions:  10,
 	}
 	if err := pgStore.Tenants().Create(ctx, defaultTenant); err != nil {
-		return fmt.Errorf("seedDefaultTenant: create tenant: %w", err)
+		return false, fmt.Errorf("seedDefaultTenant: create tenant: %w", err)
 	}
 
 	slog.Info("seeded default tenant", "id", defaultTenantID)
-	return nil
+	return true, nil
 }

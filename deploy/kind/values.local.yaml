@@ -1,8 +1,8 @@
-# Local kind deployment values
+# Local kind deployment values — all services in hermesx namespace.
 replicaCount: 1
 
 image:
-  repository: hermesx-saas
+  repository: hermesx/hermesx-saas
   tag: local
   pullPolicy: Never
 
@@ -15,21 +15,30 @@ args:
   - saas-api
 
 env:
-  DATABASE_URL: "postgres://hermesx:hermesx@postgres-postgresql:5432/hermesx?sslmode=disable"
+  # Database: MySQL backend (go-sql-driver DSN format: user:pass@tcp(host:port)/db?options)
+  DATABASE_DRIVER: "mysql"
+  DATABASE_URL: "hermesx:hermesx-password@tcp(mysql.hermesx.svc.cluster.local:3306)/hermesx?parseTime=true&charset=utf8mb4&loc=UTC"
+
   HERMES_ACP_TOKEN: "dev-token-change-in-production"
   SAAS_API_PORT: "8080"
-  SAAS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080"
+  SAAS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost:30080"
   SAAS_STATIC_DIR: "/static"
   HERMES_API_PORT: "8081"
   HERMES_API_KEY: "dev-api-key-change-in-production"
-  REDIS_URL: ""
+
+  # Redis: distributed rate limiter (redis.hermesx.svc.cluster.local:6379)
+  REDIS_URL: "redis://redis.hermesx.svc.cluster.local:6379"
+
+  # LLM backend
   LLM_API_URL: "http://10.191.110.127:8000/v1"
   LLM_API_KEY: "123456"
   LLM_MODEL: "Qwen3-Coder-Next-4bit"
-  MINIO_ENDPOINT: "minio:9000"
-  MINIO_ACCESS_KEY: "hermesx-minio"
-  MINIO_SECRET_KEY: "hermesx-minio-password"
-  MINIO_BUCKET: "hermes-skills"
+
+  # Object store: RustFS (S3-compatible, minio-go SDK compatible)
+  MINIO_ENDPOINT: "rustfs.hermesx.svc.cluster.local:9000"
+  MINIO_ACCESS_KEY: "hermesx-rustfs"
+  MINIO_SECRET_KEY: "hermesx-rustfs-password"
+  MINIO_BUCKET: "hermesx-skills"
 
 resources:
   limits:
@@ -42,12 +51,15 @@ resources:
 probes:
   liveness:
     path: /health/live
-    initialDelaySeconds: 5
+    initialDelaySeconds: 15
     periodSeconds: 10
   readiness:
     path: /health/ready
-    initialDelaySeconds: 10
+    initialDelaySeconds: 20
     periodSeconds: 15
+
+autoscaling:
+  enabled: false
 
 postgresql:
   enabled: false

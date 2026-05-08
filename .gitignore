@@ -29,3 +29,5 @@ node_modules/
 tests/fixtures/tenants.json
 .worktrees/
 scripts/.k8s-access-pids/
+hermesx
+hermesx-linux-amd64

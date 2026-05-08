@@ -35,6 +35,8 @@ spec:
               containerPort: {{ .Values.service.port }}
               protocol: TCP
           env:
+            - name: DATABASE_DRIVER
+              value: {{ .Values.env.DATABASE_DRIVER | default "postgres" | quote }}
             - name: DATABASE_URL
               value: {{ .Values.env.DATABASE_URL | quote }}
             - name: HERMES_ACP_TOKEN

@@ -28,6 +28,11 @@ COPY --from=builder /hermesx /usr/local/bin/hermesx
 # SAAS_STATIC_DIR defaults to /static in values.yaml.
 COPY --from=builder /app/internal/dashboard/static /static
 
+# Bundle default skills so the provisioner can seed MinIO on first run.
+# The provisioner reads HERMES_SKILLS_DIR (default: "skills") and uploads
+# to {tenantID}/skills/{skillName}/SKILL.md on tenant creation.
+COPY --from=builder /app/skills /home/hermesx/skills
+
 USER hermesx
 WORKDIR /home/hermesx
 

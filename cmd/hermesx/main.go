@@ -415,8 +415,9 @@ func runGateway() error {
 		}
 	}
 
-	// Create PG store if DATABASE_URL is set; otherwise nil (local fallback).
+	// Create store if DATABASE_URL is set; otherwise nil (local fallback).
 	var pgPool *pgxpool.Pool
+	var gwDataStore store.Store
 	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
 		cfg := store.StoreConfig{Driver: "postgres", URL: dbURL}
 		dataStore, err := store.NewStore(context.Background(), cfg)
@@ -424,19 +425,17 @@ func runGateway() error {
 			return fmt.Errorf("init postgres store: %w", err)
 		}
 		defer dataStore.Close()
+		gwDataStore = dataStore
 
-		pp, ok := dataStore.(pgstore.PoolProvider)
-		if !ok {
-			return fmt.Errorf("store driver does not support pool access (got %T)", dataStore)
+		if pp, ok := dataStore.(pgstore.PoolProvider); ok {
+			pgPool = pp.Pool()
+			// Configure PG memory provider for agent memory operations (legacy path).
+			agent.SetPGMemoryPool(pgPool, gateway.DefaultTenantID)
 		}
-		pgPool = pp.Pool()
-
-		// Configure PG memory provider for agent memory operations.
-		agent.SetPGMemoryPool(pgPool, gateway.DefaultTenantID)
 		slog.Info("PostgreSQL store initialized for gateway")
 	}
 
-	runner := gateway.NewRunner(gwCfg, pgPool)
+	runner := gateway.NewRunner(gwCfg, pgPool, gwDataStore)
 
 	// Register API server adapter.
 	if apiPortStr := os.Getenv("HERMES_API_PORT"); apiPortStr != "" {

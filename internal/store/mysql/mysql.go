@@ -86,6 +86,11 @@ func (s *MySQLStore) Migrate(ctx context.Context) error {
 	return runMigrations(ctx, s.db)
 }
 
+// Ping satisfies the api.DBPinger interface for health checks.
+func (s *MySQLStore) Ping(ctx context.Context) error {
+	return s.db.PingContext(ctx)
+}
+
 var _ store.Store = (*MySQLStore)(nil)
 
 // nullStr converts empty string to nil for nullable columns.

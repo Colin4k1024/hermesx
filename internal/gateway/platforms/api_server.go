@@ -220,7 +220,7 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 
 	tenantID := r.Header.Get("X-Hermes-Tenant-Id")
 	if tenantID == "" {
-		tenantID = "default"
+		tenantID = gateway.DefaultTenantID
 	}
 
 	// Create response channel

@@ -7,14 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Colin4k1024/hermesx/internal/agent"
-	"github.com/Colin4k1024/hermesx/internal/store/pg"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
+// memoryExtractor extracts user facts from messages and persists them via store.MemoryStore.
+// Works with any store backend (MySQL, PostgreSQL, SQLite).
 type memoryExtractor struct {
-	pool *pgxpool.Pool
+	memStore store.MemoryStore
 }
 
 type extractedMemory struct {
@@ -118,43 +117,17 @@ func (e *memoryExtractor) extract(userMessage string) []extractedMemory {
 }
 
 func (e *memoryExtractor) persist(tenantID, userID string, memories []extractedMemory) {
-	if e.pool == nil || len(memories) == 0 {
+	if e.memStore == nil || len(memories) == 0 {
 		return
 	}
-	provider := agent.NewPGMemoryProvider(e.pool, tenantID, userID)
 	ctx, cancel := newCtx5s()
 	defer cancel()
-	err := pg.WithTenantTx(ctx, e.pool, tenantID, func(tx pgx.Tx) error {
-		for _, m := range memories {
-			if err := provider.SaveMemoryTx(ctx, tx, m.Key, m.Content); err != nil {
-				slog.Warn("memory_extractor: failed to save", "key", m.Key, "error", err)
-			} else {
-				slog.Info("memory_extracted", "tenant", tenantID, "user", userID, "key", m.Key, "content", m.Content)
-			}
+	for _, m := range memories {
+		if err := e.memStore.Upsert(ctx, tenantID, userID, m.Key, m.Content); err != nil {
+			slog.Warn("memory_extractor: failed to save", "key", m.Key, "error", err)
+		} else {
+			slog.Info("memory_extracted", "tenant", tenantID, "user", userID, "key", m.Key, "content", m.Content)
 		}
-		enforceMemoryLimitTx(tx, tenantID, userID, 50)
-		return nil
-	})
-	if err != nil {
-		slog.Warn("memory_extractor: persist tx failed", "error", err)
-	}
-}
-
-// enforceMemoryLimitTx deletes old memories beyond maxEntries, within a transaction
-// that has the RLS tenant context already set.
-func enforceMemoryLimitTx(tx pgx.Tx, tenantID, userID string, maxEntries int) {
-	ctx, cancel := newCtx5s()
-	defer cancel()
-	_, err := tx.Exec(ctx,
-		`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2
-		 AND key NOT IN (
-			 SELECT key FROM memories
-			 WHERE tenant_id = $1 AND user_id = $2
-			 ORDER BY updated_at DESC
-			 LIMIT $3
-		 )`, tenantID, userID, maxEntries)
-	if err != nil {
-		slog.Warn("memory_extractor: failed to enforce limit", "error", err)
 	}
 }
 

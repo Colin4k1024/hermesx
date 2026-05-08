@@ -105,16 +105,37 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	// Load per-tenant soul from MinIO.
 	soulContent := h.getSoulPrompt(ctx, tenantID)
 
-	// Build skill loader for this tenant.
-	var skillLoader skills.SkillLoader
-	if h.skillsClient != nil {
-		skillLoader = skills.NewMinIOSkillLoader(h.skillsClient, tenantID)
+	// Trigger per-user skill provisioning on the first request from this user.
+	// The check is done in-memory first (sync.Map) to avoid an OSS HEAD call on every request.
+	if h.provisioner != nil && userID != "" {
+		cacheKey := tenantID + "/" + userID
+		if _, alreadyDone := h.provisionedUsers.Load(cacheKey); !alreadyDone {
+			go func() {
+				if err := h.provisioner.ProvisionUserSkills(ctx, tenantID, userID); err != nil {
+					slog.Warn("user_skill_provision_failed", "tenant", tenantID, "user", userID, "error", err)
+					return
+				}
+				h.provisionedUsers.Store(cacheKey, struct{}{})
+			}()
+		}
 	}
 
-	// Build PG memory provider.
+	// Build skill loader for this tenant+user (composite: user-scoped first, tenant fallback).
+	var skillLoader skills.SkillLoader
+	if h.skillsClient != nil {
+		tenantLoader := skills.NewMinIOSkillLoader(h.skillsClient, tenantID)
+		if userID != "" {
+			userLoader := skills.NewMinIOUserSkillLoader(h.skillsClient, tenantID, userID)
+			skillLoader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+		} else {
+			skillLoader = tenantLoader
+		}
+	}
+
+	// Build store-backed memory provider (works with MySQL, PostgreSQL, SQLite).
 	var memProvider tools.MemoryProvider
-	if h.pool != nil {
-		memProvider = agent.NewPGMemoryProvider(h.pool, tenantID, userID)
+	if h.store != nil {
+		memProvider = agent.NewStoreMemoryProviderAsToolsProvider(h.store, tenantID, userID)
 	}
 
 	// Build the agent with all SaaS-mode options.
@@ -251,8 +272,8 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	msgID := h.sendMsg(ctx, tenantID, sessionID, "assistant", reply)
 
 	// Run rule-based memory extractor on the user message.
-	if h.pool != nil {
-		extractor := &memoryExtractor{pool: h.pool}
+	if h.store != nil {
+		extractor := &memoryExtractor{memStore: h.store.Memories()}
 		if memories := extractor.extract(userMessage); len(memories) > 0 {
 			extractor.persist(tenantID, userID, memories)
 		}

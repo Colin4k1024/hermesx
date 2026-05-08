@@ -172,8 +172,14 @@ func (p *Provisioner) ProvisionSkills(ctx context.Context, tenantID string) erro
 		return nil
 	}
 
+	m, err := loadManifest(ctx, p.minio, tenantID)
+	if err != nil {
+		return fmt.Errorf("load manifest: %w", err)
+	}
+
 	var uploaded, skipped int
-	err := filepath.Walk(p.bundledDir, func(path string, info os.FileInfo, err error) error {
+	now := time.Now()
+	err = filepath.Walk(p.bundledDir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -206,6 +212,15 @@ func (p *Provisioner) ProvisionSkills(ctx context.Context, tenantID string) erro
 			slog.Warn("upload skill failed", "key", key, "error", err)
 			return nil
 		}
+
+		// Record skill in manifest with bundled source.
+		skillDir := filepath.ToSlash(filepath.Dir(rel))
+		if _, ok := m.Skills[skillDir]; !ok {
+			m.Skills[skillDir] = TenantSkillMeta{
+				Source:      "bundled",
+				InstalledAt: now,
+			}
+		}
 		uploaded++
 		return nil
 	})
@@ -213,7 +228,84 @@ func (p *Provisioner) ProvisionSkills(ctx context.Context, tenantID string) erro
 		return fmt.Errorf("walk bundled skills: %w", err)
 	}
 
+	if uploaded > 0 {
+		if merr := saveManifest(ctx, p.minio, tenantID, m); merr != nil {
+			slog.Warn("save manifest failed after skill provision", "tenant", tenantID, "error", merr)
+		}
+	}
+
 	slog.Info("tenant skill sync complete", "tenant", tenantID, "uploaded", uploaded, "skipped", skipped)
+	return nil
+}
+
+// ProvisionUserSkills copies all tenant-level skills into the user-scoped OSS namespace,
+// enabling per-user auto-loading. The operation is idempotent: a marker object is written
+// after the first successful provision and checked on subsequent calls.
+//
+// OSS layout:
+//
+//	{tenantID}/{category}/{skillName}/SKILL.md  (tenant source)
+//	{tenantID}/users/{userID}/{category}/{skillName}/SKILL.md  (user copy)
+//	{tenantID}/users/{userID}/.initialized  (idempotency marker)
+func (p *Provisioner) ProvisionUserSkills(ctx context.Context, tenantID, userID string) error {
+	if err := validateTenantID(tenantID); err != nil {
+		return err
+	}
+	if userID == "" || userID == "." || userID == ".." || strings.ContainsAny(userID, "/\\") {
+		return fmt.Errorf("invalid user ID: %q", userID)
+	}
+
+	markerKey := tenantID + "/users/" + userID + "/.initialized"
+	if ok, _ := p.minio.ObjectExists(ctx, markerKey); ok {
+		slog.Debug("user skills already provisioned, skipping", "tenant", tenantID, "user", userID)
+		return nil
+	}
+
+	// List all objects under the tenant prefix.
+	keys, err := p.minio.ListObjects(ctx, tenantID+"/")
+	if err != nil {
+		return fmt.Errorf("list tenant skills: %w", err)
+	}
+
+	userPrefix := tenantID + "/users/"
+	var copied int
+	for _, key := range keys {
+		// Skip the manifest, SOUL.md, and anything already under /users/.
+		if strings.HasPrefix(key, userPrefix) {
+			continue
+		}
+		if !strings.HasSuffix(key, "/SKILL.md") {
+			continue
+		}
+
+		// Build destination key: replace leading "{tenantID}/" with "{tenantID}/users/{userID}/".
+		relPath := strings.TrimPrefix(key, tenantID+"/")
+		destKey := userPrefix + userID + "/" + relPath
+
+		// Skip if the user already has this skill (re-entrant copy after partial failure).
+		if exists, _ := p.minio.ObjectExists(ctx, destKey); exists {
+			continue
+		}
+
+		data, err := p.minio.GetObject(ctx, key)
+		if err != nil {
+			slog.Warn("user_skill_copy_get_failed", "src", key, "error", err)
+			continue
+		}
+		if err := p.minio.PutObject(ctx, destKey, data); err != nil {
+			slog.Warn("user_skill_copy_put_failed", "dst", destKey, "error", err)
+			continue
+		}
+		copied++
+	}
+
+	// Write idempotency marker so we do not repeat on the next request.
+	if err := p.minio.PutObject(ctx, markerKey, []byte{}); err != nil {
+		slog.Warn("user_skill_marker_write_failed", "tenant", tenantID, "user", userID, "error", err)
+		// Non-fatal: provisioning succeeded; marker failure means we will re-copy next time.
+	}
+
+	slog.Info("user skill provisioning complete", "tenant", tenantID, "user", userID, "copied", copied)
 	return nil
 }
 

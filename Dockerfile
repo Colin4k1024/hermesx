@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN useradd -m -s /bin/bash hermesx
 
 COPY --from=builder /hermesx /usr/local/bin/hermesx
+COPY --chown=hermesx:hermesx --from=builder /app/skills /home/hermesx/skills
 
 USER hermesx
 WORKDIR /home/hermesx

@@ -21,6 +21,12 @@ func NewMinIOSkillLoader(client objstore.ObjectStore, tenantID string) *MinIOSki
 	return &MinIOSkillLoader{client: client, tenantID: tenantID}
 }
 
+// NewMinIOUserSkillLoader returns a loader scoped to the user's personal skill namespace:
+// {tenantID}/users/{userID}/ — populated by Provisioner.ProvisionUserSkills.
+func NewMinIOUserSkillLoader(client objstore.ObjectStore, tenantID, userID string) *MinIOSkillLoader {
+	return &MinIOSkillLoader{client: client, tenantID: tenantID + "/users/" + userID}
+}
+
 func (m *MinIOSkillLoader) LoadAll(ctx context.Context) ([]*SkillEntry, error) {
 	prefix := m.tenantID
 	keys, err := m.client.ListObjects(ctx, prefix)

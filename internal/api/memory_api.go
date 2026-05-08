@@ -2,15 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http"
 	"strings"
 	"time"
 
-	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/auth"
-	"github.com/Colin4k1024/hermesx/internal/store/pg"
-	"github.com/jackc/pgx/v5"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 type memoryEntry struct {
@@ -34,39 +31,22 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		userID = override
 	}
 
-	if h.pool == nil {
+	if h.store == nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"memories": []memoryEntry{}, "count": 0})
 		return
 	}
 
 	ctx := r.Context()
-	var entries []memoryEntry
-	err := pg.WithTenantTx(ctx, h.pool, ac.TenantID, func(tx pgx.Tx) error {
-		rows, err := tx.Query(ctx,
-			`SELECT key, content FROM memories
-			 WHERE tenant_id = $1 AND user_id = $2
-			 ORDER BY updated_at DESC`,
-			ac.TenantID, userID)
-		if err != nil {
-			return err
-		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var e memoryEntry
-			if err := rows.Scan(&e.Key, &e.Content); err == nil {
-				entries = append(entries, e)
-			}
-		}
-		return rows.Err()
-	})
+	raw, err := h.store.Memories().List(ctx, ac.TenantID, userID)
 	if err != nil {
 		http.Error(w, "failed to query memories: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if entries == nil {
-		entries = []memoryEntry{}
+
+	entries := make([]memoryEntry, 0, len(raw))
+	for _, e := range raw {
+		entries = append(entries, memoryEntry{Key: e.Key, Content: e.Content})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -100,18 +80,13 @@ func (h *chatHandler) handleDeleteMemory(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if h.pool == nil {
+	if h.store == nil {
 		http.Error(w, "memory store not available", http.StatusServiceUnavailable)
 		return
 	}
 
-	provider := agent.NewPGMemoryProvider(h.pool, ac.TenantID, userID)
-	if err := provider.DeleteMemory(key); err != nil {
-		if strings.Contains(err.Error(), "not found") {
-			http.Error(w, err.Error(), http.StatusNotFound)
-			return
-		}
-		http.Error(w, "failed to delete memory", http.StatusInternalServerError)
+	if err := h.store.Memories().Delete(r.Context(), ac.TenantID, userID, key); err != nil {
+		http.Error(w, "failed to delete memory: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -134,24 +109,20 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 		userID = override
 	}
 
-	if h.pool == nil {
+	if h.store == nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"sessions": []any{}})
 		return
 	}
 
-	rows, err := h.pool.Query(r.Context(),
-		`SELECT s.id, s.started_at, s.ended_at,
-		        (SELECT COUNT(*) FROM messages m WHERE m.tenant_id = s.tenant_id AND m.session_id = s.id) as msg_count
-		 FROM sessions s
-		 WHERE s.tenant_id = $1 AND s.user_id = $2
-		 ORDER BY s.started_at DESC
-		 LIMIT 50`, ac.TenantID, userID)
+	sessions, _, err := h.store.Sessions().List(r.Context(), ac.TenantID, store.ListOptions{
+		UserID: userID,
+		Limit:  50,
+	})
 	if err != nil {
 		http.Error(w, "failed to query sessions", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
 	type sessionEntry struct {
 		ID           string  `json:"id"`
@@ -160,35 +131,27 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 		MessageCount int     `json:"message_count"`
 	}
 
-	var sessions []sessionEntry
-	for rows.Next() {
-		var id string
-		var startedAt time.Time
-		var endedAt *time.Time
-		var msgCount int
-		if err := rows.Scan(&id, &startedAt, &endedAt, &msgCount); err == nil {
-			s := sessionEntry{
-				ID:           id,
-				StartedAt:    startedAt.Format(time.RFC3339),
-				MessageCount: msgCount,
-			}
-			if endedAt != nil {
-				ea := endedAt.Format(time.RFC3339)
-				s.EndedAt = &ea
-			}
-			sessions = append(sessions, s)
+	result := make([]sessionEntry, 0, len(sessions))
+	for _, s := range sessions {
+		msgCount, _ := h.store.Messages().CountBySession(r.Context(), ac.TenantID, s.ID)
+		se := sessionEntry{
+			ID:           s.ID,
+			StartedAt:    s.StartedAt.Format(time.RFC3339),
+			MessageCount: msgCount,
 		}
-	}
-	if sessions == nil {
-		sessions = []sessionEntry{}
+		if !s.EndedAt.IsZero() {
+			ea := s.EndedAt.Format(time.RFC3339)
+			se.EndedAt = &ea
+		}
+		result = append(result, se)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"tenant_id": ac.TenantID,
 		"user_id":   userID,
-		"sessions":  sessions,
-		"count":     len(sessions),
+		"sessions":  result,
+		"count":     len(result),
 	})
 }
 
@@ -207,42 +170,32 @@ func (h *chatHandler) handleGetSessionMessages(w http.ResponseWriter, r *http.Re
 	}
 	sessionID := parts[0]
 
-	if h.pool == nil {
+	if h.store == nil {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]any{"messages": []any{}})
 		return
 	}
 
+	ctx := r.Context()
+
 	// Session ownership check: verify session belongs to this user (admin bypasses).
 	if !ac.HasRole("admin") {
-		var ownerID string
-		err := h.pool.QueryRow(r.Context(),
-			`SELECT user_id FROM sessions WHERE tenant_id = $1 AND id = $2`,
-			ac.TenantID, sessionID).Scan(&ownerID)
-		if err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
-				http.Error(w, "session not found", http.StatusNotFound)
-				return
-			}
-			http.Error(w, "internal error", http.StatusInternalServerError)
+		sess, err := h.store.Sessions().Get(ctx, ac.TenantID, sessionID)
+		if err != nil || sess == nil {
+			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
-		if ownerID != ac.Identity {
+		if sess.UserID != ac.Identity {
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		}
 	}
 
-	rows, err := h.pool.Query(r.Context(),
-		`SELECT role, content, timestamp FROM messages
-		 WHERE tenant_id = $1 AND session_id = $2
-		 ORDER BY timestamp ASC
-		 LIMIT 200`, ac.TenantID, sessionID)
+	rawMsgs, err := h.store.Messages().List(ctx, ac.TenantID, sessionID, 200, 0)
 	if err != nil {
 		http.Error(w, "failed to query messages", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
 	type msgEntry struct {
 		Role      string `json:"role"`
@@ -250,20 +203,13 @@ func (h *chatHandler) handleGetSessionMessages(w http.ResponseWriter, r *http.Re
 		Timestamp string `json:"timestamp"`
 	}
 
-	var messages []msgEntry
-	for rows.Next() {
-		var role, content string
-		var ts time.Time
-		if err := rows.Scan(&role, &content, &ts); err == nil {
-			messages = append(messages, msgEntry{
-				Role:      role,
-				Content:   content,
-				Timestamp: ts.Format(time.RFC3339),
-			})
-		}
-	}
-	if messages == nil {
-		messages = []msgEntry{}
+	messages := make([]msgEntry, 0, len(rawMsgs))
+	for _, m := range rawMsgs {
+		messages = append(messages, msgEntry{
+			Role:      m.Role,
+			Content:   m.Content,
+			Timestamp: m.Timestamp.Format(time.RFC3339),
+		})
 	}
 
 	w.Header().Set("Content-Type", "application/json")
