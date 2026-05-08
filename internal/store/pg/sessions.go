@@ -24,16 +24,29 @@ func (s *pgSessionStore) Create(ctx context.Context, tenantID string, sess *stor
 }
 
 func (s *pgSessionStore) Get(ctx context.Context, tenantID, sessionID string) (*store.Session, error) {
-	row := s.pool.QueryRow(ctx, `
-		SELECT id, tenant_id, platform, user_id, model, system_prompt, parent_session_id,
-		       title, started_at, ended_at, end_reason, message_count, tool_call_count,
-		       input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, estimated_cost_usd
-		FROM sessions WHERE id = $1 AND tenant_id = $2`, sessionID, tenantID)
+	// Set tenant context so the cmd=ALL isolation policy allows the SELECT.
+	var row pgx.Rows
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		var txErr error
+		row, txErr = tx.Query(ctx, `
+			SELECT id, tenant_id, platform, user_id, model, system_prompt, parent_session_id,
+			       title, started_at, ended_at, end_reason, message_count, tool_call_count,
+			       input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, estimated_cost_usd
+			FROM sessions WHERE id = $1 AND tenant_id = $2`, sessionID, tenantID)
+		return txErr
+	})
+	if err != nil {
+		return nil, err
+	}
+	defer row.Close()
+	if !row.Next() {
+		return nil, nil // not found (RLS returns empty set when tenant mismatch)
+	}
 
 	sess := &store.Session{}
 	var costUSD *float64
 	var systemPrompt, parentSessionID, title, endReason any
-	err := row.Scan(
+	scanErr := row.Scan(
 		&sess.ID, &sess.TenantID, &sess.Platform, &sess.UserID, &sess.Model,
 		&systemPrompt, &parentSessionID, &title, &sess.StartedAt,
 		&sess.EndedAt, &endReason, &sess.MessageCount, &sess.ToolCallCount,
@@ -61,10 +74,9 @@ func (s *pgSessionStore) Get(ctx context.Context, tenantID, sessionID string) (*
 			sess.EndReason = er
 		}
 	}
-	if err != nil {
-		// pgx.ErrNoRows means session not found — return nil, nil (not an error).
-		if errors.Is(err, context.DeadlineExceeded) {
-			return nil, err
+	if scanErr != nil {
+		if errors.Is(scanErr, context.DeadlineExceeded) {
+			return nil, scanErr
 		}
 		return nil, nil // not found
 	}
@@ -88,39 +100,49 @@ func (s *pgSessionStore) List(ctx context.Context, tenantID string, opts store.L
 		opts.Limit = 50
 	}
 
-	countRow := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM sessions WHERE tenant_id = $1`, tenantID)
+	var sessions []*store.Session
 	var total int
-	countRow.Scan(&total)
 
-	rows, err := s.pool.Query(ctx, `
-		SELECT id, tenant_id, platform, user_id, model, title, started_at, ended_at,
-		       message_count, input_tokens, output_tokens, estimated_cost_usd
-		FROM sessions WHERE tenant_id = $1
-		ORDER BY started_at DESC LIMIT $2 OFFSET $3`, tenantID, opts.Limit, opts.Offset)
+	err := withTenantTx(ctx, s.pool, tenantID, func(tx pgx.Tx) error {
+		countRow := tx.QueryRow(ctx, `SELECT COUNT(*) FROM sessions WHERE tenant_id = $1`, tenantID)
+		if err := countRow.Scan(&total); err != nil {
+			return err
+		}
+
+		rows, err := tx.Query(ctx, `
+			SELECT id, tenant_id, platform, user_id, model, title, started_at, ended_at,
+			       message_count, input_tokens, output_tokens, estimated_cost_usd
+			FROM sessions WHERE tenant_id = $1
+			ORDER BY started_at DESC LIMIT $2 OFFSET $3`, tenantID, opts.Limit, opts.Offset)
+		if err != nil {
+			return err
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			s := &store.Session{}
+			var costUSD *float64
+			var title any
+			if err := rows.Scan(&s.ID, &s.TenantID, &s.Platform, &s.UserID, &s.Model, &title,
+				&s.StartedAt, &s.EndedAt, &s.MessageCount, &s.InputTokens, &s.OutputTokens,
+				&costUSD); err != nil {
+				continue
+			}
+			if title != nil {
+				if t, ok := title.(string); ok {
+					s.Title = t
+				}
+			}
+			if costUSD != nil {
+				s.EstimatedCostUSD = *costUSD
+			}
+			sessions = append(sessions, s)
+		}
+		return rows.Err()
+	})
 	if err != nil {
 		return nil, 0, err
 	}
-	defer rows.Close()
-
-	var sessions []*store.Session
-	for rows.Next() {
-		s := &store.Session{}
-		var costUSD *float64
-		var title any
-		rows.Scan(&s.ID, &s.TenantID, &s.Platform, &s.UserID, &s.Model, &title,
-			&s.StartedAt, &s.EndedAt, &s.MessageCount, &s.InputTokens, &s.OutputTokens,
-			&costUSD)
-		if title != nil {
-			if t, ok := title.(string); ok {
-				s.Title = t
-			}
-		}
-		if costUSD != nil {
-			s.EstimatedCostUSD = *costUSD
-		}
-		sessions = append(sessions, s)
-	}
-
 	return sessions, total, nil
 }
 
