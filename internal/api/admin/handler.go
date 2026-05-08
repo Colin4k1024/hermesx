@@ -7,6 +7,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -26,7 +27,7 @@ func NewAdminHandler(s store.Store, logger *slog.Logger, opts ...AdminOption) *A
 		logger = slog.Default()
 	}
 	h := &AdminHandler{store: s, logger: logger}
-	if pp, ok := s.(store.PoolProvider); ok {
+	if pp, ok := s.(pg.PoolProvider); ok {
 		h.pool = pp.Pool()
 	}
 	for _, opt := range opts {

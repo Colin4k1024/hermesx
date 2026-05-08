@@ -34,7 +34,7 @@ var allowedCascadeTables = map[string]struct{}{
 type TenantCleanupJob struct {
 	pool      *pgxpool.Pool
 	tenants   store.TenantStore
-	minio     *objstore.MinIOClient
+	minio     objstore.ObjectStore
 	retention time.Duration
 	interval  time.Duration
 }
@@ -49,7 +49,7 @@ func WithInterval(d time.Duration) CleanupOption {
 	return func(j *TenantCleanupJob) { j.interval = d }
 }
 
-func WithMinIO(mc *objstore.MinIOClient) CleanupOption {
+func WithMinIO(mc objstore.ObjectStore) CleanupOption {
 	return func(j *TenantCleanupJob) { j.minio = mc }
 }
 

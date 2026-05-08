@@ -15,10 +15,10 @@ import (
 )
 
 type SkillHandler struct {
-	minio *objstore.MinIOClient
+	minio objstore.ObjectStore
 }
 
-func NewSkillHandler(mc *objstore.MinIOClient) *SkillHandler {
+func NewSkillHandler(mc objstore.ObjectStore) *SkillHandler {
 	return &SkillHandler{minio: mc}
 }
 

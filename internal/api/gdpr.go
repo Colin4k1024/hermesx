@@ -35,10 +35,10 @@ var gdprAllowedTables = map[string]struct{}{
 type GDPRHandler struct {
 	store store.Store
 	pool  *pgxpool.Pool
-	minio *objstore.MinIOClient
+	minio objstore.ObjectStore
 }
 
-func NewGDPRHandler(s store.Store, pool *pgxpool.Pool, minio *objstore.MinIOClient) *GDPRHandler {
+func NewGDPRHandler(s store.Store, pool *pgxpool.Pool, minio objstore.ObjectStore) *GDPRHandler {
 	return &GDPRHandler{store: s, pool: pool, minio: minio}
 }
 

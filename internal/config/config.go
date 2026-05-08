@@ -38,7 +38,7 @@ type Config struct {
 	// SaaS / Stateless
 	Database DatabaseConfig `yaml:"database"`
 	Redis    RedisConfig    `yaml:"redis"`
-	MinIO    MinIOConfig    `yaml:"minio"`
+	ObjStore ObjStoreConfig `yaml:"objstore"` // RustFS / MinIO (yaml key "minio" accepted by mergeConfig for backward compat)
 
 	// Internal
 	configVersion int `yaml:"_config_version"`
@@ -55,8 +55,9 @@ type RedisConfig struct {
 	URL string `yaml:"url"`
 }
 
-// MinIOConfig controls the S3-compatible object storage for per-tenant skills.
-type MinIOConfig struct {
+// ObjStoreConfig controls the S3-compatible object storage for per-tenant skills.
+// Supports MinIO and RustFS endpoints via the minio-go SDK.
+type ObjStoreConfig struct {
 	Endpoint  string `yaml:"endpoint"`
 	AccessKey string `yaml:"access_key"`
 	SecretKey string `yaml:"secret_key"`
@@ -218,21 +219,21 @@ func applyEnvOverrides(cfg *Config) {
 			cfg.MaxTokens = n
 		}
 	}
-	// MinIO / S3
+	// ObjStore / S3 (env vars keep MINIO_ prefix for backward compat)
 	if v := os.Getenv("MINIO_ENDPOINT"); v != "" {
-		cfg.MinIO.Endpoint = v
+		cfg.ObjStore.Endpoint = v
 	}
 	if v := os.Getenv("MINIO_ACCESS_KEY"); v != "" {
-		cfg.MinIO.AccessKey = v
+		cfg.ObjStore.AccessKey = v
 	}
 	if v := os.Getenv("MINIO_SECRET_KEY"); v != "" {
-		cfg.MinIO.SecretKey = v
+		cfg.ObjStore.SecretKey = v
 	}
 	if v := os.Getenv("MINIO_BUCKET"); v != "" {
-		cfg.MinIO.Bucket = v
+		cfg.ObjStore.Bucket = v
 	}
 	if v := os.Getenv("MINIO_USE_SSL"); v == "true" {
-		cfg.MinIO.UseSSL = true
+		cfg.ObjStore.UseSSL = true
 	}
 }
 
@@ -331,6 +332,21 @@ func mergeConfig(dst, src *Config) {
 	}
 	if src.Redis.URL != "" {
 		dst.Redis.URL = src.Redis.URL
+	}
+	if src.ObjStore.Endpoint != "" {
+		dst.ObjStore.Endpoint = src.ObjStore.Endpoint
+	}
+	if src.ObjStore.AccessKey != "" {
+		dst.ObjStore.AccessKey = src.ObjStore.AccessKey
+	}
+	if src.ObjStore.SecretKey != "" {
+		dst.ObjStore.SecretKey = src.ObjStore.SecretKey
+	}
+	if src.ObjStore.Bucket != "" {
+		dst.ObjStore.Bucket = src.ObjStore.Bucket
+	}
+	if src.ObjStore.UseSSL {
+		dst.ObjStore.UseSSL = src.ObjStore.UseSSL
 	}
 	if src.Memory.Provider != "" {
 		dst.Memory.Provider = src.Memory.Provider

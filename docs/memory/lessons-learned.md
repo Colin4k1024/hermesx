@@ -18,6 +18,24 @@
 
 ---
 
+## 2026-05-08 — v2.1.0: 新数据库 adapter 缺少集成测试会导致语义 bug 漏网
+
+**场景：** MySQL adapter 通过全量编译断言和 1583 个 -short 单测，但 code-reviewer 在评审时发现 `APIKeyStore.Create` 中 `fmt.Errorf("%w", nil)` 始终返回非 nil error，以及 `messages.Search` 的 LIMIT 参数绑定位置错误，均未被测试捕获。
+
+**问题：**
+1. `fmt.Errorf("%w", nil)` 返回非 nil `*errors.errorString`，任何 `if err != nil` 调用方均错误视为失败。编译断言只验证接口形状，不验证行为语义。
+2. 动态 SQL 中参数绑定顺序错误（LIMIT ? 是第 3 个参数但 SQL 只有 2 个 `?`）静默通过，MySQL 驱动忽略多余绑定参数。
+3. `rows.Scan` 错误和 COUNT 查询错误在 12 个 sub-store 中均被静默丢弃，仅能通过集成测试（注入 schema mismatch）触发。
+4. 安全 TODO 以代码注释形式存在（`// production needs IP allowlist`）而未进入 backlog，导致未能在 execute 阶段拦截。
+
+**建议：**
+1. 新数据库 adapter 引入 `database/sql` + `DATA-SOURCE-NAME=:memory:` 或 Testcontainers，至少覆盖各 sub-store 的 Create/Get 正确性和 error path。
+2. `fmt.Errorf("%w", err)` 只在 err 非 nil 时有意义——封装前先做 nil guard，或直接 `return err`。
+3. 安全 TODO 必须以 backlog item 形式追踪，不允许仅存在于代码注释。
+4. 动态 SQL 参数绑定后，用参数计数断言（`strings.Count(query, "?") == len(args)`）做防御性检查。
+
+---
+
 ## 2026-05-07 — Phase 3: 流式接口的断路器保护需要独立机制
 
 **场景：** ChatStream 走 `breaker.Execute` wrapper 导致 double-count — 流式接口的生命周期与 request/response 模型不匹配。

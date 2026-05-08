@@ -13,11 +13,11 @@ import (
 
 // MinIOSkillLoader loads skills from S3-compatible object storage, scoped by tenant.
 type MinIOSkillLoader struct {
-	client   *objstore.MinIOClient
+	client   objstore.ObjectStore
 	tenantID string
 }
 
-func NewMinIOSkillLoader(client *objstore.MinIOClient, tenantID string) *MinIOSkillLoader {
+func NewMinIOSkillLoader(client objstore.ObjectStore, tenantID string) *MinIOSkillLoader {
 	return &MinIOSkillLoader{client: client, tenantID: tenantID}
 }
 

@@ -2,8 +2,6 @@ package store
 
 import (
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // Session represents a conversation session.
@@ -191,11 +189,6 @@ type ExecutionReceipt struct {
 	IdempotencyID string    `json:"idempotency_id,omitempty" db:"idempotency_id"`
 	TraceID       string    `json:"trace_id,omitempty" db:"trace_id"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
-}
-
-// PoolProvider is optionally implemented by stores backed by pgxpool.
-type PoolProvider interface {
-	Pool() *pgxpool.Pool
 }
 
 // APIKey represents a hashed API key bound to a tenant.

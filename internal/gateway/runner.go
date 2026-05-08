@@ -42,8 +42,8 @@ type Runner struct {
 	// Runtime status tracker.
 	status *RuntimeStatus
 
-	// MinIO client for per-tenant skill loading.
-	minioClient *objstore.MinIOClient
+	// Object store client for per-tenant skill loading (MinIO / RustFS).
+	minioClient objstore.ObjectStore
 
 	// Media cache for downloaded files.
 	mediaCache MediaCacher
@@ -80,21 +80,21 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 
 	cfg := config.Load()
 
-	// Initialize MinIO client if configured.
-	var mc *objstore.MinIOClient
-	if cfg.MinIO.Endpoint != "" {
+	// Initialize object store client (MinIO / RustFS) if configured.
+	var mc objstore.ObjectStore
+	if cfg.ObjStore.Endpoint != "" {
 		var err error
-		mc, err = objstore.NewMinIOClient(
-			cfg.MinIO.Endpoint, cfg.MinIO.AccessKey, cfg.MinIO.SecretKey,
-			cfg.MinIO.Bucket, cfg.MinIO.UseSSL,
+		mc, err = objstore.NewObjStoreClient(
+			cfg.ObjStore.Endpoint, cfg.ObjStore.AccessKey, cfg.ObjStore.SecretKey,
+			cfg.ObjStore.Bucket, cfg.ObjStore.UseSSL,
 		)
 		if err != nil {
-			slog.Warn("MinIO unavailable, per-tenant skills disabled", "error", err)
+			slog.Warn("objstore unavailable, per-tenant skills disabled", "error", err)
 		} else {
 			if err := mc.EnsureBucket(ctx); err != nil {
-				slog.Warn("MinIO bucket check failed", "error", err)
+				slog.Warn("objstore bucket check failed", "error", err)
 			} else {
-				slog.Info("MinIO skill store connected", "endpoint", cfg.MinIO.Endpoint, "bucket", cfg.MinIO.Bucket)
+				slog.Info("objstore skill store connected", "endpoint", cfg.ObjStore.Endpoint, "bucket", cfg.ObjStore.Bucket)
 			}
 		}
 	}

@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
@@ -126,7 +127,7 @@ func (s *ACPServer) Start() error {
 
 	s.server = &http.Server{
 		Addr:        fmt.Sprintf("127.0.0.1:%d", s.port),
-		Handler:     withCORS(mux),
+		Handler:     middleware.RequestIDMiddleware(withCORS(mux)),
 		ReadTimeout: 30 * time.Second,
 		IdleTimeout: 60 * time.Second,
 	}

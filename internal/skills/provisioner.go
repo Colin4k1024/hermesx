@@ -31,7 +31,7 @@ type TenantSkillMeta struct {
 
 const manifestKey = "/.manifest.json"
 
-func loadManifest(ctx context.Context, mc *objstore.MinIOClient, tenantID string) (*TenantManifest, error) {
+func loadManifest(ctx context.Context, mc objstore.ObjectStore, tenantID string) (*TenantManifest, error) {
 	data, err := mc.GetObject(ctx, tenantID+manifestKey)
 	if err != nil {
 		return &TenantManifest{Version: 1, Skills: make(map[string]TenantSkillMeta)}, nil
@@ -46,7 +46,7 @@ func loadManifest(ctx context.Context, mc *objstore.MinIOClient, tenantID string
 	return &m, nil
 }
 
-func saveManifest(ctx context.Context, mc *objstore.MinIOClient, tenantID string, m *TenantManifest) error {
+func saveManifest(ctx context.Context, mc objstore.ObjectStore, tenantID string, m *TenantManifest) error {
 	m.SyncedAt = time.Now()
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -56,12 +56,12 @@ func saveManifest(ctx context.Context, mc *objstore.MinIOClient, tenantID string
 }
 
 // LoadTenantManifestPublic returns the tenant skill manifest for read-only use.
-func LoadTenantManifestPublic(ctx context.Context, mc *objstore.MinIOClient, tenantID string) (*TenantManifest, error) {
+func LoadTenantManifestPublic(ctx context.Context, mc objstore.ObjectStore, tenantID string) (*TenantManifest, error) {
 	return loadManifest(ctx, mc, tenantID)
 }
 
 // MarkSkillUserModified flags a skill as manually modified by the tenant user.
-func MarkSkillUserModified(ctx context.Context, mc *objstore.MinIOClient, tenantID, skillName string) error {
+func MarkSkillUserModified(ctx context.Context, mc objstore.ObjectStore, tenantID, skillName string) error {
 	m, err := loadManifest(ctx, mc, tenantID)
 	if err != nil {
 		return err
@@ -103,7 +103,7 @@ You are Hermes, an AI assistant built by Nous Research.
 const maxSoulBytes = 64 * 1024
 
 type Provisioner struct {
-	minio      *objstore.MinIOClient
+	minio      objstore.ObjectStore
 	bundledDir string
 }
 
@@ -114,7 +114,7 @@ func validateTenantID(id string) error {
 	return nil
 }
 
-func NewProvisioner(minio *objstore.MinIOClient, bundledDir string) *Provisioner {
+func NewProvisioner(minio objstore.ObjectStore, bundledDir string) *Provisioner {
 	if envDir := os.Getenv("HERMES_SKILLS_DIR"); envDir != "" {
 		bundledDir = envDir
 	}

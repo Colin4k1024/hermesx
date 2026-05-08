@@ -21,6 +21,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	pgstore "github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/Colin4k1024/hermesx/internal/store/rediscache"
 	"github.com/jackc/pgx/v5"
 	"github.com/spf13/cobra"
@@ -57,6 +58,11 @@ func init() {
 func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	setupLogging()
 
+	// ── 0a. pprof admin server (env-gated, production needs IP allowlist) ──
+	if adminPort := os.Getenv("HERMESX_ADMIN_PORT"); adminPort != "" {
+		go api.StartAdminServer(adminPort)
+	}
+
 	// ── 0. OTel tracing (no-op if OTEL_EXPORTER_OTLP_ENDPOINT unset) ──
 	tracerShutdown, err := observability.InitTracer(context.Background(), "hermes-agent", version)
 	if err != nil {
@@ -90,7 +96,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	}
 	defer dataStore.Close()
 
-	poolProvider, ok := dataStore.(store.PoolProvider)
+	poolProvider, ok := dataStore.(pgstore.PoolProvider)
 	if !ok {
 		return fmt.Errorf("store driver does not support pool access (got %T)", dataStore)
 	}
@@ -180,22 +186,22 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// ── 6. Initialize MinIO client for per-tenant skills and soul storage ──
-	var skillsClient *objstore.MinIOClient
+	// ── 6. Initialize object store client (MinIO / RustFS) for per-tenant skills ──
+	var skillsClient objstore.ObjectStore
 	if minioEndpoint := os.Getenv("MINIO_ENDPOINT"); minioEndpoint != "" {
 		minioAccessKey := os.Getenv("MINIO_ACCESS_KEY")
 		minioSecretKey := os.Getenv("MINIO_SECRET_KEY")
 		minioBucket := os.Getenv("MINIO_BUCKET")
 		if minioAccessKey != "" && minioSecretKey != "" && minioBucket != "" {
-			skillsClient, err = objstore.NewMinIOClient(minioEndpoint, minioAccessKey, minioSecretKey, minioBucket, false)
+			skillsClient, err = objstore.NewObjStoreClient(minioEndpoint, minioAccessKey, minioSecretKey, minioBucket, false)
 			if err != nil {
-				slog.Warn("minio_client_init_failed", "endpoint", minioEndpoint, "error", err)
+				slog.Warn("objstore_client_init_failed", "endpoint", minioEndpoint, "error", err)
 				skillsClient = nil
 			} else {
 				if ensureErr := skillsClient.EnsureBucket(context.Background()); ensureErr != nil {
-					slog.Warn("minio_bucket_init_failed", "bucket", minioBucket, "error", ensureErr)
+					slog.Warn("objstore_bucket_init_failed", "bucket", minioBucket, "error", ensureErr)
 				} else {
-					slog.Info("MinIO client initialized", "endpoint", minioEndpoint, "bucket", minioBucket)
+					slog.Info("objstore client initialized", "endpoint", minioEndpoint, "bucket", minioBucket)
 				}
 			}
 		}

@@ -17,6 +17,14 @@ type MinIOClient struct {
 	bucket string
 }
 
+// compile-time assertion
+var _ ObjectStore = (*MinIOClient)(nil)
+
+// NewObjStoreClient connects to any S3-compatible endpoint (MinIO or RustFS).
+func NewObjStoreClient(endpoint, accessKey, secretKey, bucket string, useSSL bool) (ObjectStore, error) {
+	return NewMinIOClient(endpoint, accessKey, secretKey, bucket, useSSL)
+}
+
 func NewMinIOClient(endpoint, accessKey, secretKey, bucket string, useSSL bool) (*MinIOClient, error) {
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:  credentials.NewStaticV4(accessKey, secretKey, ""),

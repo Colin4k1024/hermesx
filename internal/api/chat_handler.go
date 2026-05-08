@@ -28,7 +28,7 @@ type chatHandler struct {
 	llmModel     string
 	apiMode      string
 	httpClient   *http.Client
-	skillsClient *objstore.MinIOClient
+	skillsClient objstore.ObjectStore
 
 	soulCache *lru.LRU[string, string]
 }
@@ -110,7 +110,7 @@ func (h *chatHandler) sendMsg(ctx context.Context, tenantID, sessionID string, r
 }
 
 // NewChatHandler creates the chat handler wired into the SaaS API server.
-func NewChatHandler(s store.Store, pool *pgxpool.Pool, skillsClient *objstore.MinIOClient) *chatHandler {
+func NewChatHandler(s store.Store, pool *pgxpool.Pool, skillsClient objstore.ObjectStore) *chatHandler {
 	return &chatHandler{
 		store:        s,
 		pool:         pool,

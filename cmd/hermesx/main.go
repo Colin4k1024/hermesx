@@ -23,7 +23,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/gateway/platforms"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
-	_ "github.com/Colin4k1024/hermesx/internal/store/pg"
+	pgstore "github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/spf13/cobra"
 )
@@ -407,7 +407,7 @@ func runGateway() error {
 		}
 		defer dataStore.Close()
 
-		pp, ok := dataStore.(store.PoolProvider)
+		pp, ok := dataStore.(pgstore.PoolProvider)
 		if !ok {
 			return fmt.Errorf("store driver does not support pool access (got %T)", dataStore)
 		}
