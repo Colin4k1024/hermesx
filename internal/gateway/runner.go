@@ -302,7 +302,7 @@ func (r *Runner) handleMessage(event *MessageEvent) {
 
 	// Inject tenant ID into source for session key isolation.
 	if source.TenantID == "" {
-		source.TenantID = resolveTenantID(event)
+		source.TenantID = r.resolveTenantID(event)
 	}
 
 	// Get or create session.
@@ -563,7 +563,7 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 	}
 
 	// Per-tenant isolation: tenant ID and user ID.
-	tenantID := resolveTenantID(event)
+	tenantID := r.resolveTenantID(event)
 	userID := event.Source.UserID
 	if userID == "" {
 		userID = "default"
@@ -612,14 +612,30 @@ func (r *Runner) evictCachedAgent(sessionKey string) {
 	}
 }
 
-// resolveTenantID extracts the tenant ID from the message event metadata.
-func resolveTenantID(event *MessageEvent) string {
+// resolveTenantID extracts the tenant ID using a fallback chain:
+// 1. event.Metadata["tenant_id"] (explicitly set by adapter, e.g. api_server)
+// 2. event.Source.TenantID (pre-populated by adapter)
+// 3. Platform config TenantID (per-platform binding from config.yaml)
+// 4. GatewayConfig.DefaultTenantID (gateway-level default)
+// 5. DefaultTenantID constant (hardcoded fallback)
+func (r *Runner) resolveTenantID(event *MessageEvent) string {
 	if event.Metadata != nil {
 		if tid, ok := event.Metadata["tenant_id"]; ok && tid != "" {
 			return tid
 		}
 	}
-	return "default"
+	if event.Source.TenantID != "" {
+		return event.Source.TenantID
+	}
+	if r.gwCfg != nil {
+		if pc, ok := r.gwCfg.Platforms[event.Source.Platform]; ok && pc != nil && pc.TenantID != "" {
+			return pc.TenantID
+		}
+		if r.gwCfg.DefaultTenantID != "" {
+			return r.gwCfg.DefaultTenantID
+		}
+	}
+	return DefaultTenantID
 }
 
 // --- Background watchers ---

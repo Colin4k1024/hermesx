@@ -392,9 +392,27 @@ var gatewayCmd = &cobra.Command{
 func runGateway() error {
 	gwCfg := gateway.DefaultGatewayConfig()
 
-	// Load allowed_users from config file if available.
-	if gcf, err := gateway.LoadGatewayConfig(); err == nil && gcf.AllowedUsers != nil {
-		gwCfg.AllowedUsers = gcf.AllowedUsers
+	// Load config file: allowed_users, tenant bindings.
+	if gcf, err := gateway.LoadGatewayConfig(); err == nil {
+		if gcf.AllowedUsers != nil {
+			gwCfg.AllowedUsers = gcf.AllowedUsers
+		}
+		if gcf.DefaultTenantID != "" {
+			gwCfg.DefaultTenantID = gcf.DefaultTenantID
+		}
+		for name, entry := range gcf.Platforms {
+			if entry.TenantID != "" {
+				p := gateway.Platform(name)
+				if pc, ok := gwCfg.Platforms[p]; ok {
+					pc.TenantID = entry.TenantID
+				} else {
+					gwCfg.Platforms[p] = &gateway.PlatformConfig{
+						Enabled:  entry.Enabled,
+						TenantID: entry.TenantID,
+					}
+				}
+			}
+		}
 	}
 
 	// Create PG store if DATABASE_URL is set; otherwise nil (local fallback).

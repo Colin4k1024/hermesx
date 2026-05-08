@@ -15,24 +15,26 @@ import (
 const DefaultTenantID = "00000000-0000-0000-0000-000000000001"
 
 // PGSessionStore manages per-chat session tracking backed by PostgreSQL.
+// It supports multi-tenant isolation: each session is stored with its own tenant_id
+// derived from the SessionSource at creation time.
 type PGSessionStore struct {
-	mu          sync.Mutex
-	entries     map[string]*SessionEntry
-	pool        *pgxpool.Pool
-	tenantID    string
-	idleTimeout time.Duration
-	loaded      bool
+	mu              sync.Mutex
+	entries         map[string]*SessionEntry
+	pool            *pgxpool.Pool
+	defaultTenantID string
+	idleTimeout     time.Duration
+	loaded          bool
 }
 
-func NewPGSessionStore(pool *pgxpool.Pool, tenantID string) *PGSessionStore {
-	if tenantID == "" {
-		tenantID = DefaultTenantID
+func NewPGSessionStore(pool *pgxpool.Pool, defaultTenantID string) *PGSessionStore {
+	if defaultTenantID == "" {
+		defaultTenantID = DefaultTenantID
 	}
 	return &PGSessionStore{
-		entries:     make(map[string]*SessionEntry),
-		pool:        pool,
-		tenantID:    tenantID,
-		idleTimeout: 30 * time.Minute,
+		entries:         make(map[string]*SessionEntry),
+		pool:            pool,
+		defaultTenantID: defaultTenantID,
+		idleTimeout:     30 * time.Minute,
 	}
 }
 
@@ -54,12 +56,18 @@ func (s *PGSessionStore) GetOrCreateSession(source *SessionSource, forceNew bool
 		}
 	}
 
+	tenantID := source.TenantID
+	if tenantID == "" {
+		tenantID = s.defaultTenantID
+	}
+
 	now := time.Now()
 	sessionID := fmt.Sprintf("%s_%s", now.Format("20060102_150405"), uuid.New().String()[:8])
 
 	entry := &SessionEntry{
 		SessionKey:  sessionKey,
 		SessionID:   sessionID,
+		TenantID:    tenantID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		Origin:      source,
@@ -84,12 +92,17 @@ func (s *PGSessionStore) ResetSession(sessionKey string) *SessionEntry {
 		return nil
 	}
 
+	tenantID := oldEntry.TenantID
+	if tenantID == "" {
+		tenantID = s.defaultTenantID
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	_, err := s.pool.Exec(ctx,
 		`UPDATE sessions SET ended_at = $1, end_reason = $2 WHERE tenant_id = $3 AND id = $4`,
-		time.Now(), "session_reset", s.tenantID, oldEntry.SessionID)
+		time.Now(), "session_reset", tenantID, oldEntry.SessionID)
 	if err != nil {
 		slog.Warn("PG: failed to end old session", "error", err)
 	}
@@ -100,6 +113,7 @@ func (s *PGSessionStore) ResetSession(sessionKey string) *SessionEntry {
 	newEntry := &SessionEntry{
 		SessionKey:  sessionKey,
 		SessionID:   sessionID,
+		TenantID:    tenantID,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 		Origin:      oldEntry.Origin,
@@ -171,7 +185,7 @@ func (s *PGSessionStore) EnsureDefaultTenant(ctx context.Context) error {
 		INSERT INTO tenants (id, name, plan)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (id) DO NOTHING`,
-		s.tenantID, "default", "free")
+		s.defaultTenantID, "default", "free")
 	return err
 }
 
@@ -193,12 +207,12 @@ func (s *PGSessionStore) ensureLoaded() {
 	defer cancel()
 
 	rows, err := s.pool.Query(ctx, `
-		SELECT id, session_key, platform, user_id, started_at,
+		SELECT id, tenant_id, session_key, platform, user_id, started_at,
 		       input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		       estimated_cost_usd, metadata
 		FROM sessions
-		WHERE tenant_id = $1 AND ended_at IS NULL AND session_key IS NOT NULL
-		ORDER BY started_at DESC`, s.tenantID)
+		WHERE ended_at IS NULL AND session_key IS NOT NULL
+		ORDER BY started_at DESC`)
 	if err != nil {
 		slog.Warn("PG: failed to load sessions", "error", err)
 		s.loaded = true
@@ -208,15 +222,15 @@ func (s *PGSessionStore) ensureLoaded() {
 
 	for rows.Next() {
 		var (
-			id, sessionKey, platform, userID string
-			startedAt                        time.Time
-			inputTokens, outputTokens        int
-			cacheRead, cacheWrite            int
-			costUSD                          *float64
-			metaJSON                         []byte
+			id, tenantID, sessionKey, platform, userID string
+			startedAt                                  time.Time
+			inputTokens, outputTokens                  int
+			cacheRead, cacheWrite                      int
+			costUSD                                    *float64
+			metaJSON                                   []byte
 		)
 
-		if err := rows.Scan(&id, &sessionKey, &platform, &userID, &startedAt,
+		if err := rows.Scan(&id, &tenantID, &sessionKey, &platform, &userID, &startedAt,
 			&inputTokens, &outputTokens, &cacheRead, &cacheWrite, &costUSD, &metaJSON); err != nil {
 			slog.Warn("PG: failed to scan session", "error", err)
 			continue
@@ -225,6 +239,7 @@ func (s *PGSessionStore) ensureLoaded() {
 		entry := &SessionEntry{
 			SessionKey:       sessionKey,
 			SessionID:        id,
+			TenantID:         tenantID,
 			CreatedAt:        startedAt,
 			UpdatedAt:        startedAt,
 			Platform:         Platform(platform),
@@ -250,8 +265,15 @@ func (s *PGSessionStore) ensureLoaded() {
 		slog.Warn("PG: error iterating sessions", "error", err)
 	}
 
-	slog.Info("PG: loaded gateway sessions", "count", len(s.entries), "tenant", s.tenantID)
+	slog.Info("PG: loaded gateway sessions", "count", len(s.entries))
 	s.loaded = true
+}
+
+func (s *PGSessionStore) entryTenantID(entry *SessionEntry) string {
+	if entry.TenantID != "" {
+		return entry.TenantID
+	}
+	return s.defaultTenantID
 }
 
 func (s *PGSessionStore) insertSession(entry *SessionEntry, userID string) {
@@ -268,7 +290,7 @@ func (s *PGSessionStore) insertSession(entry *SessionEntry, userID string) {
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO sessions (id, tenant_id, platform, user_id, session_key, started_at, metadata)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		entry.SessionID, s.tenantID, string(entry.Platform), userID, entry.SessionKey,
+		entry.SessionID, s.entryTenantID(entry), string(entry.Platform), userID, entry.SessionKey,
 		entry.CreatedAt, metaJSON)
 	if err != nil {
 		slog.Warn("PG: failed to insert session", "error", err, "session_key", entry.SessionKey)
@@ -285,7 +307,7 @@ func (s *PGSessionStore) persistMetadata(entry *SessionEntry) {
 	_, err := s.pool.Exec(ctx, `
 		UPDATE sessions SET metadata = $1
 		WHERE tenant_id = $2 AND id = $3`,
-		metaJSON, s.tenantID, entry.SessionID)
+		metaJSON, s.entryTenantID(entry), entry.SessionID)
 	if err != nil {
 		slog.Warn("PG: failed to persist session metadata", "error", err, "session_id", entry.SessionID)
 	}

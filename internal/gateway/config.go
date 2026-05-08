@@ -27,17 +27,19 @@ type GeneralConfig struct {
 // GatewayConfigFile is the top-level structure loaded from config.yaml's
 // messaging / gateway section.
 type GatewayConfigFile struct {
-	Platforms    map[string]*PlatformConfigEntry `yaml:"platforms"`
-	Sessions     SessionConfig                   `yaml:"sessions"`
-	General      GeneralConfig                   `yaml:"general"`
-	AllowedUsers map[string]any                  `yaml:"allowed_users"`
+	Platforms       map[string]*PlatformConfigEntry `yaml:"platforms"`
+	Sessions        SessionConfig                   `yaml:"sessions"`
+	General         GeneralConfig                   `yaml:"general"`
+	AllowedUsers    map[string]any                  `yaml:"allowed_users"`
+	DefaultTenantID string                          `yaml:"default_tenant_id,omitempty"`
 }
 
 // PlatformConfigEntry holds per-platform configuration from the config file.
 type PlatformConfigEntry struct {
-	Enabled bool           `yaml:"enabled"`
-	Token   string         `yaml:"token"`
-	Extra   map[string]any `yaml:"extra,omitempty"`
+	Enabled  bool           `yaml:"enabled"`
+	Token    string         `yaml:"token"`
+	TenantID string         `yaml:"tenant_id,omitempty"`
+	Extra    map[string]any `yaml:"extra,omitempty"`
 }
 
 // DefaultGatewayConfigFile returns a GatewayConfigFile with sensible defaults.

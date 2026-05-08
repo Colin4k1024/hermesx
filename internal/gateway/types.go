@@ -170,14 +170,16 @@ type PlatformAdapter interface {
 type PlatformConfig struct {
 	Enabled  bool              `yaml:"enabled"`
 	Token    string            `yaml:"token"`
+	TenantID string            `yaml:"tenant_id,omitempty"`
 	Settings map[string]string `yaml:"settings,omitempty"`
 }
 
 // GatewayConfig holds the full gateway configuration.
 type GatewayConfig struct {
-	Platforms    map[Platform]*PlatformConfig `yaml:"platforms"`
-	Settings     GatewaySettings              `yaml:"settings"`
-	AllowedUsers map[string]any               `yaml:"allowed_users"`
+	Platforms       map[Platform]*PlatformConfig `yaml:"platforms"`
+	Settings        GatewaySettings              `yaml:"settings"`
+	AllowedUsers    map[string]any               `yaml:"allowed_users"`
+	DefaultTenantID string                       `yaml:"default_tenant_id,omitempty"`
 }
 
 // GatewaySettings holds gateway-level settings.

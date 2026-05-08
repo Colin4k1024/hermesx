@@ -20,6 +20,7 @@ import (
 type SessionEntry struct {
 	SessionKey       string         `json:"session_key"`
 	SessionID        string         `json:"session_id"`
+	TenantID         string         `json:"tenant_id,omitempty"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UpdatedAt        time.Time      `json:"updated_at"`
 	Origin           *SessionSource `json:"origin,omitempty"`
