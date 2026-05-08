@@ -23,9 +23,9 @@ func beginTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID string) (pg
 	return tx, nil
 }
 
-// withTenantTx wraps a write operation in a transaction with the RLS tenant context set.
+// WithTenantTx wraps a write operation in a transaction with the RLS tenant context set.
 // The fn receives the transaction; if fn returns nil the tx is committed, otherwise rolled back.
-func withTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn func(tx pgx.Tx) error) error {
+func WithTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn func(tx pgx.Tx) error) error {
 	tx, err := beginTenantTx(ctx, pool, tenantID)
 	if err != nil {
 		return err
@@ -36,3 +36,6 @@ func withTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn f
 	}
 	return tx.Commit(ctx)
 }
+
+// withTenantTx is a package-local alias for WithTenantTx.
+var withTenantTx = WithTenantTx
