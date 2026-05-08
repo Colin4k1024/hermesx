@@ -29,7 +29,7 @@ type APIServerConfig struct {
 	Pool           *pgxpool.Pool         // direct pool access for memory operations
 	AllowedOrigins string                // comma-separated list of allowed origins, or "*" for all
 	StaticDir      string                // directory to serve static files from (optional)
-	SkillsClient   objstore.ObjectStore // optional; nil disables per-tenant skill loading
+	SkillsClient   objstore.ObjectStore  // optional; nil disables per-tenant skill loading
 	TenantOpts     []TenantHandlerOption // optional; wired into TenantHandler on creation
 }
 

@@ -18,17 +18,21 @@ type TracedStore struct{ inner Store }
 // When no OTLP endpoint is configured the underlying tracer is a no-op (zero overhead).
 func NewTracedStore(s Store) Store { return &TracedStore{inner: s} }
 
-func (t *TracedStore) Sessions() SessionStore         { return &tracedSessions{t.inner.Sessions()} }
-func (t *TracedStore) Messages() MessageStore         { return &tracedMessages{t.inner.Messages()} }
-func (t *TracedStore) Users() UserStore               { return &tracedUsers{t.inner.Users()} }
-func (t *TracedStore) Tenants() TenantStore           { return &tracedTenants{t.inner.Tenants()} }
-func (t *TracedStore) AuditLogs() AuditLogStore       { return &tracedAuditLogs{t.inner.AuditLogs()} }
-func (t *TracedStore) APIKeys() APIKeyStore           { return &tracedAPIKeys{t.inner.APIKeys()} }
-func (t *TracedStore) Memories() MemoryStore          { return &tracedMemories{t.inner.Memories()} }
-func (t *TracedStore) UserProfiles() UserProfileStore { return &tracedUserProfiles{t.inner.UserProfiles()} }
-func (t *TracedStore) CronJobs() CronJobStore         { return &tracedCronJobs{t.inner.CronJobs()} }
-func (t *TracedStore) Roles() RoleStore               { return &tracedRoles{t.inner.Roles()} }
-func (t *TracedStore) PricingRules() PricingRuleStore { return &tracedPricingRules{t.inner.PricingRules()} }
+func (t *TracedStore) Sessions() SessionStore   { return &tracedSessions{t.inner.Sessions()} }
+func (t *TracedStore) Messages() MessageStore   { return &tracedMessages{t.inner.Messages()} }
+func (t *TracedStore) Users() UserStore         { return &tracedUsers{t.inner.Users()} }
+func (t *TracedStore) Tenants() TenantStore     { return &tracedTenants{t.inner.Tenants()} }
+func (t *TracedStore) AuditLogs() AuditLogStore { return &tracedAuditLogs{t.inner.AuditLogs()} }
+func (t *TracedStore) APIKeys() APIKeyStore     { return &tracedAPIKeys{t.inner.APIKeys()} }
+func (t *TracedStore) Memories() MemoryStore    { return &tracedMemories{t.inner.Memories()} }
+func (t *TracedStore) UserProfiles() UserProfileStore {
+	return &tracedUserProfiles{t.inner.UserProfiles()}
+}
+func (t *TracedStore) CronJobs() CronJobStore { return &tracedCronJobs{t.inner.CronJobs()} }
+func (t *TracedStore) Roles() RoleStore       { return &tracedRoles{t.inner.Roles()} }
+func (t *TracedStore) PricingRules() PricingRuleStore {
+	return &tracedPricingRules{t.inner.PricingRules()}
+}
 func (t *TracedStore) ExecutionReceipts() ExecutionReceiptStore {
 	return &tracedExecutionReceipts{t.inner.ExecutionReceipts()}
 }
