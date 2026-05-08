@@ -272,7 +272,7 @@ func BuildSessionKey(source *SessionSource, groupSessionsPerUser, threadSessions
 	platform := string(source.Platform)
 	tenant := source.TenantID
 	if tenant == "" {
-		tenant = DefaultTenantID
+		tenant = "default"
 	}
 
 	if source.ChatType == "dm" {

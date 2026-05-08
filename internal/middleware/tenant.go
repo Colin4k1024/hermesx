@@ -25,16 +25,12 @@ func WithTenant(ctx context.Context, tenantID string) context.Context {
 	return context.WithValue(ctx, tenantKey, tenantID)
 }
 
-// defaultTenantUUID is the UUID for the system default tenant row.
-// Must match gateway.DefaultTenantID ("00000000-0000-0000-0000-000000000001").
-const defaultTenantUUID = "00000000-0000-0000-0000-000000000001"
-
 // TenantMiddleware derives tenant ID from AuthContext (set by auth middleware).
-// Falls back to the default tenant UUID when AuthContext is absent (anonymous/dev mode).
+// Falls back to "default" when AuthContext is absent (anonymous/dev mode).
 // Never trusts the X-Tenant-ID header for tenant identity.
 func TenantMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		tenantID := defaultTenantUUID
+		tenantID := "default"
 
 		if ac, ok := auth.FromContext(r.Context()); ok && ac != nil {
 			if ac.TenantID != "" {
