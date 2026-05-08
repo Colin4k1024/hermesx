@@ -8,6 +8,8 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/store/pg"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -120,20 +122,30 @@ func (e *memoryExtractor) persist(tenantID, userID string, memories []extractedM
 		return
 	}
 	provider := agent.NewPGMemoryProvider(e.pool, tenantID, userID)
-	for _, m := range memories {
-		if err := provider.SaveMemory(m.Key, m.Content); err != nil {
-			slog.Warn("memory_extractor: failed to save", "key", m.Key, "error", err)
-		} else {
-			slog.Info("memory_extracted", "tenant", tenantID, "user", userID, "key", m.Key, "content", m.Content)
-		}
-	}
-	enforceMemoryLimit(e.pool, tenantID, userID, 50)
-}
-
-func enforceMemoryLimit(pool *pgxpool.Pool, tenantID, userID string, maxEntries int) {
 	ctx, cancel := newCtx5s()
 	defer cancel()
-	_, err := pool.Exec(ctx,
+	err := pg.WithTenantTx(ctx, e.pool, tenantID, func(tx pgx.Tx) error {
+		for _, m := range memories {
+			if err := provider.SaveMemoryTx(ctx, tx, m.Key, m.Content); err != nil {
+				slog.Warn("memory_extractor: failed to save", "key", m.Key, "error", err)
+			} else {
+				slog.Info("memory_extracted", "tenant", tenantID, "user", userID, "key", m.Key, "content", m.Content)
+			}
+		}
+		enforceMemoryLimitTx(tx, tenantID, userID, 50)
+		return nil
+	})
+	if err != nil {
+		slog.Warn("memory_extractor: persist tx failed", "error", err)
+	}
+}
+
+// enforceMemoryLimitTx deletes old memories beyond maxEntries, within a transaction
+// that has the RLS tenant context already set.
+func enforceMemoryLimitTx(tx pgx.Tx, tenantID, userID string, maxEntries int) {
+	ctx, cancel := newCtx5s()
+	defer cancel()
+	_, err := tx.Exec(ctx,
 		`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2
 		 AND key NOT IN (
 			 SELECT key FROM memories

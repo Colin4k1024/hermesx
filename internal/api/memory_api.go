@@ -9,6 +9,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -39,23 +40,30 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	rows, err := h.pool.Query(r.Context(),
-		`SELECT key, content FROM memories
-		 WHERE tenant_id = $1 AND user_id = $2
-		 ORDER BY updated_at DESC`,
-		ac.TenantID, userID)
-	if err != nil {
-		http.Error(w, "failed to query memories", http.StatusInternalServerError)
-		return
-	}
-	defer rows.Close()
-
+	ctx := r.Context()
 	var entries []memoryEntry
-	for rows.Next() {
-		var e memoryEntry
-		if err := rows.Scan(&e.Key, &e.Content); err == nil {
-			entries = append(entries, e)
+	err := pg.WithTenantTx(ctx, h.pool, ac.TenantID, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx,
+			`SELECT key, content FROM memories
+			 WHERE tenant_id = $1 AND user_id = $2
+			 ORDER BY updated_at DESC`,
+			ac.TenantID, userID)
+		if err != nil {
+			return err
 		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var e memoryEntry
+			if err := rows.Scan(&e.Key, &e.Content); err == nil {
+				entries = append(entries, e)
+			}
+		}
+		return rows.Err()
+	})
+	if err != nil {
+		http.Error(w, "failed to query memories: "+err.Error(), http.StatusInternalServerError)
+		return
 	}
 	if entries == nil {
 		entries = []memoryEntry{}

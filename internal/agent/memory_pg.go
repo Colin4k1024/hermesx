@@ -34,7 +34,19 @@ func (p *PGMemoryProvider) ReadMemory() (string, error) {
 	const maxEntries = 50
 	const maxBytes = 8192
 
-	rows, err := p.pool.Query(ctx,
+	// Wrap in a transaction so the tenant context is scoped and rolled back,
+	// avoiding connection-level leakage across pooled connection reuse.
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("pg begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", p.tenantID); err != nil {
+		return "", fmt.Errorf("pg set tenant context: %w", err)
+	}
+
+	rows, err := tx.Query(ctx,
 		`SELECT key, content FROM memories
 		 WHERE tenant_id = $1 AND user_id = $2
 		 ORDER BY updated_at DESC
@@ -63,6 +75,7 @@ func (p *PGMemoryProvider) ReadMemory() (string, error) {
 		return "", fmt.Errorf("pg iterate memories: %w", err)
 	}
 
+	slog.Debug("pg_read_memory", "tenant", p.tenantID, "user", p.userID, "entries", len(parts), "bytes", totalBytes)
 	return strings.Join(parts, "\n\n"), nil
 }
 
@@ -74,7 +87,20 @@ func (p *PGMemoryProvider) SaveMemory(key, content string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := p.pool.Exec(ctx,
+	// Wrap in a transaction so the set_config session variable is scoped to this
+	// operation and rolled back when the transaction ends, avoiding connection-level
+	// tenant leakage across pooled connection reuse.
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pg begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", p.tenantID); err != nil {
+		return fmt.Errorf("pg set tenant context: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
 		`INSERT INTO memories (tenant_id, user_id, key, content, updated_at)
 		 VALUES ($1, $2, $3, $4, now())
 		 ON CONFLICT (tenant_id, user_id, key)
@@ -82,6 +108,29 @@ func (p *PGMemoryProvider) SaveMemory(key, content string) error {
 		p.tenantID, p.userID, key, content)
 	if err != nil {
 		return fmt.Errorf("pg save memory: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+// SaveMemoryTx saves a memory within a transaction that already has the RLS tenant
+// context set (via set_config('app.current_tenant', ..., true)). This avoids the
+// ON CONFLICT UPDATE portion of the UPSERT triggering the UPDATE policy when called
+// from contexts like memory_extractor that don't set app.current_tenant on the pool.
+// The caller provides ctx so it can manage its own timeout/scope.
+func (p *PGMemoryProvider) SaveMemoryTx(ctx context.Context, tx pgx.Tx, key, content string) error {
+	if key == "" || content == "" {
+		return fmt.Errorf("both key and content are required")
+	}
+
+	_, err := tx.Exec(ctx,
+		`INSERT INTO memories (tenant_id, user_id, key, content, updated_at)
+		 VALUES ($1, $2, $3, $4, now())
+		 ON CONFLICT (tenant_id, user_id, key)
+		 DO UPDATE SET content = $4, updated_at = now()`,
+		p.tenantID, p.userID, key, content)
+	if err != nil {
+		return fmt.Errorf("pg save memory tx: %w", err)
 	}
 	return nil
 }
@@ -94,12 +143,27 @@ func (p *PGMemoryProvider) DeleteMemory(key string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	tag, err := p.pool.Exec(ctx,
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pg begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", p.tenantID); err != nil {
+		return fmt.Errorf("pg set tenant context: %w", err)
+	}
+
+	tag, err := tx.Exec(ctx,
 		`DELETE FROM memories WHERE tenant_id = $1 AND user_id = $2 AND key = $3`,
 		p.tenantID, p.userID, key)
 	if err != nil {
 		return fmt.Errorf("pg delete memory: %w", err)
 	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("pg commit: %w", err)
+	}
+
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("memory key '%s' not found", key)
 	}
@@ -110,8 +174,18 @@ func (p *PGMemoryProvider) ReadUserProfile() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return "", fmt.Errorf("pg begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", p.tenantID); err != nil {
+		return "", fmt.Errorf("pg set tenant context: %w", err)
+	}
+
 	var content string
-	err := p.pool.QueryRow(ctx,
+	err = tx.QueryRow(ctx,
 		`SELECT content FROM user_profiles
 		 WHERE tenant_id = $1 AND user_id = $2`,
 		p.tenantID, p.userID).Scan(&content)
@@ -132,7 +206,17 @@ func (p *PGMemoryProvider) SaveUserProfile(content string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	_, err := p.pool.Exec(ctx,
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("pg begin tx: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck
+
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", p.tenantID); err != nil {
+		return fmt.Errorf("pg set tenant context: %w", err)
+	}
+
+	_, err = tx.Exec(ctx,
 		`INSERT INTO user_profiles (tenant_id, user_id, content, updated_at)
 		 VALUES ($1, $2, $3, now())
 		 ON CONFLICT (tenant_id, user_id)
@@ -140,6 +224,25 @@ func (p *PGMemoryProvider) SaveUserProfile(content string) error {
 		p.tenantID, p.userID, content)
 	if err != nil {
 		return fmt.Errorf("pg save user profile: %w", err)
+	}
+
+	return tx.Commit(ctx)
+}
+
+// SaveUserProfileTx saves a user profile within a transaction with RLS tenant context set.
+func (p *PGMemoryProvider) SaveUserProfileTx(ctx context.Context, tx pgx.Tx, content string) error {
+	if content == "" {
+		return fmt.Errorf("content is required")
+	}
+
+	_, err := tx.Exec(ctx,
+		`INSERT INTO user_profiles (tenant_id, user_id, content, updated_at)
+		 VALUES ($1, $2, $3, now())
+		 ON CONFLICT (tenant_id, user_id)
+		 DO UPDATE SET content = $3, updated_at = now()`,
+		p.tenantID, p.userID, content)
+	if err != nil {
+		return fmt.Errorf("pg save user profile tx: %w", err)
 	}
 	return nil
 }
