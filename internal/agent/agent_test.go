@@ -1137,3 +1137,20 @@ func TestFireToolProgress_WithCallback(t *testing.T) {
 		t.Errorf("Expected 'ls -la', got '%s'", receivedArgs)
 	}
 }
+
+func TestWithSelfImprover_SetsField(t *testing.T) {
+	a := &AIAgent{}
+	si := NewSelfImprover(nil, nil, DefaultSelfImproveConfig())
+	WithSelfImprover(si)(a)
+	if a.selfImprover != si {
+		t.Error("WithSelfImprover did not set selfImprover field")
+	}
+}
+
+func TestWithSelfImprover_NilSafe(t *testing.T) {
+	a := &AIAgent{}
+	WithSelfImprover(nil)(a)
+	if a.selfImprover != nil {
+		t.Error("expected selfImprover to be nil")
+	}
+}

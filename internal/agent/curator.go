@@ -278,10 +278,7 @@ func (c *MemoryCurator) identifyMergeGroups(ctx context.Context, entries []store
 	sb.WriteString("If no merges needed, return 'NONE'.\n\n")
 
 	for i, e := range entries {
-		content := e.Content
-		if len(content) > 200 {
-			content = content[:200] + "..."
-		}
+		content := sanitizeForPrompt(e.Content, 200)
 		fmt.Fprintf(&sb, "%d. [%s] %s\n", i+1, e.Key, content)
 	}
 

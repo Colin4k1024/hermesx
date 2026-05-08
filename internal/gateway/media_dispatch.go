@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"path/filepath"
 	"strings"
 )
@@ -56,6 +57,9 @@ var ErrMissingChatID = errors.New("media dispatch: missing chat_id in metadata")
 // ErrInvalidPath is returned when a media path contains traversal sequences.
 var ErrInvalidPath = errors.New("media dispatch: path contains traversal sequences")
 
+// ErrInvalidURL is returned when a media URL has a disallowed scheme or contains traversal sequences.
+var ErrInvalidURL = errors.New("media dispatch: URL must use http or https scheme and must not contain traversal sequences")
+
 // Dispatch sends a media payload through the given adapter, checking
 // capabilities and applying fallbacks as needed.
 func (d *MediaDispatcher) Dispatch(ctx context.Context, adapter PlatformAdapter, payload MediaPayload) *MediaDispatchResult {
@@ -72,6 +76,12 @@ func (d *MediaDispatcher) Dispatch(ctx context.Context, adapter PlatformAdapter,
 		caps = PlatformCapabilities{
 			SupportsImages:    true,
 			SupportsDocuments: true,
+		}
+	}
+
+	if payload.URL != "" {
+		if err := validateMediaURL(payload.URL); err != nil {
+			return &MediaDispatchResult{Error: err}
 		}
 	}
 
@@ -218,4 +228,19 @@ func mergeMetadata(base, extra map[string]string) map[string]string {
 		result[k] = v
 	}
 	return result
+}
+
+// validateMediaURL ensures the URL uses an allowed scheme and contains no path traversal.
+func validateMediaURL(rawURL string) error {
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		return ErrInvalidURL
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return ErrInvalidURL
+	}
+	if strings.Contains(parsed.Path, "..") {
+		return ErrInvalidURL
+	}
+	return nil
 }

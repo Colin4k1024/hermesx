@@ -175,3 +175,10 @@ func WithMemoryProvider(mp tools.MemoryProvider) AgentOption {
 func WithSoulContent(content string) AgentOption {
 	return func(a *AIAgent) { a.soulContent = content }
 }
+
+// WithSelfImprover attaches a SelfImprover to the agent.
+// RecordTurn is called after each conversation turn; Review is triggered
+// asynchronously according to the SelfImproveConfig cadence.
+func WithSelfImprover(si *SelfImprover) AgentOption {
+	return func(a *AIAgent) { a.selfImprover = si }
+}

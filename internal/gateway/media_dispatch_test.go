@@ -293,3 +293,47 @@ func TestDispatch_PathTraversal(t *testing.T) {
 		t.Errorf("expected ErrInvalidPath, got %v", result.Error)
 	}
 }
+
+func TestDispatch_URLFileSchemeRejected(t *testing.T) {
+	d, _ := setupDispatcher(PlatformCapabilities{SupportsImages: true})
+	adapter := &mediaTestAdapter{platform: PlatformTelegram}
+	result := d.Dispatch(context.Background(), adapter, MediaPayload{
+		Type:     MediaTypeImage,
+		URL:      "file:///etc/passwd",
+		Metadata: map[string]string{"chat_id": "123"},
+	})
+	if result.Success {
+		t.Fatal("expected failure for file:// scheme")
+	}
+	if result.Error != ErrInvalidURL {
+		t.Errorf("expected ErrInvalidURL, got %v", result.Error)
+	}
+}
+
+func TestDispatch_URLTraversalRejected(t *testing.T) {
+	d, _ := setupDispatcher(PlatformCapabilities{SupportsImages: true})
+	adapter := &mediaTestAdapter{platform: PlatformTelegram}
+	result := d.Dispatch(context.Background(), adapter, MediaPayload{
+		Type:     MediaTypeImage,
+		URL:      "https://example.com/../secret/file.jpg",
+		Metadata: map[string]string{"chat_id": "123"},
+	})
+	if result.Success {
+		t.Fatal("expected failure for URL traversal")
+	}
+	if result.Error != ErrInvalidURL {
+		t.Errorf("expected ErrInvalidURL, got %v", result.Error)
+	}
+}
+
+func TestDispatch_ValidHTTPSURLAllowed(t *testing.T) {
+	d, adapter := setupDispatcher(PlatformCapabilities{SupportsImages: true})
+	result := d.Dispatch(context.Background(), adapter, MediaPayload{
+		Type:     MediaTypeImage,
+		URL:      "https://cdn.example.com/photo.jpg",
+		Metadata: map[string]string{"chat_id": "123"},
+	})
+	if !result.Success {
+		t.Fatalf("expected success for valid https URL, got error: %v", result.Error)
+	}
+}

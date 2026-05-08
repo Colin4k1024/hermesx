@@ -62,6 +62,9 @@ type AIAgent struct {
 	smartRouter      *SmartRouter
 	multimodalRouter *MultimodalRouter
 
+	// Self-improvement loop (optional, async, non-blocking).
+	selfImprover *SelfImprover
+
 	// Runtime state
 	client          *llm.Client
 	auxiliaryClient *AuxiliaryClient
@@ -456,6 +459,19 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 	// End session
 	if a.sessionDB != nil && result.Completed {
 		a.sessionDB.EndSession(a.sessionID, "completed")
+	}
+
+	// Self-improvement: record turn and trigger async review when due.
+	if a.selfImprover != nil && result.Completed {
+		if shouldReview := a.selfImprover.RecordTurn(); shouldReview {
+			go func(msgs []llm.Message, tid, uid string) {
+				ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+				defer cancel2()
+				if _, err := a.selfImprover.Review(ctx2, msgs, tid, uid); err != nil {
+					slog.Warn("Self-improvement review failed", "error", err)
+				}
+			}(messages, a.tenantID, a.userID)
+		}
 	}
 
 	return result, nil

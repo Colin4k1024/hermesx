@@ -151,24 +151,6 @@ func buildReviewPrompt(messages []llm.Message) string {
 	return sb.String()
 }
 
-// sanitizeForPrompt truncates and strips control sequences from user content
-// to prevent prompt injection when interpolated into LLM prompts.
-func sanitizeForPrompt(s string, maxLen int) string {
-	s = strings.Map(func(r rune) rune {
-		if r < 0x20 && r != '\n' && r != '\t' {
-			return -1
-		}
-		return r
-	}, s)
-	if maxLen > 0 {
-		runes := []rune(s)
-		if len(runes) > maxLen {
-			s = string(runes[:maxLen]) + "..."
-		}
-	}
-	return s
-}
-
 // parseInsights extracts bullet-point insights from the LLM response.
 func parseInsights(response string) []string {
 	response = strings.TrimSpace(response)

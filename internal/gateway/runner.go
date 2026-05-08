@@ -33,6 +33,9 @@ type Runner struct {
 	// Hook registry for before/after processing hooks.
 	hooks *HookRegistry
 
+	// lifecycleHooks fires platform connect/disconnect events.
+	lifecycleHooks *LifecycleHooks
+
 	// Pairing store for DM authorization.
 	pairing *PairingStore
 
@@ -122,6 +125,13 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool) *Runner {
 	return r
 }
 
+// WithLifecycleHooks attaches a LifecycleHooks manager to the runner.
+// Connect and disconnect events will be fired for each platform adapter.
+func (r *Runner) WithLifecycleHooks(lh *LifecycleHooks) *Runner {
+	r.lifecycleHooks = lh
+	return r
+}
+
 // RegisterAdapter adds a platform adapter to the runner.
 func (r *Runner) RegisterAdapter(adapter PlatformAdapter) {
 	r.mu.Lock()
@@ -163,14 +173,22 @@ func (r *Runner) Start() error {
 
 			slog.Info("Platform connected", "platform", p)
 			r.status.WriteRuntimeStatus(string(p), "connected", "", "")
+			if r.lifecycleHooks != nil {
+				_ = r.lifecycleHooks.EmitConnect(r.ctx, p)
+			}
 
 			// Wait for context cancellation.
 			<-r.ctx.Done()
 
 			slog.Info("Disconnecting platform", "platform", p)
 			r.status.WriteRuntimeStatus(string(p), "disconnected", "", "shutting down")
+			var disconnectErr error
 			if err := a.Disconnect(); err != nil {
 				slog.Warn("Error disconnecting platform", "platform", p, "error", err)
+				disconnectErr = err
+			}
+			if r.lifecycleHooks != nil {
+				_ = r.lifecycleHooks.EmitDisconnect(context.Background(), p, disconnectErr)
 			}
 		}(platform, adapter)
 	}

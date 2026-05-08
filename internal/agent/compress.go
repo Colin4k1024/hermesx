@@ -365,7 +365,7 @@ func (a *AIAgent) generateSummaryWith(ctx context.Context, completer chatComplet
 		}
 
 		content := truncate(m.Content, 800)
-		sb.WriteString(fmt.Sprintf("[%s]: %s\n", m.Role, content))
+		sb.WriteString(fmt.Sprintf("[%s]: %s\n", sanitizeForPrompt(m.Role, 20), content))
 
 		// Include tool call info
 		for _, tc := range m.ToolCalls {
