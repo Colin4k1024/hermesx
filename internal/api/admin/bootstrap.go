@@ -146,4 +146,3 @@ func (h *BootstrapHandler) Create(w http.ResponseWriter, r *http.Request) {
 		"created_at": key.CreatedAt,
 	})
 }
-

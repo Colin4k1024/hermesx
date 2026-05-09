@@ -26,8 +26,9 @@ func TestListMemories_NonAdmin_CannotOverrideUserID(t *testing.T) {
 
 	h.handleListMemories(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	// X-Hermes-User-Id is now ignored for memories (always uses ac.Identity for consistency)
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (header ignored), got %d", w.Code)
 	}
 }
 

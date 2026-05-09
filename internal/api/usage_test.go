@@ -49,11 +49,11 @@ func TestUsageHandler(t *testing.T) {
 				if int(resp["total_sessions"].(float64)) != 2 {
 					t.Errorf("total_sessions = %v, want 2", resp["total_sessions"])
 				}
-				if int(resp["total_input_tokens"].(float64)) != 300 {
-					t.Errorf("total_input_tokens = %v, want 300", resp["total_input_tokens"])
+				if int(resp["input_tokens"].(float64)) != 300 {
+					t.Errorf("total_input_tokens = %v, want 300", resp["input_tokens"])
 				}
-				if int(resp["total_output_tokens"].(float64)) != 200 {
-					t.Errorf("total_output_tokens = %v, want 200", resp["total_output_tokens"])
+				if int(resp["output_tokens"].(float64)) != 200 {
+					t.Errorf("total_output_tokens = %v, want 200", resp["output_tokens"])
 				}
 			},
 		},
@@ -79,8 +79,8 @@ func TestUsageHandler(t *testing.T) {
 				if err := json.Unmarshal(body, &resp); err != nil {
 					t.Fatalf("unmarshal: %v", err)
 				}
-				if int(resp["total_input_tokens"].(float64)) != 0 {
-					t.Errorf("total_input_tokens = %v, want 0", resp["total_input_tokens"])
+				if int(resp["input_tokens"].(float64)) != 0 {
+					t.Errorf("total_input_tokens = %v, want 0", resp["input_tokens"])
 				}
 			},
 		},
