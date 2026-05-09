@@ -20,7 +20,7 @@ var migrations = []string{
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 
 	`CREATE TABLE IF NOT EXISTS sessions (
-		id                CHAR(36)     NOT NULL PRIMARY KEY,
+		id                VARCHAR(64)  NOT NULL PRIMARY KEY,
 		tenant_id         CHAR(36)     NOT NULL,
 		platform          VARCHAR(50)  NOT NULL DEFAULT '',
 		user_id           VARCHAR(255) NOT NULL DEFAULT '',
@@ -45,7 +45,7 @@ var migrations = []string{
 	`CREATE TABLE IF NOT EXISTS messages (
 		id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
 		tenant_id     CHAR(36)     NOT NULL,
-		session_id    CHAR(36)     NOT NULL,
+		session_id    VARCHAR(64)  NOT NULL,
 		role          VARCHAR(50)  NOT NULL,
 		content       MEDIUMTEXT   NULL,
 		tool_call_id  VARCHAR(255) NULL,
@@ -169,7 +169,7 @@ var migrations = []string{
 	`CREATE TABLE IF NOT EXISTS execution_receipts (
 		id             CHAR(36)     NOT NULL PRIMARY KEY,
 		tenant_id      CHAR(36)     NOT NULL,
-		session_id     CHAR(36)     NOT NULL,
+		session_id     VARCHAR(64)  NOT NULL,
 		user_id        VARCHAR(255) NOT NULL,
 		tool_name      VARCHAR(255) NOT NULL,
 		input          MEDIUMTEXT   NOT NULL,

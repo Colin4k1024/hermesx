@@ -139,7 +139,7 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 			StartedAt:    s.StartedAt.Format(time.RFC3339),
 			MessageCount: msgCount,
 		}
-		if !s.EndedAt.IsZero() {
+		if s.EndedAt != nil && !s.EndedAt.IsZero() {
 			ea := s.EndedAt.Format(time.RFC3339)
 			se.EndedAt = &ea
 		}

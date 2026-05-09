@@ -52,6 +52,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			StartedAt: time.Now(),
 		}
 		if createErr := h.store.Sessions().Create(ctx, tenantID, sess); createErr != nil {
+			slog.Error("session creation failed", "error", createErr, "tenant_id", tenantID, "session_id", sess.ID)
 			http.Error(w, "session creation failed", http.StatusInternalServerError)
 			return
 		}
@@ -163,25 +164,24 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Real SSE streaming: set up headers and callbacks BEFORE running agent.
 	if req.Stream {
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "streaming not supported", http.StatusInternalServerError)
-			return
-		}
+		rc := http.NewResponseController(w)
 
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
 		w.Header().Set("X-Accel-Buffering", "no")
 		w.WriteHeader(http.StatusOK)
-		flusher.Flush()
+		if err := rc.Flush(); err != nil {
+			slog.Error("streaming flush failed", "error", err)
+			return
+		}
 
 		created := time.Now().Unix()
 		chunkID := "chatcmpl-" + sessionID
 
 		writeSSE := func(data []byte) {
 			fmt.Fprintf(w, "data: %s\n\n", data)
-			flusher.Flush()
+			rc.Flush()
 		}
 
 		// Role announcement.
@@ -203,12 +203,12 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			OnToolStart: func(toolName string) {
 				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "started"})
 				fmt.Fprintf(w, "event: tool_call\ndata: %s\n\n", evt)
-				flusher.Flush()
+				rc.Flush()
 			},
 			OnToolComplete: func(toolName string) {
 				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "completed"})
 				fmt.Fprintf(w, "event: tool_result\ndata: %s\n\n", evt)
-				flusher.Flush()
+				rc.Flush()
 			},
 		})
 
@@ -221,7 +221,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 				select {
 				case <-ticker.C:
 					fmt.Fprintf(w, ": heartbeat\n\n")
-					flusher.Flush()
+					rc.Flush()
 				case <-heartDone:
 					return
 				case <-r.Context().Done():
@@ -237,7 +237,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			errEvt, _ := json.Marshal(map[string]string{"error": err.Error()})
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errEvt)
-			flusher.Flush()
+			rc.Flush()
 		} else {
 			// Persist and update tokens.
 			h.sendMsg(ctx, tenantID, sessionID, "assistant", result.FinalResponse)
@@ -254,7 +254,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		})
 		writeSSE(finalChunk)
 		fmt.Fprintf(w, "data: [DONE]\n\n")
-		flusher.Flush()
+		rc.Flush()
 		return
 	}
 

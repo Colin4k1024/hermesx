@@ -91,21 +91,18 @@ spec:
             - name: mysql-data
               mountPath: /var/lib/mysql
           livenessProbe:
-            exec:
-              command: ["mysqladmin", "ping", "-h", "localhost"]
-            initialDelaySeconds: 90
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 30
             periodSeconds: 15
-            timeoutSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 5
           readinessProbe:
-            exec:
-              command:
-                - bash
-                - -c
-                - "mysql -u${MYSQL_USER} -p${MYSQL_PASSWORD} -e 'SELECT 1'"
-            initialDelaySeconds: 60
-            periodSeconds: 15
-            timeoutSeconds: 10
+            tcpSocket:
+              port: 3306
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
             failureThreshold: 5
       volumes:
         - name: mysql-data
@@ -120,6 +117,7 @@ metadata:
   namespace: hermesx
 spec:
   clusterIP: None
+  publishNotReadyAddresses: true
   selector:
     app: mysql
   ports:

@@ -17,11 +17,11 @@ args:
 env:
   # Database: MySQL backend (go-sql-driver DSN format: user:pass@tcp(host:port)/db?options)
   DATABASE_DRIVER: "mysql"
-  DATABASE_URL: "hermesx:hermesx-password@tcp(mysql.hermesx.svc.cluster.local:3306)/hermesx?parseTime=true&charset=utf8mb4&loc=UTC"
+  DATABASE_URL: "hermesx:hermesx-password@tcp(mysql.hermesx.svc.cluster.local:3306)/hermesx?parseTime=true&charset=utf8mb4&loc=UTC&allowNativePasswords=true"
 
   HERMES_ACP_TOKEN: "dev-token-change-in-production"
   SAAS_API_PORT: "8080"
-  SAAS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost:30080"
+  SAAS_ALLOWED_ORIGINS: "http://localhost:3000,http://localhost:8080,http://localhost:30080,http://localhost:30081"
   SAAS_STATIC_DIR: "/static"
   HERMES_API_PORT: "8081"
   HERMES_API_KEY: "dev-api-key-change-in-production"

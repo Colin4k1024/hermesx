@@ -1,0 +1,22 @@
+# Local build: uses a pre-built Linux amd64 binary to avoid go mod download network issues.
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -s /bin/bash hermesx
+
+COPY hermesx-linux-amd64 /usr/local/bin/hermesx
+RUN chmod +x /usr/local/bin/hermesx
+
+# Bundle admin SPA static files.
+COPY internal/dashboard/static /static
+
+# Bundle default skills for MinIO provisioner seeding.
+COPY skills /home/hermesx/skills
+
+USER hermesx
+WORKDIR /home/hermesx
+
+ENTRYPOINT ["/usr/local/bin/hermesx"]
+CMD ["saas-api"]
