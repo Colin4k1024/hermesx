@@ -22,9 +22,12 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Always use ac.Identity as primary user ID (matches how agent_chat writes data).
-	// X-Hermes-User-Id is accepted for admin override scenarios only.
+	// Use ac.Identity by default. Admin users can override via X-Hermes-User-Id header
+	// to query other users' memories (used by integration tests and admin tools).
 	userID := ac.Identity
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" && ac.HasRole("admin") {
+		userID = override
+	}
 
 	if h.store == nil {
 		w.Header().Set("Content-Type", "application/json")
