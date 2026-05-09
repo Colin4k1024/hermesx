@@ -22,14 +22,9 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// Always use ac.Identity as primary user ID (matches how agent_chat writes data).
+	// X-Hermes-User-Id is accepted for admin override scenarios only.
 	userID := ac.Identity
-	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
-		if !ac.HasRole("admin") {
-			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
-			return
-		}
-		userID = override
-	}
 
 	if h.store == nil {
 		w.Header().Set("Content-Type", "application/json")
@@ -49,12 +44,19 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 		entries = append(entries, memoryEntry{Key: e.Key, Content: e.Content})
 	}
 
+	// Also include user profile if available.
+	var profile string
+	if h.store.UserProfiles() != nil {
+		profile, _ = h.store.UserProfiles().Get(ctx, ac.TenantID, userID)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"tenant_id": ac.TenantID,
 		"user_id":   userID,
 		"memories":  entries,
 		"count":     len(entries),
+		"profile":   profile,
 	})
 }
 

@@ -34,6 +34,8 @@ func (h *SkillHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case r.Method == http.MethodGet && path == "":
 		h.list(w, r)
+	case r.Method == http.MethodGet && path != "":
+		h.get(w, r, path)
 	case r.Method == http.MethodPut && path != "":
 		h.put(w, r, path)
 	case r.Method == http.MethodDelete && path != "":
@@ -90,6 +92,37 @@ func (h *SkillHandler) list(w http.ResponseWriter, r *http.Request) {
 		"skills":    items,
 		"total":     len(items),
 	})
+}
+
+func (h *SkillHandler) get(w http.ResponseWriter, r *http.Request, name string) {
+	tenantID := middleware.TenantFromContext(r.Context())
+	if tenantID == "" {
+		http.Error(w, "tenant context required", http.StatusUnauthorized)
+		return
+	}
+
+	// Load all skills and find by name match.
+	loader := skills.NewMinIOSkillLoader(h.minio, tenantID)
+	entries, err := loader.LoadAll(r.Context())
+	if err != nil {
+		http.Error(w, "failed to load skills", http.StatusInternalServerError)
+		return
+	}
+
+	for _, e := range entries {
+		if e.Meta.Name == name || e.DirName == name {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]any{
+				"name":        e.Meta.Name,
+				"description": e.Meta.Description,
+				"version":     e.Meta.Version,
+				"content":     e.Body,
+			})
+			return
+		}
+	}
+
+	http.Error(w, "skill not found", http.StatusNotFound)
 }
 
 func (h *SkillHandler) put(w http.ResponseWriter, r *http.Request, name string) {

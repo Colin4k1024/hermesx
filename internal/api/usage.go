@@ -37,19 +37,23 @@ func (h *UsageHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var totalInput, totalOutput int
+	var estimatedCost float64
 	if len(sessions) > 0 {
 		allSessions, _, _ := h.sessions.List(r.Context(), tenantID, store.ListOptions{Limit: 10000})
 		for _, s := range allSessions {
 			totalInput += s.InputTokens
 			totalOutput += s.OutputTokens
+			estimatedCost += s.EstimatedCostUSD
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"tenant_id":           tenantID,
-		"total_sessions":      total,
-		"total_input_tokens":  totalInput,
-		"total_output_tokens": totalOutput,
+		"tenant_id":          tenantID,
+		"total_sessions":     total,
+		"input_tokens":       totalInput,
+		"output_tokens":      totalOutput,
+		"total_tokens":       totalInput + totalOutput,
+		"estimated_cost_usd": estimatedCost,
 	})
 }
