@@ -104,7 +104,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	health := NewHealthHandler(cfg.DB)
 	mux.HandleFunc("GET /health/live", health.LiveHandler())
 	mux.HandleFunc("GET /health/ready", health.ReadyHandler())
-	mux.Handle("GET /metrics", stack.Wrap(promhttp.Handler()))
+	mux.Handle("GET /metrics", promhttp.Handler())
 
 	// Authenticated routes — through middleware stack + audit.
 	api := http.NewServeMux()
