@@ -177,7 +177,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 
 		created := time.Now().Unix()
-		chunkID := "chatcmpl-" + sessionID
+		chunkID := sessionID
 
 		writeSSE := func(data []byte) {
 			fmt.Fprintf(w, "data: %s\n\n", data)
