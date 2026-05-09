@@ -155,7 +155,6 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 		Port:           0,
 		Store:          pgStore,
 		AuthChain:      chain,
-		Pool:           pool,
 		AllowedOrigins: "*",
 		SkillsClient:   minioClient,
 		RBAC: middleware.RBACConfig{
