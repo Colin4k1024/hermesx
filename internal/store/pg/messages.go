@@ -70,13 +70,18 @@ func (m *pgMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 
 		for rows.Next() {
 			msg := &store.Message{}
-			var toolCallID, toolName, reasoning, finishReason any
+			var toolCallID, toolCalls, toolName, reasoning, finishReason any
 			rows.Scan(&msg.ID, &msg.TenantID, &msg.SessionID, &msg.Role, &msg.Content,
-				&toolCallID, &msg.ToolCalls, &toolName, &reasoning,
+				&toolCallID, &toolCalls, &toolName, &reasoning,
 				&msg.Timestamp, &msg.TokenCount, &finishReason)
 			if toolCallID != nil {
 				if v, ok := toolCallID.(string); ok {
 					msg.ToolCallID = v
+				}
+			}
+			if toolCalls != nil {
+				if v, ok := toolCalls.(string); ok {
+					msg.ToolCalls = v
 				}
 			}
 			if toolName != nil {
