@@ -216,3 +216,38 @@
 1. 任何密码/token 等值比较都使用 `crypto/subtle.ConstantTimeCompare`。
 2. 空 token 守卫放在常量时间比较之前（不进入比较逻辑），避免空字符串绕过。
 3. 搭配 `sync.Mutex` 序列化 check-then-create，防止单实例场景下的 TOCTOU 竞争。
+
+---
+
+## 2026-05-09 — Go SSE Streaming 在 Middleware 栈后静默失败
+
+**场景**: HermesX SaaS API 的 SSE streaming 端点在 Kind K8s 部署后返回 "streaming not supported"。本地 Docker Compose 开发环境正常。
+
+**问题**:
+1. `w.(http.Flusher)` 类型断言在有 metrics/audit middleware 包装 ResponseWriter 时失败——wrapper 未实现 Flusher 接口。
+2. SSE chunk 的 `id` 字段设置为 `chatcmpl-{sessionID}`，WebUI 捕获后作为 X-Hermes-Session-Id 回传，后端查找 `chatcmpl-sess_xxx` 失败，导致每条消息创建新 session。
+3. `/metrics` 端点放在 auth middleware 栈内，Prometheus 无法无凭证 scrape，target 显示 DOWN。
+
+**建议**:
+1. Go 1.20+ 项目使用 `http.NewResponseController(w)` 替代直接 Flusher 断言——它自动遍历 Unwrap 链。
+2. 自定义 ResponseWriter wrapper 必须实现 `Flush()` 和 `Unwrap() http.ResponseWriter` 两个方法。
+3. SSE 响应中的 ID 字段必须与数据库存储的 session ID 完全一致——不要加前缀、不要变换格式。
+4. 运维端点（/metrics, /health）必须在 public 路由区，不经过 auth middleware。
+5. 必须在完整 middleware 栈环境下测试 SSE——单元测试中 httptest.ResponseRecorder 天然实现 Flusher，掩盖了实际问题。
+
+---
+
+## 2026-05-09 — API 响应字段名与前端 TypeScript 接口不一致是最常见的集成 Bug
+
+**场景**: WebUI 的 Memories、Usage、Audit Logs 三个页面在 E2E 测试中显示为空白/无数据，但后端 API 实际返回了正确数据。
+
+**问题**:
+1. Usage API 返回 `total_input_tokens` / `total_output_tokens`，前端 TypeScript 接口定义为 `input_tokens` / `output_tokens`。
+2. Audit Logs API 返回 `"audit_logs": [...]`，前端读取 `data.logs`。
+3. Memories API 中 user ID 来源不一致：Agent chat 用 `ac.Identity`（API key ID），Memories 页面用 `X-Hermes-User-Id` header（用户输入的 "alice"）。
+
+**建议**:
+1. 后端 API 设计时先写 TypeScript interface，再实现 Go handler——前端接口即 contract。
+2. 字段名在整个系统中只应有一个 canonical 形式（如 `input_tokens` 而非同时存在 `total_input_tokens`）。
+3. 涉及 auth context 中的 identity，写入和读取必须使用相同来源——不能写时用 key ID、读时用 header override。
+

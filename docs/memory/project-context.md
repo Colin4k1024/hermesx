@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-08-hermesx-webui  
-**前任务**: 2026-05-08-v21-infra-upgrade（已完成，MySQL adapter + RustFS + pprof + OTel）  
+**当前任务**: 2026-05-09-k8s-fullstack-deploy  
+**前任务**: 2026-05-08-hermesx-webui（已完成）  
 **阶段**: closed  
-**版本目标**: hermesx-webui v0.1 + 后端安全修复（v2.1.0-webui）
+**版本目标**: v2.1.1 — K8s MySQL 全栈部署 + 8 Bug 修复
 
 ## Tech Stack
 
@@ -26,6 +26,7 @@
 - v2.0.0 CLOSED (post-release hardening — commit 5ea9c44; LifecycleHooks + SelfImprover wired, URL sanitize + prompt sanitize fixed)
 - v2.1.0 CLOSED (infra upgrade — ObjectStore interface + RustFS, pprof + OTel + Prometheus, MySQL adapter; K8s local deployment validated 2026-05-08)
 - hermesx-webui RELEASED (v2.1.0-webui — Admin Console + User Portal; 4 CRITICAL + 4 HIGH 安全修复; Bootstrap 端点; 旧 HTML 下线; webui CI)
+- v2.1.1 RELEASED (2026-05-09 — K8s MySQL 全栈部署验证 + 8 Bug 修复; 详见 session 004)
 
 ## 已完成
 
