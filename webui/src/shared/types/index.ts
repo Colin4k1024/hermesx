@@ -54,6 +54,9 @@ export interface MeResponse {
   identity: string
   roles: string[]
   auth_method: string
+  plan?: string
+  rate_limit_rpm?: number
+  max_sessions?: number
 }
 
 export interface TenantItem {
@@ -96,7 +99,7 @@ export interface ApiKeyCreateResponse {
 export interface ChatRequest {
   model: string
   messages: ChatMessage[]
-  stream?: false
+  stream?: boolean
 }
 
 export interface ChatResponse {
@@ -156,4 +159,13 @@ export interface SandboxPolicy {
 
 export interface BootstrapStatusResponse {
   bootstrap_required: boolean
+}
+
+export interface Notification {
+  id: string
+  type: 'info' | 'warning' | 'success' | 'error'
+  title: string
+  message: string
+  read: boolean
+  created_at: string
 }

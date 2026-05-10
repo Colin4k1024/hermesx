@@ -1,7 +1,7 @@
 node_modules/
 dist/
+*.local
 .env
-.env.local
-.env.*.local
-*.log
-.DS_Store
+*.tsbuildinfo
+e2e/screenshots/
+e2e/results/

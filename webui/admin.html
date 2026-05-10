@@ -1,13 +1,23 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>HermesX Admin</title>
-    <link rel="icon" type="image/svg+xml" href="/hermes.svg" />
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/admin/main.ts"></script>
-  </body>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HermesX Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    const t = localStorage.getItem('hx-theme');
+    if (t === 'light') document.documentElement.classList.remove('dark');
+  </script>
+  <style>
+    html.dark body { background-color: #09090b; color: #fafafa; }
+    html:not(.dark) body { background-color: #ffffff; color: #09090b; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/admin/main.tsx"></script>
+</body>
 </html>
