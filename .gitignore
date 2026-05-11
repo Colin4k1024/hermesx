@@ -35,3 +35,5 @@ deploy/kind/values.local.override.yaml
 .gstack/
 # MkDocs generated site
 site/
+# Playwright test artifacts
+test-results/
