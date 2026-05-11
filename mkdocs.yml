@@ -6,6 +6,28 @@ repo_name: Colin4k1024/hermesx
 edit_uri: edit/main/docs/
 copyright: Copyright &copy; 2026 HermesX
 
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          default: true
+          name: English
+          build: true
+        - locale: zh
+          name: 中文
+          build: true
+
+extra:
+  alternate:
+    - name: English
+      link: /hermesx/
+      lang: en
+    - name: 中文
+      link: /hermesx/zh/
+      lang: zh
+
 theme:
   name: material
   palette:
