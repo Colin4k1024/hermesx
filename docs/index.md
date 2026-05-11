@@ -1,52 +1,77 @@
-# HermesX Documentation Index
+# HermesX
 
-> v2.1.1 | 2026-05-09
+**Enterprise Agent Runtime & Multi-Tenant SaaS Control Plane**
 
-## Quick Start
+A production-grade platform for deploying, isolating, and governing AI agents at enterprise scale. Built in Go for single-binary deployment, native concurrency, and zero-dependency distribution.
 
-| 文档 | 用途 |
-|------|------|
-| [saas-quickstart.md](saas-quickstart.md) | 5 分钟快速启动（Docker Compose） |
-| [deployment.md](deployment.md) | K8s / Helm 生产部署 |
-| [configuration.md](configuration.md) | 环境变量与配置项 |
+---
 
-## Architecture
+## Quick Links
 
-| 文档 | 用途 |
-|------|------|
-| [architecture.md](architecture.md) | 系统架构总览 |
-| [database.md](database.md) | 数据库 schema 与 migration |
-| [authentication.md](authentication.md) | Auth 链（API Key + OIDC + ACP Token） |
-| [SECURITY_MODEL.md](SECURITY_MODEL.md) | 安全模型 |
-| [RBAC_MATRIX.md](RBAC_MATRIX.md) | 角色权限矩阵 |
+| | |
+|---|---|
+| [SaaS Quickstart](saas-quickstart.md) | Get a tenant up and running in minutes |
+| [API Reference](api-reference.md) | Full endpoint documentation |
+| [Architecture Overview](architecture.md) | System design and component map |
+| [Configuration](configuration.md) | All environment variables and config options |
+| [Deployment](deployment.md) | Docker, Kubernetes, and bare-metal guides |
 
-## Operations
+---
 
-| 文档 | 用途 |
-|------|------|
-| [observability.md](observability.md) | Prometheus + Grafana + OTel |
-| [api-reference.md](api-reference.md) | OpenAPI 端点列表 |
-| [skills-guide.md](skills-guide.md) | Skills 开发与管理 |
-| [ENTERPRISE_READINESS.md](ENTERPRISE_READINESS.md) | 企业就绪评估 |
-| [runbooks/pg-pitr-recovery.md](runbooks/pg-pitr-recovery.md) | PostgreSQL PITR 恢复 |
+## Project Stats
 
-## Current Release (v2.1.x)
+| Metric | Value |
+|--------|-------|
+| Go source files | 413 |
+| Lines of code | 78,000+ |
+| Registered tools | 50 (36 core + 14 extended) |
+| Platform adapters | 15 |
+| Terminal backends | 7 |
+| Bundled skills | 126 |
+| Test files | 123 |
+| Total tests | 1,585 |
+| RLS-protected tables | 10 |
+| API endpoints | 22+ |
+| Version | v2.1.1 |
 
-| 目录 | 任务 |
-|------|------|
-| [artifacts/2026-05-08-hermesx-webui/](artifacts/2026-05-08-hermesx-webui/) | WebUI v0.1 (Admin + Portal) |
-| [artifacts/2026-05-08-v21-infra-upgrade/](artifacts/2026-05-08-v21-infra-upgrade/) | MySQL + RustFS + Prometheus |
-| [lessons/go-sse-middleware-compat.md](lessons/go-sse-middleware-compat.md) | SSE + Middleware 兼容性 |
+---
 
-## Project Memory
+## Core Capabilities
 
-| 文件 | 用途 |
-|------|------|
-| [memory/project-context.md](memory/project-context.md) | 项目当前状态与技术栈 |
-| [memory/lessons-learned.md](memory/lessons-learned.md) | 经验教训库（12 条） |
-| [memory/backlog.md](memory/backlog.md) | 待办项与技术债 |
-| [memory/sessions/](memory/sessions/) | 开发会话记录（4 次） |
+### Enterprise SaaS Platform
 
-## Archive
+- **Multi-tenant isolation** — PostgreSQL Row-Level Security with per-transaction tenant context
+- **Auth chain** — Static Token → API Key (SHA-256 hashed) → JWT/OIDC
+- **5 roles** — `super_admin`, `admin`, `owner`, `user`, `auditor`
+- **Dual-layer rate limiting** — atomic Redis Lua script with local LRU fallback
+- **Audit trail** — immutable logs for all state-changing operations
+- **GDPR compliance** — full-chain tenant data export + transactional deletion
+- **Sandbox isolation** — per-tenant code execution with Docker network/resource limits
 
-v2.0.0 之前的交付物已归档至 `docs/archive/`，包含 18 个任务目录和 6 个历史文档。
+### Agent Runtime
+
+- **50 tools** — terminal, file ops, web search/crawl, browser, vision, image gen, TTS, code exec, subagent, MCP, and more
+- **15 platform adapters** — Telegram, Discord, Slack, WhatsApp, Signal, Email, Matrix, and more
+- **Dual API support** — OpenAI-compatible + Anthropic Messages API (with prompt caching)
+- **LLM resilience** — FallbackRouter + RetryTransport + Circuit Breaker (per-model)
+- **Skill system** — procedural memory with YAML/Markdown files and hub search/install
+
+### Infrastructure
+
+- **Single binary** — zero runtime dependencies, cross-compile to any OS/arch
+- **Multi-replica ready** — verified 3-replica + Nginx `ip_hash` load balancer
+- **Kubernetes ready** — Helm chart with PDB, HPA, conservative scale-down
+- **Observability** — Prometheus metrics, OpenTelemetry tracing, structured JSON logging
+
+---
+
+## Installation
+
+```bash
+# From source (requires Go 1.23+)
+git clone https://github.com/Colin4k1024/hermesx.git
+cd hermesx
+go build -o hermesx ./cmd/hermesx/
+```
+
+See the [SaaS Quickstart](saas-quickstart.md) for a full deployment walkthrough.
