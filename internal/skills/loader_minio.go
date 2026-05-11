@@ -34,9 +34,23 @@ func (m *MinIOSkillLoader) LoadAll(ctx context.Context) ([]*SkillEntry, error) {
 		return nil, fmt.Errorf("list skills for tenant %s: %w", m.tenantID, err)
 	}
 
+	// Derive the normalized prefix used to compute relative paths.
+	normalizedPrefix := m.tenantID
+	if !strings.HasSuffix(normalizedPrefix, "/") {
+		normalizedPrefix += "/"
+	}
+
 	var entries []*SkillEntry
 	for _, key := range keys {
 		if !strings.HasSuffix(key, "/SKILL.md") {
+			continue
+		}
+
+		// Skip user-scoped skill copies (stored under {tenantID}/users/{userID}/...).
+		// The tenant-level loader must not traverse into the users/ sub-namespace; the
+		// dedicated NewMinIOUserSkillLoader is the correct entry point for those paths.
+		rel := strings.TrimPrefix(key, normalizedPrefix)
+		if strings.HasPrefix(rel, "users/") {
 			continue
 		}
 

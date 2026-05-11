@@ -23,7 +23,7 @@ export default defineConfig({
           'vendor-antd': ['antd', '@ant-design/icons'],
           'vendor-query': ['@tanstack/react-query'],
           'vendor-charts': ['recharts'],
-          'vendor-markdown': ['react-markdown', 'react-syntax-highlighter', 'remark-gfm'],
+          'vendor-markdown': ['react-markdown', 'remark-gfm'],
         },
       },
     },

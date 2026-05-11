@@ -32,3 +32,4 @@ scripts/.k8s-access-pids/
 hermesx
 hermesx-linux-amd64
 deploy/kind/values.local.override.yaml
+.gstack/
