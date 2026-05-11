@@ -4,6 +4,7 @@ site_description: Enterprise Agent Runtime & Multi-Tenant SaaS Control Plane
 repo_url: https://github.com/Colin4k1024/hermesx
 repo_name: Colin4k1024/hermesx
 edit_uri: edit/main/docs/
+copyright: Copyright &copy; 2026 HermesX
 
 theme:
   name: material
