@@ -75,21 +75,23 @@ test.describe('ZH pages — no 404, nav present', () => {
 test.describe('Language switcher', () => {
   test('EN home: language toggle visible and links correct', async ({ page }) => {
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
-
-    // Click the language/translate icon to open the dropdown
-    const langBtn = page.locator('.md-header__option [data-md-component="palette"] ~ *, a[href*="/zh/"], [title*="language" i], [title*="Select language" i]').first();
-
-    // Capture before clicking
     await shotViewport(page, 'lang-en-before-click');
 
-    // Check alternate link exists in DOM
+    // Language selector button must be present
+    const langBtn = page.locator('button[aria-label="Select language"]');
+    await expect(langBtn).toBeVisible();
+
+    // Check alternate link exists in DOM head
     const zhAlternate = page.locator('link[hreflang="zh"]');
     await expect(zhAlternate).toBeAttached();
 
-    // Check language switcher element
-    const switcher = page.locator('.md-select__inner a[href*="/zh/"], nav a[href*="/zh/"]');
-    const switcherCount = await switcher.count();
-    console.log(`ZH links in nav: ${switcherCount}`);
+    // Click to open dropdown and confirm ZH link is present
+    await langBtn.click();
+    await page.waitForTimeout(300);
+    const zhLink = page.locator('.md-select__inner a[href*="/zh/"]').first();
+    const zhCount = await zhLink.count();
+    console.log(`ZH links in dropdown: ${zhCount}`);
+    expect(zhCount).toBeGreaterThan(0);
 
     await shotViewport(page, 'lang-en-viewport');
   });
@@ -107,14 +109,14 @@ test.describe('Language switcher', () => {
     await page.goto(BASE + '/', { waitUntil: 'networkidle' });
     await shotViewport(page, 'lang-after-click-translate-icon');
 
-    // Material theme: language selector is .md-select__current button
-    const langBtn = page.locator('.md-select__current').first();
+    // Material theme: language selector button has aria-label="Select language"
+    const langBtn = page.locator('button[aria-label="Select language"]');
     if (await langBtn.count() > 0) {
       await langBtn.click();
       await page.waitForTimeout(400);
       await shotViewport(page, 'lang-dropdown-open');
 
-      const zhLink = page.locator('.md-select__list a[href*="/zh/"]').first();
+      const zhLink = page.locator('.md-select__inner a[href*="/zh/"]').first();
       if (await zhLink.count() > 0) {
         await zhLink.click();
         await page.waitForURL('**/zh/**', { timeout: 8000 }).catch(() => {});
@@ -123,12 +125,11 @@ test.describe('Language switcher', () => {
         console.log(`After clicking 中文: ${url}`);
         expect(url).toContain('/zh/');
       } else {
-        console.log('ZH dropdown link not found — taking diagnostic shot');
+        console.log('ZH link in dropdown not found — taking diagnostic shot');
         await shotViewport(page, 'lang-dropdown-diagnostic');
       }
     } else {
-      // Fallback: direct navigation test
-      console.log('.md-select__current not found, skipping click test');
+      console.log('Language selector button not found, skipping');
     }
   });
 
