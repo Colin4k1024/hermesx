@@ -18,6 +18,29 @@ plugins:
         - locale: zh
           name: 中文
           build: true
+          nav_translations:
+            Home: 首页
+            Getting Started: 快速开始
+            SaaS Quickstart: SaaS 快速开始
+            Configuration: 配置说明
+            Authentication: 认证
+            Architecture: 架构
+            Overview: 架构概览
+            Database: 数据库
+            Security Model: 安全模型
+            RBAC Matrix: RBAC 矩阵
+            Enterprise Readiness: 企业就绪
+            Operations: 运维
+            Deployment: 部署
+            Observability: 可观测性
+            Skills Guide: 技能指南
+            API Reference: API 参考
+            ADRs: 架构决策
+            ADR-002 Dual-Layer Rate Limiter: ADR-002 双层限流器
+            ADR-003 WebUI Vue3 Incremental: ADR-003 WebUI Vue3 增量
+            ADR-004 WebUI Multipage Vite: ADR-004 WebUI 多页面 Vite
+            ADR-005 WebUI Bootstrap Endpoint: ADR-005 WebUI 引导端点
+            Changelog: 更新日志
 
 extra:
   alternate:
