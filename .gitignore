@@ -33,3 +33,5 @@ hermesx
 hermesx-linux-amd64
 deploy/kind/values.local.override.yaml
 .gstack/
+# MkDocs generated site
+site/

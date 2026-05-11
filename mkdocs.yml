@@ -1,0 +1,62 @@
+site_name: HermesX
+site_url: https://Colin4k1024.github.io/hermesx/
+site_description: Enterprise Agent Runtime & Multi-Tenant SaaS Control Plane
+repo_url: https://github.com/Colin4k1024/hermesx
+repo_name: Colin4k1024/hermesx
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - SaaS Quickstart: saas-quickstart.md
+    - Configuration: configuration.md
+    - Authentication: authentication.md
+  - Architecture:
+    - Overview: architecture.md
+    - Database: database.md
+    - Security Model: SECURITY_MODEL.md
+    - RBAC Matrix: RBAC_MATRIX.md
+    - Enterprise Readiness: ENTERPRISE_READINESS.md
+  - Operations:
+    - Deployment: deployment.md
+    - Observability: observability.md
+    - Skills Guide: skills-guide.md
+  - API Reference: api-reference.md
+  - ADRs:
+    - ADR-002 Dual-Layer Rate Limiter: adr/ADR-002-dual-layer-rate-limiter.md
+    - ADR-003 WebUI Vue3 Incremental: adr/ADR-003-hermesx-webui-vue3-incremental.md
+    - ADR-004 WebUI Multipage Vite: adr/ADR-004-hermesx-webui-multipage-vite.md
+    - ADR-005 WebUI Bootstrap Endpoint: adr/ADR-005-hermesx-webui-bootstrap-endpoint.md
+  - Changelog: CHANGELOG.md
