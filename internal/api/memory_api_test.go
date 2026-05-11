@@ -67,7 +67,11 @@ func TestListMemories_NoOverride_UsesIdentity(t *testing.T) {
 	}
 }
 
-func TestDeleteMemory_NonAdmin_CannotOverrideUserID(t *testing.T) {
+func TestDeleteMemory_NonAdmin_OverrideUserIDIgnored(t *testing.T) {
+	// Non-admin users sending X-Hermes-User-Id should have it silently ignored
+	// (the override is not applied; the handler uses ac.Identity instead).
+	// With a nil store the handler returns 503, proving it passed the permission
+	// gate and proceeded to the storage call.
 	h := &chatHandler{}
 	ac := &auth.AuthContext{
 		TenantID: "tenant-1",
@@ -80,8 +84,9 @@ func TestDeleteMemory_NonAdmin_CannotOverrideUserID(t *testing.T) {
 
 	h.handleDeleteMemory(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	// 503 (nil store) means the permission gate was passed — not 403.
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503 (store nil, override ignored), got %d", w.Code)
 	}
 }
 
@@ -104,7 +109,10 @@ func TestDeleteMemory_Admin_CanOverrideUserID(t *testing.T) {
 	}
 }
 
-func TestListUserSessions_NonAdmin_CannotOverrideUserID(t *testing.T) {
+func TestListUserSessions_NonAdmin_OverrideUserIDIgnored(t *testing.T) {
+	// Non-admin users sending X-Hermes-User-Id should have it silently ignored.
+	// The handler must use ac.Identity and return 200 with an empty sessions list
+	// (nil store path returns an empty array, not an error).
 	h := &chatHandler{}
 	ac := &auth.AuthContext{
 		TenantID: "tenant-1",
@@ -117,8 +125,9 @@ func TestListUserSessions_NonAdmin_CannotOverrideUserID(t *testing.T) {
 
 	h.handleListUserSessions(w, req)
 
-	if w.Code != http.StatusForbidden {
-		t.Errorf("expected 403, got %d", w.Code)
+	// 200 with empty sessions — the override was silently ignored.
+	if w.Code != http.StatusOK {
+		t.Errorf("expected 200 (override ignored, nil store returns empty list), got %d", w.Code)
 	}
 }
 

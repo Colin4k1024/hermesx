@@ -71,11 +71,7 @@ func (h *chatHandler) handleDeleteMemory(w http.ResponseWriter, r *http.Request)
 	}
 
 	userID := ac.Identity
-	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
-		if !ac.HasRole("admin") {
-			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
-			return
-		}
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" && ac.HasRole("admin") {
 		userID = override
 	}
 
@@ -106,11 +102,7 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 	}
 
 	userID := ac.Identity
-	if override := r.Header.Get("X-Hermes-User-Id"); override != "" {
-		if !ac.HasRole("admin") {
-			http.Error(w, "forbidden: admin role required to specify user", http.StatusForbidden)
-			return
-		}
+	if override := r.Header.Get("X-Hermes-User-Id"); override != "" && ac.HasRole("admin") {
 		userID = override
 	}
 

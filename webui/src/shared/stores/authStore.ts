@@ -17,6 +17,35 @@ interface AuthState {
   isAdmin: () => boolean
 }
 
+// Restore admin or user auth state eagerly at store creation time so that
+// AuthGuard sees connected=true on the very first synchronous render after
+// a full-page reload (e.g. when the browser navigates directly to a deep URL).
+function getInitialState() {
+  const adminKey = sessionStorage.getItem('hx_admin_key')
+  const adminTenantId = sessionStorage.getItem('hx_admin_tenant_id')
+  if (adminKey && adminTenantId) {
+    return {
+      adminApiKey: adminKey,
+      tenantId: adminTenantId,
+      roles: ['admin'],
+      connected: true,
+    }
+  }
+  const userKey = sessionStorage.getItem('hx_user_key')
+  const userId = sessionStorage.getItem('hx_user_id')
+  const userTenantId = sessionStorage.getItem('hx_tenant_id')
+  if (userKey && userId) {
+    return {
+      userApiKey: userKey,
+      userId,
+      tenantId: userTenantId ?? '',
+      roles: ['user'],
+      connected: true,
+    }
+  }
+  return {}
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   userApiKey: '',
   userId: '',
@@ -24,6 +53,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   tenantId: '',
   roles: [],
   connected: false,
+  // Override defaults with anything persisted in sessionStorage.
+  ...getInitialState(),
 
   connectUser: async (key, userId) => {
     try {
@@ -39,6 +70,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         roles: data.roles ?? [],
         connected: true,
       })
+      sessionStorage.setItem('hx_user_key', key)
       sessionStorage.setItem('hx_user_id', userId)
       sessionStorage.setItem('hx_tenant_id', data.tenant_id ?? '')
       return true
@@ -61,6 +93,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         roles: data.roles ?? [],
         connected: true,
       })
+      sessionStorage.setItem('hx_admin_key', key)
       sessionStorage.setItem('hx_admin_tenant_id', data.tenant_id ?? '')
       return true
     } catch {
@@ -70,24 +103,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   disconnectUser: () => {
     set({ userApiKey: '', userId: '', tenantId: '', roles: [], connected: false })
+    sessionStorage.removeItem('hx_user_key')
     sessionStorage.removeItem('hx_user_id')
     sessionStorage.removeItem('hx_tenant_id')
   },
 
   disconnectAdmin: () => {
     set({ adminApiKey: '', tenantId: '', roles: [], connected: false })
+    sessionStorage.removeItem('hx_admin_key')
     sessionStorage.removeItem('hx_admin_tenant_id')
   },
 
   rehydrateUser: () => {
+    const userKey = sessionStorage.getItem('hx_user_key')
     const userId = sessionStorage.getItem('hx_user_id')
     const tenantId = sessionStorage.getItem('hx_tenant_id')
-    if (userId) set({ userId, tenantId: tenantId ?? '' })
+    if (userKey && userId) set({ userApiKey: userKey, userId, tenantId: tenantId ?? '', connected: true, roles: ['user'] })
   },
 
   rehydrateAdmin: () => {
+    const adminKey = sessionStorage.getItem('hx_admin_key')
     const tenantId = sessionStorage.getItem('hx_admin_tenant_id')
-    if (tenantId) set({ tenantId })
+    if (adminKey && tenantId) set({ adminApiKey: adminKey, tenantId, connected: true, roles: ['admin'] })
   },
 
   isAdmin: () => get().roles.includes('admin'),
