@@ -35,7 +35,7 @@ export default function Chat() {
 
   const loadSession = async (sid: string) => {
     try {
-      const data = await apiClient.get<SessionDetailResponse>(`/v1/sessions/${sid}`)
+      const data = await apiClient.get<SessionDetailResponse>(`/v1/sessions/${encodeURIComponent(sid)}`)
       setSessionId(sid)
       setMessages(
         (data.messages ?? []).map((m, i) => ({ ...m, id: `${sid}-${i}` }))

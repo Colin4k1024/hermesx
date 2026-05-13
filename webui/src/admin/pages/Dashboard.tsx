@@ -16,13 +16,12 @@ export default function Dashboard() {
     if (!data?.tenants?.length) return
     let cancelled = false
     const fetchKeys = async () => {
-      let count = 0
-      for (const t of data.tenants) {
-        try {
-          const res = await apiClient.get<ApiKeyListResponse>(`/admin/v1/tenants/${t.id}/api-keys`, { asAdmin: true })
-          count += res.api_keys?.length ?? 0
-        } catch { /* skip */ }
-      }
+      const results = await Promise.allSettled(
+        data.tenants.map((t) =>
+          apiClient.get<ApiKeyListResponse>(`/admin/v1/tenants/${encodeURIComponent(t.id)}/api-keys`, { asAdmin: true })
+        )
+      )
+      const count = results.reduce((sum, r) => sum + (r.status === 'fulfilled' ? (r.value.api_keys?.length ?? 0) : 0), 0)
       if (!cancelled) setTotalKeys(count)
     }
     const fetchUsage = async () => {

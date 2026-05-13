@@ -21,7 +21,7 @@ export function useCreateTenant() {
 export function useDeleteTenant() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => apiClient.del(`/v1/tenants/${id}`, { asAdmin: true }),
+    mutationFn: (id: string) => apiClient.del(`/v1/tenants/${encodeURIComponent(id)}`, { asAdmin: true }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['admin', 'tenants'] }),
   })
 }
