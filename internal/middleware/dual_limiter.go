@@ -100,7 +100,29 @@ func dualUniqueMember(now time.Time) string {
 	return fmt.Sprintf("%d:%s", now.UnixNano(), hex.EncodeToString(b))
 }
 
-// LocalDualLimiter provides an in-memory fallback for dual-layer rate limiting.
+// LocalDualLimiter provides an in-memory fallback for dual-layer rate limiting
+// when Redis is unavailable.
+//
+// # Multi-replica precision tradeoff
+//
+// Each replica maintains an independent in-memory bucket. When N replicas are
+// running simultaneously under a load balancer, the effective rate limit
+// experienced by a client is approximately limit × N (one window per replica).
+//
+// This is an intentional availability-over-precision tradeoff: during a Redis
+// outage it is preferable to allow slightly more traffic than to reject all
+// requests due to a missing rate limiter.
+//
+// In practice the impact is bounded:
+//   - Redis is the primary path; LocalDualLimiter only activates on Redis error.
+//   - Real-world replica counts are typically 2–4, so the worst-case multiplier
+//     is small and transient.
+//   - Deploy Redis Sentinel or Redis Cluster to minimise fallback activation.
+//
+// If stricter enforcement during Redis outages is required, consider:
+//   - Sticky sessions (keep client on one replica during Redis downtime).
+//   - A short-TTL shared Redis fallback with a separate, more-available instance.
+//   - Shedding all traffic (return 503) instead of falling back to local counters.
 type LocalDualLimiter struct {
 	mu      sync.Mutex
 	buckets *lru.Cache[string, *bucket]

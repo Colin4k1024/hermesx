@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -135,12 +136,11 @@ func IsUserModified(manifest *SkillManifest, skillName, installedPath string) bo
 	return false
 }
 
-// SyncFromHub is a stub that will eventually fetch a skill index from a
-// GitHub-hosted hub and sync new or updated skills into the installed
-// directory. For now it returns nil and logs the intent.
+// SyncFromHub is not yet implemented. It will eventually fetch a skill index
+// from a remote hub and sync skills into the installed directory.
+// Callers must check the returned error; the operation is a no-op until
+// the feature is implemented.
 func SyncFromHub(hubURL string) error {
-	slog.Info("hub sync requested (stub)", "url", hubURL)
-	// TODO: fetch skill index JSON from hubURL, iterate entries,
-	// download each SKILL.md, run through manifest-aware sync.
-	return nil
+	slog.Warn("hub sync is not implemented", "url", hubURL)
+	return errors.New("hub sync not implemented")
 }

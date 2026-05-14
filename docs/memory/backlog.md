@@ -1,8 +1,8 @@
 # Backlog Snapshot
 
 **来源任务**: 2026-05-07-v012-absorption
-**更新时间**: 2026-05-08
-**更新角色**: writer-2
+**更新时间**: 2026-05-14
+**更新角色**: backend-engineer
 
 ---
 
@@ -15,7 +15,7 @@
 | 3 | compress.go / curator.go prompt sanitization 一致性 | P2 | — | backend-engineer | ✅ 完成 v2.0.0 |
 | 4 | payload.URL 路径遍历检查扩展 | P2 | — | backend-engineer | ✅ 完成 v2.0.0 |
 | 5 | Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 | backend-engineer | ✅ 完成 v2.2.0 |
-| 6 | Unicode bidi chars sanitization | P4 | LLM 安全要求升级 | backend-engineer | 待定 |
+| 6 | Unicode bidi chars sanitization | P4 | LLM 安全要求升级 | backend-engineer | ✅ 完成 v2.2.1（sanitizeForPrompt 扩展覆盖 U+061C, U+200E-F, U+202A-E, U+2066-9；测试用例已补充） |
 
 ## Phase 3 已完成项
 
@@ -47,9 +47,9 @@
 
 | # | 事项 | 优先级 | 触发条件 | Owner |
 |---|------|--------|----------|-------|
-| 23 | HermesX 品牌文档同步（所有文档 branding 更新） | P1 | v2.0.0 release 前 | writer |
-| 24 | v2.0.0 Release Notes 编写 | P1 | v2.0.0 release 前 | writer |
-| 25 | ExecutionReceipt API 文档完善（集成示例 + 幂等性说明） | P2 | 文档同步 sprint | writer |
+| 23 | HermesX 品牌文档同步（所有文档 branding 更新） | P1 | v2.0.0 release 前 | writer | ✅ 完成 v2.2.0 |
+| 24 | v2.0.0 Release Notes 编写 | P1 | v2.0.0 release 前 | writer | ✅ 完成 v2.2.0 |
+| 25 | ExecutionReceipt API 文档完善（集成示例 + 幂等性说明） | P2 | 文档同步 sprint | writer | ✅ 完成 v2.2.0 |
 | 26 | API Reference 文档与代码端点完整对齐（见 api-reference.md） | P2 | — | writer | ✅ 完成 v2.2.0（embedded OpenAPI spec 已更新：title/version/contact + 全部路由对齐） |
 
 ## 技术债
@@ -77,17 +77,17 @@
 
 ### P1 - 必须完成
 
-- [ ] **[P1] LifecycleHooks 接入 Gateway Runner**: 将 LifecycleHooks 集成到 Gateway Runner 执行链路，实现生命周期钩子的真正串联，而非仅独立正确。 (Owner: backend-engineer, Label: enhancement)
-- [ ] **[P1] HermesX 品牌文档同步**: 完成所有文档（README, ARCHITECTURE, DEPLOYMENT, API Reference, Quickstart 等）的 hermes → hermesx rebrand，确保 v2.0.0 发布时品牌一致。 (Owner: writer, Label: documentation)
-- [ ] **[P1] v2.0.0 Release Notes 编写**: 编写 v2.0.0 正式 Release Notes，包含 hermesx 品牌升级、ExecutionReceipt API、Auditor 角色、Prometheus 业务指标等变更。 (Owner: writer, Label: documentation)
+- [x] **[P1] LifecycleHooks 接入 Gateway Runner**: ✅ 完成 v1.4.0。Gateway Runner 已集成 LifecycleHooks 执行链路。
+- [x] **[P1] HermesX 品牌文档同步**: ✅ 完成 v2.2.0。所有文档、OpenAPI spec（title/contact）、英文文档页面已同步 rebrand。
+- [x] **[P1] v2.0.0 Release Notes 编写**: ✅ 完成 v2.2.0。docs/CHANGELOG.en.md 已包含 v2.x 变更记录。
 
 ### P2 - 应该做
 
-- [ ] **[P2] SelfImprover 接入 Agent 循环**: 将 SelfImprover 集成到 Agent 对话循环中，使其在对话过程中能自我改进，而非仅独立正确。 (Owner: backend-engineer, Label: enhancement)
-- [ ] **[P2] prompt sanitization 一致性**: 对齐 compress.go 和 curator.go 中的 LLM prompt 处理逻辑，确保所有用户数据进入 prompt 前都经过一致的 sanitize 流程。 (Owner: backend-engineer, Label: security)
-- [ ] **[P2] payload.URL 路径遍历检查扩展**: 扩展 payload.URL 的路径遍历检查，覆盖更多的 URL 类型和协议。 (Owner: backend-engineer, Label: security)
-- [ ] **[P2] ExecutionReceipt API 文档完善**: 补充 ExecutionReceipt 的集成示例、幂等性行为说明、idempotency_id 使用方式，以及与审计日志的关系说明。 (Owner: writer, Label: documentation)
-- [ ] **[P2] API Reference 与代码端点对齐**: 将 Sessions API、Memories API、ExecutionReceipts API、Skills 单独 GET 端点、Agent Chat 别名、GDPR cleanup-minio 等缺失端点完整记录到 api-reference.md。 (Owner: writer, Label: documentation)
+- [x] **[P2] SelfImprover 接入 Agent 循环**: ✅ 完成 v1.4.0。SelfImprover 已集成到 Agent 对话循环。
+- [x] **[P2] prompt sanitization 一致性**: ✅ 完成 v2.0.0。sanitizeForPrompt 已从 self_improve.go 提取为 internal/agent/sanitize.go，compress.go 和 curator.go 均统一调用。
+- [x] **[P2] payload.URL 路径遍历检查扩展**: ✅ 完成 v2.0.0。URL 路径遍历检查已扩展覆盖更多协议。
+- [x] **[P2] ExecutionReceipt API 文档完善**: ✅ 完成 v2.2.0。docs/api-reference.en.md ExecutionReceipts 章节已扩展：receipt 对象字段说明、status 枚举语义、idempotency_id 使用方式与幂等行为、与审计日志的对比关系、带安全重试的 curl 集成示例。 (Owner: writer, Label: documentation)
+- [x] **[P2] API Reference 与代码端点对齐**: ✅ 完成 v2.2.0。embedded OpenAPI spec 已对齐所有路由；TestOpenAPISpec_AllPathsPresent 和 TestOpenAPISpec_InfoBranding 作为回归保护。
 
 ### P3 - 可以做
 

@@ -72,6 +72,7 @@ func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
 		"/admin/v1/tenants/{id}/api-keys",
 		"/admin/v1/pricing-rules",
 		"/admin/v1/audit-logs",
+		"/admin/v1/usage/tenants",
 	}
 
 	for _, p := range wantPaths {
@@ -168,5 +169,33 @@ func TestOpenAPISpec_PathMethodsHaveResponses(t *testing.T) {
 				t.Errorf("%s (%s): missing responses field", path, method)
 			}
 		}
+	}
+}
+
+func TestOpenAPISpec_InfoBranding(t *testing.T) {
+	handler := OpenAPISpec()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/openapi", nil))
+
+	var spec map[string]any
+	json.NewDecoder(rec.Body).Decode(&spec)
+	info := spec["info"].(map[string]any)
+
+	title, _ := info["title"].(string)
+	if title == "" {
+		t.Fatal("info.title is empty")
+	}
+	// Title must reference HermesX, not the old "Hermes" branding.
+	if title == "Hermes Agent API" {
+		t.Errorf("info.title still uses old branding %q; want HermesX", title)
+	}
+
+	version, _ := info["version"].(string)
+	if version == "" {
+		t.Error("info.version is empty")
+	}
+	// Version must not reference a pre-v2 release.
+	if version == "1.3.0" || version == "1.4.0" {
+		t.Errorf("info.version %q is stale; want >= 2.x.x", version)
 	}
 }

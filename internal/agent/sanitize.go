@@ -18,7 +18,20 @@ func SanitizeSurrogates(text string) string {
 	return surrogateRE.ReplaceAllString(text, "�")
 }
 
-// sanitizeForPrompt strips control characters and truncates to maxLen runes.
+// bidiRE matches Unicode bidirectional control characters used in bidi override
+// attacks. These characters are invisible but can cause LLMs to misinterpret
+// the logical order of text, enabling prompt injection.
+//
+// Covered ranges:
+//
+//	U+061C  Arabic Letter Mark
+//	U+200E–U+200F  LRM / RLM
+//	U+202A–U+202E  LRE, RLE, PDF, LRO, RLO
+//	U+2066–U+2069  LRI, RLI, FSI, PDI
+var bidiRE = regexp.MustCompile(`[\x{061C}\x{200E}\x{200F}\x{202A}-\x{202E}\x{2066}-\x{2069}]`)
+
+// sanitizeForPrompt strips control characters, Unicode bidi override characters,
+// and truncates to maxLen runes.
 // Prevents prompt injection when interpolating user content into LLM prompts.
 func sanitizeForPrompt(s string, maxLen int) string {
 	s = strings.Map(func(r rune) rune {
@@ -27,6 +40,10 @@ func sanitizeForPrompt(s string, maxLen int) string {
 		}
 		return r
 	}, s)
+	// Strip bidi override characters that can mislead LLM token processing.
+	if bidiRE.MatchString(s) {
+		s = bidiRE.ReplaceAllString(s, "")
+	}
 	if maxLen > 0 {
 		runes := []rune(s)
 		if len(runes) > maxLen {

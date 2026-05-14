@@ -68,6 +68,9 @@ func (h *AdminHandler) Handler() http.Handler {
 	// Audit log query endpoint (cross-tenant).
 	mux.HandleFunc("GET /admin/v1/audit-logs", h.listAuditLogs)
 
+	// Tenant usage aggregation (cross-tenant, bypasses RLS — requires BYPASSRLS role).
+	mux.HandleFunc("GET /admin/v1/usage/tenants", h.listTenantUsage)
+
 	// Wrap with RequireScope("admin") middleware.
 	return middleware.RequireScope("admin")(mux)
 }

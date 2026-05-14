@@ -298,6 +298,10 @@ func TestSanitizeForPrompt(t *testing.T) {
 		{"long string here", 4, "long..."},
 		{"", 10, ""},
 		{"hello 世界", 7, "hello 世..."},
+		// bidi override characters must be stripped
+		{"prefix‮malicious", 50, "prefixmalicious"},
+		{"a‎b‏c‫d", 50, "abcd"},
+		{"⁦⁩inject", 50, "inject"},
 	}
 	for _, tc := range tests {
 		got := sanitizeForPrompt(tc.input, tc.maxLen)

@@ -216,24 +216,77 @@ Each audit record contains: `tenant_id`, `user_id`, `action`, `detail`, `request
 
 ### Execution Receipts /v1/execution-receipts
 
+An execution receipt is an immutable audit record created each time HermesX runs a tool on behalf of a user. Receipts capture the full input/output payload, execution duration, final status, and an optional caller-supplied idempotency key. They are isolated by tenant and are never modified after creation.
+
+**Required role:** `auditor`
+
+#### Receipt object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `id` | string (UUID) | Unique receipt identifier |
+| `tenant_id` | string (UUID) | Tenant that owns this receipt |
+| `session_id` | string | Session in which the tool was called |
+| `user_id` | string | User who triggered the execution |
+| `tool_name` | string | Name of the tool that was executed |
+| `input` | string | Serialised input passed to the tool |
+| `output` | string | Serialised output returned by the tool |
+| `status` | string | `"success"`, `"error"`, or `"timeout"` |
+| `duration_ms` | integer | Wall-clock execution time in milliseconds |
+| `idempotency_id` | string | Caller-supplied deduplication key (optional) |
+| `trace_id` | string | Distributed trace ID for cross-service correlation (optional) |
+| `created_at` | string (RFC 3339) | Timestamp when the receipt was persisted |
+
+#### Status values
+
+| Value | Meaning |
+|-------|---------|
+| `"success"` | Tool completed and returned a usable result |
+| `"error"` | Tool returned an error; check `output` for the error detail |
+| `"timeout"` | Execution was cancelled because it exceeded the configured deadline |
+
+#### Idempotency
+
+When your agent or orchestration layer submits a tool result to HermesX, you can include an `idempotency_id` — any opaque string that uniquely identifies this logical execution in your system (for example, a job ID or a UUID you generate before the call).
+
+If a receipt with the same `(tenant_id, idempotency_id)` pair already exists, HermesX returns the existing receipt without creating a duplicate. This means it is safe to retry a receipt submission after a network failure or timeout: you will get the original receipt back, and your audit log will not contain duplicates.
+
+**Important constraints:**
+- `idempotency_id` values are scoped to your tenant; the same value in a different tenant creates a separate receipt.
+- Once a receipt is stored it cannot be updated. An idempotency match always returns the original record, even if the retry carries different `input`/`output` values.
+- Omitting `idempotency_id` creates a new receipt on every call.
+
+#### Relationship to Audit Logs
+
+Execution receipts and audit logs serve complementary purposes:
+
+| | Execution Receipt | Audit Log |
+|---|---|---|
+| **What it records** | A single tool call: input, output, duration | An HTTP request: action, status code, latency |
+| **Granularity** | Tool-level | API request–level |
+| **Payload** | Full tool I/O | Action type + metadata |
+| **Use for** | Debugging tool behaviour, billing, replay | Access history, compliance, security review |
+
+A single agent turn that calls three tools produces three execution receipts and one audit log entry.
+
+---
+
 #### GET /v1/execution-receipts — List tool execution receipts
 
-Requires `auditor` role. Isolated by tenant, returns tool call records (input/output/status/duration).
-
 ```bash
-curl "http://localhost:8080/v1/execution-receipts?limit=50" \
+curl "http://localhost:8080/v1/execution-receipts?session_id=sess-abc&limit=20" \
   -H "Authorization: Bearer hk_your_api_key"
 ```
 
-Supported query parameters:
+Query parameters:
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `session_id` | string | Filter by session ID |
-| `tool_name` | string | Filter by tool name |
-| `status` | string | Filter by status (`success`/`error`/`timeout`) |
-| `limit` | integer | Items per page (default 50) |
-| `offset` | integer | Offset (default 0) |
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `session_id` | string | — | Filter to a single session |
+| `tool_name` | string | — | Filter by tool name (exact match) |
+| `status` | string | — | Filter by status: `success`, `error`, or `timeout` |
+| `limit` | integer | 50 | Items per page (max 500) |
+| `offset` | integer | 0 | Pagination offset |
 
 Response:
 
@@ -241,32 +294,65 @@ Response:
 {
   "execution_receipts": [
     {
-      "id": "uuid-...",
-      "tenant_id": "uuid-...",
-      "session_id": "sess-...",
-      "user_id": "user-...",
+      "id": "3f7a1c2d-...",
+      "tenant_id": "8e4b0c1a-...",
+      "session_id": "sess-abc",
+      "user_id": "usr-xyz",
       "tool_name": "code-review",
-      "input": "...",
-      "output": "...",
+      "input": "{\"language\":\"go\",\"snippet\":\"...\"}",
+      "output": "{\"issues\":[],\"score\":9}",
       "status": "success",
-      "duration_ms": 1234,
-      "idempotency_id": "idem-...",
-      "trace_id": "trace-...",
+      "duration_ms": 842,
+      "idempotency_id": "job-2026-04-29-001",
+      "trace_id": "abc123",
       "created_at": "2026-04-29T12:00:00Z"
     }
   ],
-  "total": 100
+  "total": 1
 }
 ```
 
-#### GET /v1/execution-receipts/{id} — Get a single execution receipt
-
-Requires `auditor` role.
+#### GET /v1/execution-receipts/{id} — Get a single receipt by ID
 
 ```bash
-curl http://localhost:8080/v1/execution-receipts/uuid-... \
+curl "http://localhost:8080/v1/execution-receipts/3f7a1c2d-..." \
   -H "Authorization: Bearer hk_your_api_key"
 ```
+
+Returns the receipt object directly (not wrapped in an array). Returns `404` if the receipt does not exist or belongs to a different tenant.
+
+#### Looking up a receipt by idempotency ID
+
+The `/v1/execution-receipts` list endpoint does not currently support filtering by `idempotency_id` directly. To check whether a specific idempotency key has already been recorded, list receipts for the relevant session and filter client-side, or use the internal `GetByIdempotencyID` store method if building server-side integrations.
+
+#### Integration example: safe retry with idempotency
+
+```bash
+IDEM_ID="job-$(date +%s)-$RANDOM"
+
+submit_receipt() {
+  curl -s -X POST "http://localhost:8080/v1/execution-receipts" \
+    -H "Authorization: Bearer hk_your_api_key" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"session_id\": \"sess-abc\",
+      \"tool_name\": \"summarize\",
+      \"input\": \"...\",
+      \"output\": \"...\",
+      \"status\": \"success\",
+      \"duration_ms\": 500,
+      \"idempotency_id\": \"$IDEM_ID\"
+    }"
+}
+
+# First call creates the receipt.
+submit_receipt
+
+# Second call (e.g. after a network error) returns the same receipt — no duplicate.
+submit_receipt
+```
+
+Both calls return identical JSON with the same `id` and `created_at`.
 
 ### GDPR Compliance /v1/gdpr
 

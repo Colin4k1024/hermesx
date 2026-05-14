@@ -356,8 +356,10 @@ func TestSyncBuiltinSkills_UpdatesManifestHash(t *testing.T) {
 // --- SyncFromHub stub ---
 
 func TestSyncFromHub_Stub(t *testing.T) {
+	// SyncFromHub is not implemented; it must return a non-nil error so callers
+	// are not silently misled into thinking a sync occurred.
 	err := SyncFromHub("https://example.com/skills-index.json")
-	if err != nil {
-		t.Errorf("expected no error from stub, got: %v", err)
+	if err == nil {
+		t.Error("expected SyncFromHub to return an error (not implemented), got nil")
 	}
 }

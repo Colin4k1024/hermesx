@@ -63,6 +63,7 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/pricing-rules":                      pricingRulesPath(),
 			"/admin/v1/pricing-rules/{model}":              pricingRuleByModelPath(),
 			"/admin/v1/audit-logs":                         adminAuditLogsPath(),
+			"/admin/v1/usage/tenants":                      adminTenantUsagePath(),
 		},
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
@@ -541,6 +542,56 @@ func adminAuditLogsPath() map[string]any {
 			"responses": map[string]any{
 				"200": map[string]any{"description": "Audit log entries with pagination"},
 				"403": map[string]any{"description": "Forbidden — admin scope required"},
+			},
+		},
+	}
+}
+
+func adminTenantUsagePath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Usage"},
+			"summary": "Aggregate token and cost usage per tenant (admin scope required)",
+			"description": "Returns session-level input/output token counts and estimated USD cost " +
+				"grouped by tenant. Results are ordered by cost descending. " +
+				"Requires the application DB user to hold the BYPASSRLS privilege.",
+			"parameters": []map[string]any{
+				{"name": "from", "in": "query", "description": "Lower bound on session start time (RFC3339, inclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "to", "in": "query", "description": "Upper bound on session start time (RFC3339, exclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer", "default": 100, "maximum": 500}},
+				{"name": "offset", "in": "query", "schema": map[string]any{"type": "integer", "default": 0}},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Per-tenant usage summary",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"tenants": map[string]any{
+										"type": "array",
+										"items": map[string]any{
+											"type": "object",
+											"properties": map[string]any{
+												"tenant_id":          map[string]any{"type": "string", "format": "uuid"},
+												"session_count":      map[string]any{"type": "integer"},
+												"input_tokens":       map[string]any{"type": "integer"},
+												"output_tokens":      map[string]any{"type": "integer"},
+												"total_tokens":       map[string]any{"type": "integer"},
+												"estimated_cost_usd": map[string]any{"type": "number", "format": "double"},
+											},
+										},
+									},
+									"limit":  map[string]any{"type": "integer"},
+									"offset": map[string]any{"type": "integer"},
+								},
+							},
+						},
+					},
+				},
+				"403": map[string]any{"description": "Forbidden — admin scope required"},
+				"503": map[string]any{"description": "Database pool unavailable"},
 			},
 		},
 	}
