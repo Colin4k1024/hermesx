@@ -31,7 +31,7 @@ import (
 //     privilege (or SUPERUSER), then the admin handler can run queries without setting
 //     app.current_tenant — RLS policies are skipped entirely for that role.
 //     If BYPASSRLS is not granted, wrap the query in a transaction and execute:
-//       SET LOCAL row_security = off;
+//     SET LOCAL row_security = off;
 //     before querying.
 //
 // Code paths that bypass tenant context must only be reachable via admin-scoped routes
