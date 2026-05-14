@@ -10,7 +10,7 @@ import (
 
 // Compile-time interface assertions — fail the build if contracts drift.
 var (
-	_ store.APIKeyStore            = (*pgAPIKeyStore)(nil)
+	_ store.APIKeyStore              = (*pgAPIKeyStore)(nil)
 	_ store.BootstrapAdminKeyCreator = (*PGStore)(nil)
 )
 

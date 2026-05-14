@@ -44,9 +44,9 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/me":      pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
 			"/v1/openapi": pathItem("get", "This OpenAPI specification", "200"),
 
-			"/v1/gdpr/export":          pathItem("get", "GDPR data export for current tenant", "200"),
-			"/v1/gdpr/data":            pathItem("delete", "GDPR data deletion for current tenant", "200"),
-			"/v1/gdpr/cleanup-minio":   gdprCleanupPath(),
+			"/v1/gdpr/export":        pathItem("get", "GDPR data export for current tenant", "200"),
+			"/v1/gdpr/data":          pathItem("delete", "GDPR data deletion for current tenant", "200"),
+			"/v1/gdpr/cleanup-minio": gdprCleanupPath(),
 
 			"/v1/skills":        pathItem("get", "List tenant skills", "200"),
 			"/v1/skills/{name}": pathItem("get", "Get skill content by name", "200"),
@@ -56,13 +56,13 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/bootstrap/status": bootstrapStatusPath(),
 
 			// Admin API (admin scope required).
-			"/admin/v1/tenants/{id}/sandbox-policy":           sandboxPolicyPath(),
-			"/admin/v1/tenants/{id}/api-keys":                 adminAPIKeysPath(),
-			"/admin/v1/tenants/{id}/api-keys/{kid}":           adminAPIKeyByIDPath(),
-			"/admin/v1/tenants/{id}/api-keys/{kid}/rotate":    adminAPIKeyRotatePath(),
-			"/admin/v1/pricing-rules":                         pricingRulesPath(),
-			"/admin/v1/pricing-rules/{model}":                 pricingRuleByModelPath(),
-			"/admin/v1/audit-logs":                            adminAuditLogsPath(),
+			"/admin/v1/tenants/{id}/sandbox-policy":        sandboxPolicyPath(),
+			"/admin/v1/tenants/{id}/api-keys":              adminAPIKeysPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}":        adminAPIKeyByIDPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}/rotate": adminAPIKeyRotatePath(),
+			"/admin/v1/pricing-rules":                      pricingRulesPath(),
+			"/admin/v1/pricing-rules/{model}":              pricingRuleByModelPath(),
+			"/admin/v1/audit-logs":                         adminAuditLogsPath(),
 		},
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
@@ -106,7 +106,6 @@ func pathItem(method, summary, status string) map[string]any {
 		},
 	}
 }
-
 
 func chatPath() map[string]any {
 	return map[string]any{
