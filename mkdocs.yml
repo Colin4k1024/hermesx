@@ -11,45 +11,46 @@ plugins:
   - i18n:
       docs_structure: suffix
       languages:
-        - locale: en
-          default: true
-          name: English
-          build: true
         - locale: zh
+          default: true
           name: 中文
           build: true
+        - locale: en
+          name: English
+          build: true
+          fallback_to_default: true
           nav_translations:
-            Home: 首页
-            Getting Started: 快速开始
-            SaaS Quickstart: SaaS 快速开始
-            Configuration: 配置说明
-            Authentication: 认证
-            Architecture: 架构
-            Overview: 架构概览
-            Database: 数据库
-            Security Model: 安全模型
-            RBAC Matrix: RBAC 矩阵
-            Enterprise Readiness: 企业就绪
-            Operations: 运维
-            Deployment: 部署
-            Observability: 可观测性
-            Skills Guide: 技能指南
-            API Reference: API 参考
-            ADRs: 架构决策
-            ADR-002 Dual-Layer Rate Limiter: ADR-002 双层限流器
-            ADR-003 WebUI Vue3 Incremental: ADR-003 WebUI Vue3 增量
-            ADR-004 WebUI Multipage Vite: ADR-004 WebUI 多页面 Vite
-            ADR-005 WebUI Bootstrap Endpoint: ADR-005 WebUI 引导端点
-            Changelog: 更新日志
+            首页: Home
+            快速开始: Getting Started
+            SaaS 快速开始: SaaS Quickstart
+            配置说明: Configuration
+            认证: Authentication
+            架构: Architecture
+            架构概览: Overview
+            数据库: Database
+            安全模型: Security Model
+            RBAC 矩阵: RBAC Matrix
+            企业就绪: Enterprise Readiness
+            运维: Operations
+            部署: Deployment
+            可观测性: Observability
+            技能指南: Skills Guide
+            API 参考: API Reference
+            架构决策: ADRs
+            ADR-002 双层限流器: ADR-002 Dual-Layer Rate Limiter
+            ADR-003 WebUI Vue3 增量: ADR-003 WebUI Vue3 Incremental
+            ADR-004 WebUI 多页面 Vite: ADR-004 WebUI Multipage Vite
+            ADR-005 WebUI 引导端点: ADR-005 WebUI Bootstrap Endpoint
+            更新日志: Changelog
 
 extra:
   alternate:
-    - name: English
-      link: /hermesx/
-      lang: en
     - name: 中文
-      link: /hermesx/zh/
+      link: /hermesx/
       lang: zh
+    - name: English
+      link: /hermesx/en/
+      lang: en
 
 theme:
   name: material
@@ -84,25 +85,25 @@ markdown_extensions:
   - pymdownx.superfences
 
 nav:
-  - Home: index.md
-  - Getting Started:
-    - SaaS Quickstart: saas-quickstart.md
-    - Configuration: configuration.md
-    - Authentication: authentication.md
-  - Architecture:
-    - Overview: architecture.md
-    - Database: database.md
-    - Security Model: SECURITY_MODEL.md
-    - RBAC Matrix: RBAC_MATRIX.md
-    - Enterprise Readiness: ENTERPRISE_READINESS.md
-  - Operations:
-    - Deployment: deployment.md
-    - Observability: observability.md
-    - Skills Guide: skills-guide.md
-  - API Reference: api-reference.md
-  - ADRs:
-    - ADR-002 Dual-Layer Rate Limiter: adr/ADR-002-dual-layer-rate-limiter.md
-    - ADR-003 WebUI Vue3 Incremental: adr/ADR-003-hermesx-webui-vue3-incremental.md
-    - ADR-004 WebUI Multipage Vite: adr/ADR-004-hermesx-webui-multipage-vite.md
-    - ADR-005 WebUI Bootstrap Endpoint: adr/ADR-005-hermesx-webui-bootstrap-endpoint.md
-  - Changelog: CHANGELOG.md
+  - 首页: index.md
+  - 快速开始:
+    - SaaS 快速开始: saas-quickstart.md
+    - 配置说明: configuration.md
+    - 认证: authentication.md
+  - 架构:
+    - 架构概览: architecture.md
+    - 数据库: database.md
+    - 安全模型: SECURITY_MODEL.md
+    - RBAC 矩阵: RBAC_MATRIX.md
+    - 企业就绪: ENTERPRISE_READINESS.md
+  - 运维:
+    - 部署: deployment.md
+    - 可观测性: observability.md
+    - 技能指南: skills-guide.md
+  - API 参考: api-reference.md
+  - 架构决策:
+    - ADR-002 双层限流器: adr/ADR-002-dual-layer-rate-limiter.md
+    - ADR-003 WebUI Vue3 增量: adr/ADR-003-hermesx-webui-vue3-incremental.md
+    - ADR-004 WebUI 多页面 Vite: adr/ADR-004-hermesx-webui-multipage-vite.md
+    - ADR-005 WebUI 引导端点: adr/ADR-005-hermesx-webui-bootstrap-endpoint.md
+  - 更新日志: CHANGELOG.md
