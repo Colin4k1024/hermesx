@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -229,6 +230,9 @@ func TestCORSMiddleware_OptionsPreflight(t *testing.T) {
 	if rec.Code != http.StatusNoContent {
 		t.Errorf("OPTIONS status = %d, want 204", rec.Code)
 	}
+	if got := rec.Header().Get("Access-Control-Allow-Headers"); got == "" || !containsHeaderToken(got, "X-Hermes-User-Id") {
+		t.Errorf("Allow-Headers = %q, want X-Hermes-User-Id", got)
+	}
 }
 
 func TestCORSMiddleware_MultipleOrigins(t *testing.T) {
@@ -248,6 +252,38 @@ func TestCORSMiddleware_MultipleOrigins(t *testing.T) {
 			t.Errorf("origin %q: Allow-Origin = %q, want %q", origin, got, origin)
 		}
 	}
+}
+
+func TestBootstrapCreateIsRateLimited(t *testing.T) {
+	t.Setenv("HERMES_ACP_TOKEN", "test-bootstrap-token-with-enough-entropy")
+	srv := NewAPIServer(APIServerConfig{
+		Port:                  8080,
+		Store:                 stubStore{},
+		DB:                    nil,
+		BootstrapRateLimitRPM: 1,
+	})
+
+	body := `{"name":"initial-admin-key"}`
+	for i, want := range []int{http.StatusCreated, http.StatusTooManyRequests} {
+		req := httptest.NewRequest(http.MethodPost, "/admin/v1/bootstrap", strings.NewReader(body))
+		req.RemoteAddr = "203.0.113.10:12345"
+		req.Header.Set("Authorization", "Bearer test-bootstrap-token-with-enough-entropy")
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != want {
+			t.Fatalf("request %d status = %d, want %d", i+1, rec.Code, want)
+		}
+	}
+}
+
+func containsHeaderToken(header, token string) bool {
+	for _, part := range strings.Split(header, ",") {
+		if strings.EqualFold(strings.TrimSpace(part), token) {
+			return true
+		}
+	}
+	return false
 }
 
 // ──────────────────────────────────────────────────────────────────

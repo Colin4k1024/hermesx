@@ -6,6 +6,7 @@ export interface ChatMessage {
 
 export interface Session {
   id: string
+  title?: string
   started_at: string
   ended_at: string | null
   message_count: number

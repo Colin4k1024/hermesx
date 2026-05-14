@@ -93,6 +93,12 @@ type APIKeyStore interface {
 	Revoke(ctx context.Context, tenantID, id string) error
 }
 
+// BootstrapAdminKeyCreator is an optional extension for stores that can create
+// the first platform admin key atomically across multiple API replicas.
+type BootstrapAdminKeyCreator interface {
+	CreateBootstrapAdminKey(ctx context.Context, key *APIKey) (created bool, err error)
+}
+
 // MemoryStore manages per-user memory key-value pairs.
 type MemoryStore interface {
 	Get(ctx context.Context, tenantID, userID, key string) (string, error)

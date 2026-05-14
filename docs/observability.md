@@ -66,7 +66,7 @@ Hermes 支持 OpenTelemetry 分布式追踪，通过 OTLP gRPC 协议导出 span
 |----------|--------|------|
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | 无（禁用追踪） | OTLP gRPC 端点地址 |
 | `OTEL_EXPORTER_OTLP_INSECURE` | `false` | 是否使用不安全连接 |
-| `OTEL_SERVICE_NAME` | `hermes-agent` | 服务名称 |
+| `OTEL_SERVICE_NAME` | `hermesx` | 服务名称 |
 
 **当 `OTEL_EXPORTER_OTLP_ENDPOINT` 未设置时，追踪完全禁用，零开销。**
 
@@ -75,8 +75,8 @@ Hermes 支持 OpenTelemetry 分布式追踪，通过 OTLP gRPC 协议导出 span
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="localhost:4317"
 export OTEL_EXPORTER_OTLP_INSECURE="true"
-export OTEL_SERVICE_NAME="hermes-saas"
-./hermes saas-api
+export OTEL_SERVICE_NAME="hermesx"
+./hermesx saas-api
 ```
 
 ### 追踪特性

@@ -253,6 +253,9 @@ func (h *AdminHandler) rotateKeyAtomic(ctx context.Context, newKey *store.APIKey
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	defer tx.Rollback(ctx) //nolint:errcheck
+	if _, err := tx.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
+		return fmt.Errorf("set tenant context: %w", err)
+	}
 
 	now := time.Now()
 	var newID string

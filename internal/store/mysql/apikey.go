@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/google/uuid"
@@ -18,9 +19,12 @@ func (s *myAPIKeyStore) Create(ctx context.Context, key *store.APIKey) error {
 	}
 	roles, _ := json.Marshal(key.Roles)
 	scopes, _ := json.Marshal(key.Scopes)
+	if key.CreatedAt.IsZero() {
+		key.CreatedAt = time.Now().UTC()
+	}
 	_, err := s.db.ExecContext(ctx,
-		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, scopes, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, string(roles), string(scopes), key.ExpiresAt)
+		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, scopes, expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, string(roles), string(scopes), key.ExpiresAt, key.CreatedAt)
 	return err
 }
 
@@ -95,3 +99,60 @@ func (s *myAPIKeyStore) scanKey(row *sql.Row) (*store.APIKey, error) {
 }
 
 var _ store.APIKeyStore = (*myAPIKeyStore)(nil)
+
+// CreateBootstrapAdminKey atomically claims the platform bootstrap slot and
+// creates the first admin key. It returns created=false when another replica
+// already completed bootstrap.
+func (s *MySQLStore) CreateBootstrapAdminKey(ctx context.Context, key *store.APIKey) (bool, error) {
+	if key.ID == "" {
+		key.ID = uuid.New().String()
+	}
+	if key.CreatedAt.IsZero() {
+		key.CreatedAt = time.Now().UTC()
+	}
+	roles, _ := json.Marshal(key.Roles)
+	scopes, _ := json.Marshal(key.Scopes)
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return false, fmt.Errorf("begin bootstrap tx: %w", err)
+	}
+	defer tx.Rollback() //nolint:errcheck
+
+	res, err := tx.ExecContext(ctx,
+		`INSERT IGNORE INTO bootstrap_state (id, tenant_id, created_at) VALUES ('default_admin', ?, ?)`,
+		key.TenantID, key.CreatedAt,
+	)
+	if err != nil {
+		return false, fmt.Errorf("claim bootstrap: %w", err)
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("bootstrap claim result: %w", err)
+	}
+	if rows == 0 {
+		return false, nil
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`INSERT INTO api_keys (id, tenant_id, name, key_hash, prefix, roles, scopes, expires_at, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		key.ID, key.TenantID, key.Name, key.KeyHash, key.Prefix, string(roles), string(scopes), key.ExpiresAt, key.CreatedAt,
+	); err != nil {
+		return false, fmt.Errorf("create bootstrap api key: %w", err)
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE bootstrap_state SET key_id = ? WHERE id = 'default_admin'`,
+		key.ID,
+	); err != nil {
+		return false, fmt.Errorf("record bootstrap key: %w", err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return false, fmt.Errorf("commit bootstrap: %w", err)
+	}
+	return true, nil
+}
+
+var _ store.BootstrapAdminKeyCreator = (*MySQLStore)(nil)

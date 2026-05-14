@@ -50,6 +50,30 @@ curl http://localhost:8080/metrics
 
 以下端点需要 admin 角色。使用静态 Token（`HERMES_ACP_TOKEN`）或具有 admin 角色的 API Key 访问。
 
+### Bootstrap /admin/v1/bootstrap
+
+#### GET /admin/v1/bootstrap/status — 查询是否需要初始化
+
+公开端点，无需认证。
+
+```bash
+curl http://localhost:8080/admin/v1/bootstrap/status
+# {"bootstrap_required":true}
+```
+
+#### POST /admin/v1/bootstrap — 创建首个默认租户管理员 Key
+
+仅在尚未存在默认租户 admin key 时可用。该端点不经过 admin scope middleware，但必须携带 `HERMES_ACP_TOKEN`，并按来源 IP 执行独立限流（默认 `HERMES_BOOTSTRAP_RATE_LIMIT_RPM=5`）。
+
+```bash
+curl -X POST http://localhost:8080/admin/v1/bootstrap \
+  -H "Authorization: Bearer $HERMES_ACP_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"initial-admin-key"}'
+```
+
+响应中的 `key` 只返回一次。
+
 ### 租户管理 /v1/tenants
 
 #### POST /v1/tenants — 创建租户
@@ -582,7 +606,7 @@ curl http://localhost:8080/v1/openapi
 Admin 面板专用路由，需要 `admin` 角色。提供高级管理功能的 RESTful 接口（定价规则、平台配置等）。
 
 ```bash
-curl http://localhost:8080/admin/pricing-rules \
+curl http://localhost:8080/admin/v1/pricing-rules \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
@@ -594,6 +618,4 @@ curl http://localhost:8080/admin/pricing-rules \
 |------|------|
 | `/` | 首页（index.html） |
 | `/admin.html` | 管理面板 |
-| `/chat.html` | Web Chat 客户端 |
-| `/isolation-test.html` | 多租户隔离测试页面 |
 | `/static/*` | 静态资源目录 |

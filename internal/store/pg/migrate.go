@@ -469,6 +469,14 @@ var migrations = []migration{
 			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
 		END IF;
 	END $$`},
+
+	// v2.2.0: one-time platform bootstrap claim shared by all API replicas.
+	{81, `CREATE TABLE IF NOT EXISTS bootstrap_state (
+		id TEXT PRIMARY KEY,
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		key_id UUID,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

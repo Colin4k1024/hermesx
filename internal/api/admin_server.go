@@ -1,6 +1,7 @@
 package api
 
 import (
+	"crypto/subtle"
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
@@ -40,7 +41,9 @@ func StartAdminServer(port string) {
 
 func bearerAuth(token string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Header.Get("Authorization") != "Bearer "+token {
+		expected := []byte("Bearer " + token)
+		actual := []byte(r.Header.Get("Authorization"))
+		if subtle.ConstantTimeCompare(actual, expected) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}

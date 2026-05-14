@@ -20,7 +20,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.25'
           cache: true
 
       - name: Run tests
@@ -57,7 +57,7 @@ jobs:
           done
 
           # Create checksums
-          cd dist && sha256sum hermes-* > checksums.txt
+          cd dist && sha256sum hermesx-* > checksums.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

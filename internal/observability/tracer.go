@@ -19,6 +19,9 @@ import (
 // is unset the default noop provider remains active (zero overhead).
 // Returns a shutdown function that must be called on process exit.
 func InitTracer(ctx context.Context, serviceName, version string) (func(context.Context) error, error) {
+	if configured := strings.TrimSpace(os.Getenv("OTEL_SERVICE_NAME")); configured != "" {
+		serviceName = configured
+	}
 	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
 	if endpoint == "" {
 		slog.Info("OTel tracing disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)")

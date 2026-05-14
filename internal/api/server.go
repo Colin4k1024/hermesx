@@ -20,17 +20,20 @@ import (
 
 // APIServerConfig holds all dependencies for the SaaS API server.
 type APIServerConfig struct {
-	Port           int
-	Store          store.Store
-	DB             DBPinger // optional; nil disables readiness DB check
-	AuthChain      *auth.ExtractorChain
-	RBAC           middleware.RBACConfig
-	RateLimit      middleware.RateLimitConfig
-	AllowedOrigins string                // comma-separated list of allowed origins, or "*" for all
-	StaticDir      string                // directory to serve static files from (optional)
-	SkillsClient   objstore.ObjectStore  // optional; nil disables per-tenant skill loading
-	Provisioner    *skills.Provisioner   // optional; nil disables per-user skill provisioning
-	TenantOpts     []TenantHandlerOption // optional; wired into TenantHandler on creation
+	Port      int
+	Store     store.Store
+	DB        DBPinger // optional; nil disables readiness DB check
+	AuthChain *auth.ExtractorChain
+	RBAC      middleware.RBACConfig
+	RateLimit middleware.RateLimitConfig
+	// BootstrapRateLimitRPM limits unauthenticated POST /admin/v1/bootstrap attempts by source IP.
+	// A value <= 0 uses the secure default of 5 requests/minute.
+	BootstrapRateLimitRPM int
+	AllowedOrigins        string                // comma-separated list of allowed origins, or "*" for all
+	StaticDir             string                // directory to serve static files from (optional)
+	SkillsClient          objstore.ObjectStore  // optional; nil disables per-tenant skill loading
+	Provisioner           *skills.Provisioner   // optional; nil disables per-user skill provisioning
+	TenantOpts            []TenantHandlerOption // optional; wired into TenantHandler on creation
 }
 
 // APIServer is the multi-tenant SaaS API HTTP server.
@@ -75,7 +78,8 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session-Id")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session-Id, X-Hermes-User-Id")
+			w.Header().Set("Access-Control-Expose-Headers", "X-Hermes-Session-Id, X-Request-ID")
 		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
@@ -152,7 +156,15 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	// Bootstrap endpoints are public (status) or use ACP token (create) — no admin scope required.
 	bootstrapH := admin.NewBootstrapHandler(cfg.Store, nil)
 	mux.HandleFunc("GET /admin/v1/bootstrap/status", bootstrapH.Status)
-	mux.HandleFunc("POST /admin/v1/bootstrap", bootstrapH.Create)
+	bootstrapRPM := cfg.BootstrapRateLimitRPM
+	if bootstrapRPM <= 0 {
+		bootstrapRPM = 5
+	}
+	bootstrapCreate := middleware.RateLimitMiddleware(middleware.RateLimitConfig{
+		Limiter:    cfg.RateLimit.Limiter,
+		DefaultRPM: bootstrapRPM,
+	})(http.HandlerFunc(bootstrapH.Create))
+	mux.Handle("POST /admin/v1/bootstrap", bootstrapCreate)
 
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
 	adminH := admin.NewAdminHandler(cfg.Store, nil)

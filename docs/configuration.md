@@ -14,6 +14,7 @@
 |------|------|--------|------|
 | `DATABASE_URL` | 是 | - | PostgreSQL 连接字符串，格式：`postgres://user:pass@host:5432/dbname?sslmode=disable` |
 | `HERMES_ACP_TOKEN` | 是 | - | 静态管理员 Bearer Token，用于 admin 端点认证 |
+| `HERMES_BOOTSTRAP_RATE_LIMIT_RPM` | 否 | `5` | `POST /admin/v1/bootstrap` 按来源 IP 的每分钟尝试次数 |
 | `SAAS_API_PORT` | 否 | `8080` | SaaS API 服务端口 |
 | `SAAS_ALLOWED_ORIGINS` | 否 | -（不启用 CORS） | CORS 允许的来源，`*` 表示全部，或逗号分隔的域名列表 |
 | `SAAS_STATIC_DIR` | 否 | -（不提供静态文件） | 静态文件目录路径，如 `./internal/dashboard/static` |
@@ -279,6 +280,7 @@ services:
 ## 安全注意事项
 
 - `HERMES_ACP_TOKEN` 用于管理员认证，生产环境必须使用强密码
+- `POST /admin/v1/bootstrap` 默认按来源 IP 限制为 5 RPM；公网入口仍建议在 Nginx/Ingress 层叠加限流
 - `DATABASE_URL` 中的密码建议通过 Kubernetes Secret 或 Vault 注入
 - API Key 以 SHA-256 哈希存储，无法逆向获取原始值
 - 设置 `SAAS_ALLOWED_ORIGINS` 为具体域名，避免在生产环境使用 `*`

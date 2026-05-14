@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-09-k8s-fullstack-deploy  
-**前任务**: 2026-05-08-hermesx-webui（已完成）  
-**阶段**: closed  
-**版本目标**: v2.1.1 — K8s MySQL 全栈部署 + 8 Bug 修复
+**当前任务**: v2.2.0-stabilization
+**前任务**: 2026-05-09-k8s-fullstack-deploy（已完成）
+**阶段**: active
+**版本目标**: v2.2.0 — 发布口径同步 + Bootstrap 安全加固 + API/WebUI 契约修复
 
 ## Tech Stack
 
@@ -16,7 +16,7 @@
 - Helm v3 (PDB/HPA)
 - Docker multi-stage build → ghcr.io (CI auto-push)
 - GitHub Actions CI (unit + integration + race + coverage + Docker push)
-- **webui**: Vue 3 + Pinia + Vue Router v4 + Naive UI + @tanstack/vue-query v5 + Tailwind CSS v4 + Vite 6 multi-page
+- **webui**: React 18 + React Router v6 + Ant Design 5 + Zustand + @tanstack/react-query v5 + Tailwind CSS 3 + Vite 6 multi-page
 
 ## 当前状态
 
@@ -27,6 +27,7 @@
 - v2.1.0 CLOSED (infra upgrade — ObjectStore interface + RustFS, pprof + OTel + Prometheus, MySQL adapter; K8s local deployment validated 2026-05-08)
 - hermesx-webui RELEASED (v2.1.0-webui — Admin Console + User Portal; 4 CRITICAL + 4 HIGH 安全修复; Bootstrap 端点; 旧 HTML 下线; webui CI)
 - v2.1.1 RELEASED (2026-05-09 — K8s MySQL 全栈部署验证 + 8 Bug 修复; 详见 session 004)
+- v2.2.0-stabilization ACTIVE (2026-05-14 — Bootstrap IP 限流、跨实例原子初始化、PG API key scopes 修复、会话标题 UX、发布/文档口径同步)
 
 ## 已完成
 
@@ -38,7 +39,8 @@
 - v0.12 Absorption Sprint 3: Autonomous Memory Curator, Self-improvement Loop, Gateway Media Parity, Gateway Lifecycle Hooks
 - v2.0.0 Rebrand: complete hermes→hermesx rebrand (247 files), ExecutionReceipt API + idempotency, OpenAPI 3.0.3 spec, Prometheus business metrics, RBAC auditor role, OTel+Jaeger, production docker-compose, backup/restore scripts
 - v2.0.0 Hardening: LifecycleHooks→Runner wired, SelfImprover→Agent loop wired, URL traversal fix, sanitizeForPrompt extracted + applied to compress.go/curator.go
-- v2.1.0-webui: Vue 3 Admin Console (租户/Key/审计/定价/沙箱) + User Portal (SSE Chat/Memories/Skills/Usage) + Bootstrap 引导页; subtle.ConstantTimeCompare + sync.Mutex TOCTOU + sessionStorage key 清除 + isAdmin roles 修复; Vary: Origin CORS; webui.yml 最小权限 CI
+- v2.1.0-webui: React Admin Console (租户/Key/审计/定价/沙箱) + User Portal (SSE Chat/Memories/Skills/Usage) + Bootstrap 引导页; subtle.ConstantTimeCompare + sync.Mutex TOCTOU + sessionStorage key 清除 + isAdmin roles 修复; Vary: Origin CORS; webui.yml 最小权限 CI
+- v2.2.0 stabilization: `POST /admin/v1/bootstrap` 增加应用层与 Nginx IP 限流；PG/MySQL `bootstrap_state` 原子 claim 防跨实例重复初始化；PG API key scopes 读写对齐；新会话自动标题；release workflow 切到 Go 1.25
 
 ## 依赖
 
@@ -57,9 +59,8 @@
 
 ## 下一步（v2.2.0 候选）
 
-1. [Security P1] Bootstrap 端点 IP 速率限制（当前无 middleware 覆盖）
-2. [UX P2] useSse.ts 401/403 auto-logout（当前 SSE 流中异常无自动重定向）
-3. [Reliability P2] Bootstrap 跨实例 TOCTOU → DB unique constraint（api_keys.name + tenant_id）
-4. [Infra] store/pg unit tests — pgxmock introduction
-5. [Perf] Curator O(n²) dedup optimization
-6. [Security] GHA actions digest-pin（deferred from v2.1.0）
+1. [Verify] v2.2.0-stabilization 完整验证：Go test/vet + WebUI typecheck/build + Docker/K8s smoke
+2. [Infra] store/pg unit tests — pgxmock introduction
+3. [Perf] Curator O(n²) dedup optimization
+4. [Security] GHA actions digest-pin（deferred from v2.1.0）
+5. [UX] Admin Dashboard tenant-level usage aggregation

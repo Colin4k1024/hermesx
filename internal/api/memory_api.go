@@ -123,6 +123,7 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 
 	type sessionEntry struct {
 		ID           string  `json:"id"`
+		Title        string  `json:"title,omitempty"`
 		StartedAt    string  `json:"started_at"`
 		EndedAt      *string `json:"ended_at,omitempty"`
 		MessageCount int     `json:"message_count"`
@@ -133,6 +134,7 @@ func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Requ
 		msgCount, _ := h.store.Messages().CountBySession(r.Context(), ac.TenantID, s.ID)
 		se := sessionEntry{
 			ID:           s.ID,
+			Title:        s.Title,
 			StartedAt:    s.StartedAt.Format(time.RFC3339),
 			MessageCount: msgCount,
 		}

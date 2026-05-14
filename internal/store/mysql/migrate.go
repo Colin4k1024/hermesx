@@ -182,6 +182,13 @@ var migrations = []string{
 		INDEX idx_receipt_tenant (tenant_id, created_at),
 		INDEX idx_receipt_idem (tenant_id, idempotency_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS bootstrap_state (
+		id         VARCHAR(64) NOT NULL PRIMARY KEY,
+		tenant_id  CHAR(36)    NOT NULL,
+		key_id     CHAR(36)    NULL,
+		created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

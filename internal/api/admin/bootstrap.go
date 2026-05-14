@@ -128,10 +128,25 @@ func (h *BootstrapHandler) Create(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: req.ExpiresAt,
 	}
 
-	if err := h.store.APIKeys().Create(r.Context(), key); err != nil {
-		h.logger.Error("bootstrap create api key failed", "error", err)
-		http.Error(w, "create failed", http.StatusInternalServerError)
-		return
+	if creator, ok := h.store.(store.BootstrapAdminKeyCreator); ok {
+		created, err := creator.CreateBootstrapAdminKey(r.Context(), key)
+		if err != nil {
+			h.logger.Error("bootstrap create api key failed", "error", err)
+			http.Error(w, "create failed", http.StatusInternalServerError)
+			return
+		}
+		if !created {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusForbidden)
+			json.NewEncoder(w).Encode(map[string]string{"error": "bootstrap already completed"})
+			return
+		}
+	} else {
+		if err := h.store.APIKeys().Create(r.Context(), key); err != nil {
+			h.logger.Error("bootstrap create api key failed", "error", err)
+			http.Error(w, "create failed", http.StatusInternalServerError)
+			return
+		}
 	}
 
 	h.logger.Info("bootstrap admin key created", "key_id", key.ID, "name", key.Name)

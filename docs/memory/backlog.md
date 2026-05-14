@@ -114,15 +114,15 @@
 
 | # | 事项 | 优先级 | 触发条件 | Owner |
 |---|------|--------|----------|-------|
-| 36 | Bootstrap 端点 IP 速率限制（当前无 middleware 覆盖） | P1 | v2.2.0 | backend-engineer |
-| 37 | useSse 401/403 响应自动登出（SSE 流中异常无重定向） | P2 | v2.2.0 | frontend-engineer |
-| 38 | Bootstrap 跨实例 TOCTOU → DB unique constraint (api_keys.name+tenant_id) | P2 | 多实例部署前 | backend-engineer |
+| 36 | Bootstrap 端点 IP 速率限制（应用层 + Nginx） | ✅ 完成 | v2.2.0-stabilization | backend-engineer |
+| 37 | useSse 401/403 响应自动登出 | ✅ 已完成 | v2.1.1+ | frontend-engineer |
+| 38 | Bootstrap 跨实例 TOCTOU → `bootstrap_state` 原子 claim | ✅ 完成 | v2.2.0-stabilization | backend-engineer |
 
 ### P1 - 必须完成
 
-- [ ] **[P1] Bootstrap 端点 IP 速率限制**: POST /admin/v1/bootstrap 当前绕过所有 middleware（包括 RateLimit），应在路由层或 nginx 层添加 IP 级速率限制，防止 ACP token 暴力破解。(Owner: backend-engineer, Label: security)
+- [x] **[P1] Bootstrap 端点 IP 速率限制**: POST /admin/v1/bootstrap 已增加应用层 IP 限流，并在 WebUI Nginx 与生产 Nginx LB 配置叠加 `limit_req`。(Owner: backend-engineer, Label: security)
 
 ### P2 - 应该做
 
-- [ ] **[P2] useSse 401/403 auto-logout**: useSse.ts stream() 的 onError 回调仅打印错误，不处理 401/403 状态码导致的认证失效；应在检测到认证错误时调用 auth.disconnectUser() + router.push('/login')。(Owner: frontend-engineer, Label: security)
-- [ ] **[P2] Bootstrap DB unique constraint**: 当前 TOCTOU 防护依赖 sync.Mutex（单实例有效）；多实例场景需在 api_keys 表添加 (tenant_id, name) 或 is_bootstrap_key 唯一约束，使 DB 层保证幂等性。(Owner: backend-engineer, Label: reliability)
+- [x] **[P2] useSse 401/403 auto-logout**: useSse.ts 已在 401/403 时调用 `disconnectUser()` 并返回 Session expired。(Owner: frontend-engineer, Label: security)
+- [x] **[P2] Bootstrap DB unique constraint**: 改为 `bootstrap_state` 原子 claim，覆盖不同 bootstrap name 的跨实例竞态，比 `(tenant_id, name)` 约束更准确。(Owner: backend-engineer, Label: reliability)

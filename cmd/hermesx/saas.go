@@ -42,13 +42,14 @@ Optional environment variables:
   SAAS_API_PORT          API server port (default: 8080)
   SAAS_ALLOWED_ORIGINS    Comma-separated CORS origins, or "*" for all
   SAAS_STATIC_DIR         Directory for static files (e.g. ./internal/dashboard/static)
+  HERMES_BOOTSTRAP_RATE_LIMIT_RPM  IP-level bootstrap attempts per minute (default: 5)
   HERMES_API_PORT         OpenAI-compatible adapter port (default: 8081)
   HERMES_API_KEY          Bearer token for OpenAI-compatible adapter
   HERMES_ACP_PORT         ACP server port
 
 Examples:
-  hermes saas-api                                           # Basic
-  SAAS_API_PORT=8080 SAAS_STATIC_DIR=./internal/dashboard/static hermes saas-api
+  hermesx saas-api                                           # Basic
+  SAAS_API_PORT=8080 SAAS_STATIC_DIR=./internal/dashboard/static hermesx saas-api
 `,
 	RunE: runSaaSAPI,
 }
@@ -66,7 +67,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	// ── 0. OTel tracing (no-op if OTEL_EXPORTER_OTLP_ENDPOINT unset) ──
-	tracerShutdown, err := observability.InitTracer(context.Background(), "hermes-agent", version)
+	tracerShutdown, err := observability.InitTracer(context.Background(), "hermesx", version)
 	if err != nil {
 		slog.Warn("OTel tracer init failed, continuing without tracing", "error", err)
 		tracerShutdown = func(context.Context) error { return nil }
@@ -84,6 +85,12 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	staticDir := os.Getenv("SAAS_STATIC_DIR")
 	acpToken := os.Getenv("HERMES_ACP_TOKEN")
 	apiKey := os.Getenv("HERMES_API_KEY")
+	bootstrapRateLimitRPM := 5
+	if v := os.Getenv("HERMES_BOOTSTRAP_RATE_LIMIT_RPM"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			bootstrapRateLimitRPM = n
+		}
+	}
 
 	dbURL := os.Getenv("DATABASE_URL")
 	if dbURL == "" {
@@ -257,17 +264,18 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 	// ── 8. Build API server config ───────────────────────────
 	serverCfg := api.APIServerConfig{
-		Port:           port,
-		Store:          dataStore,
-		DB:             dbPinger,
-		AuthChain:      authChain,
-		RBAC:           rbacCfg,
-		RateLimit:      rateLimitCfg,
-		AllowedOrigins: allowedOrigins,
-		StaticDir:      staticDir,
-		SkillsClient:   skillsClient,
-		Provisioner:    syncProv,
-		TenantOpts:     tenantOpts,
+		Port:                  port,
+		Store:                 dataStore,
+		DB:                    dbPinger,
+		AuthChain:             authChain,
+		RBAC:                  rbacCfg,
+		RateLimit:             rateLimitCfg,
+		BootstrapRateLimitRPM: bootstrapRateLimitRPM,
+		AllowedOrigins:        allowedOrigins,
+		StaticDir:             staticDir,
+		SkillsClient:          skillsClient,
+		Provisioner:           syncProv,
+		TenantOpts:            tenantOpts,
 	}
 
 	saasServer := api.NewAPIServer(serverCfg)

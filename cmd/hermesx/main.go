@@ -63,9 +63,9 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "hermesx",
-	Short: "Hermes Agent - AI assistant framework",
-	Long: `Hermes Agent is an AI assistant framework by Nous Research.
-It supports interactive CLI, messaging gateways, scheduled tasks, and more.`,
+	Short: "HermesX - enterprise agent runtime",
+	Long: `HermesX is an enterprise agent runtime and multi-tenant SaaS control plane.
+It supports interactive CLI, messaging gateways, scheduled tasks, and governed SaaS deployments.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runInteractiveCLI()
 	},
@@ -534,7 +534,7 @@ var doctorCmd = &cobra.Command{
 
 var updateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Update Hermes Agent to the latest version",
+	Short: "Update HermesX to the latest version",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		fmt.Println("Update functionality is not yet implemented.")
 		fmt.Println("To update manually, pull the latest code and rebuild.")
@@ -548,7 +548,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Show version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Hermes Agent v%s (%s)\n", version, releaseDate)
+		fmt.Printf("HermesX v%s (%s)\n", version, releaseDate)
 		fmt.Printf("Commit: %s\n", commit)
 	},
 }

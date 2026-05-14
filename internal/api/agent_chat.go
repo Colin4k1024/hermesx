@@ -40,27 +40,6 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		sessionID = fmt.Sprintf("sess_%x", b)
 	}
 
-	// Ensure session exists in PG.
-	sess, err := h.store.Sessions().Get(ctx, tenantID, sessionID)
-	if err != nil || sess == nil {
-		sess = &store.Session{
-			ID:        sessionID,
-			TenantID:  tenantID,
-			Platform:  "api",
-			UserID:    userID,
-			Model:     h.llmModel,
-			StartedAt: time.Now(),
-		}
-		if createErr := h.store.Sessions().Create(ctx, tenantID, sess); createErr != nil {
-			slog.Error("session creation failed", "error", createErr, "tenant_id", tenantID, "session_id", sess.ID)
-			http.Error(w, "session creation failed", http.StatusInternalServerError)
-			return
-		}
-	} else if sess.UserID != "" && sess.UserID != userID && !ac.HasScope("admin") {
-		http.Error(w, "forbidden: session belongs to another user", http.StatusForbidden)
-		return
-	}
-
 	var req chatReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
@@ -78,6 +57,37 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	if userMessage == "" {
 		http.Error(w, "no user message found", http.StatusBadRequest)
 		return
+	}
+
+	// Ensure session exists in PG.
+	isNewSession := false
+	sess, err := h.store.Sessions().Get(ctx, tenantID, sessionID)
+	if err != nil || sess == nil {
+		title := agent.GenerateSessionTitle([]llm.Message{{Role: "user", Content: userMessage}})
+		sess = &store.Session{
+			ID:        sessionID,
+			TenantID:  tenantID,
+			Platform:  "api",
+			UserID:    userID,
+			Model:     h.llmModel,
+			Title:     title,
+			StartedAt: time.Now(),
+		}
+		if createErr := h.store.Sessions().Create(ctx, tenantID, sess); createErr != nil {
+			slog.Error("session creation failed", "error", createErr, "tenant_id", tenantID, "session_id", sess.ID)
+			http.Error(w, "session creation failed", http.StatusInternalServerError)
+			return
+		}
+		isNewSession = true
+	} else if sess.UserID != "" && sess.UserID != userID && !ac.HasScope("admin") {
+		http.Error(w, "forbidden: session belongs to another user", http.StatusForbidden)
+		return
+	}
+	if !isNewSession && sess.Title == "" {
+		title := agent.GenerateSessionTitle([]llm.Message{{Role: "user", Content: userMessage}})
+		if title != "Untitled session" {
+			_ = h.store.Sessions().SetTitle(ctx, tenantID, sessionID, title)
+		}
 	}
 
 	// Persist the user message to PG.

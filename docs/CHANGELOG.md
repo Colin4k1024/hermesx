@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No unreleased changes.
+### Added
+
+- IP-level rate limiting for `POST /admin/v1/bootstrap`, with matching Nginx limits for WebUI and production load-balancer entrypoints.
+- Cross-replica bootstrap idempotency via `bootstrap_state` in PostgreSQL and MySQL.
+- Session titles for SaaS chat sessions, surfaced in the WebUI conversation sidebar.
+
+### Fixed
+
+- PostgreSQL API key persistence now writes and reads `scopes`, allowing admin API keys to satisfy `RequireScope("admin")`.
+- Release workflow now builds with Go 1.25 and generates checksums for `hermesx-*` artifacts.
+- Documentation now reflects the actual React WebUI stack and v2.1.1 baseline.
 
 ---
 

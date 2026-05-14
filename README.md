@@ -28,7 +28,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | Total tests | 1,585 |
 | RLS-protected tables | 10 |
 | API endpoints | 22+ |
-| Version | v2.0.0 |
+| Version | v2.1.1 |
 
 ### Core Capabilities
 
@@ -240,7 +240,7 @@ MIT
 | 测试总数 | 1,585 个 |
 | RLS 保护表 | 10 个 |
 | API 端点 | 22+ 个 |
-| 版本 | v2.0.0 |
+| 版本 | v2.1.1 |
 
 ### 核心能力
 

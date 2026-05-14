@@ -3,7 +3,7 @@ import { Button, Input, List, Typography, Space, Spin } from 'antd'
 import { Send, Square, Plus, MessageSquare } from 'lucide-react'
 import { useSse } from '@shared/hooks/useSse'
 import { apiClient } from '@shared/api/client'
-import type { ChatMessage, SessionListResponse, SessionDetailResponse } from '@shared/types'
+import type { ChatMessage, Session, SessionListResponse, SessionDetailResponse } from '@shared/types'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -16,7 +16,7 @@ export default function Chat() {
   const [messages, setMessages] = useState<DisplayMessage[]>([])
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
-  const [sessions, setSessions] = useState<{ id: string; started_at: string; message_count: number }[]>([])
+  const [sessions, setSessions] = useState<Session[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamingRef = useRef('')
   const { loading, stream, abort } = useSse()
@@ -48,6 +48,12 @@ export default function Chat() {
     setMessages([])
   }
 
+  const titleFromMessage = (content: string) => {
+    const title = content.replace(/\s+/g, ' ').trim()
+    if (!title) return 'Untitled session'
+    return title.length > 64 ? `${title.slice(0, 61)}...` : title
+  }
+
   const handleSend = async () => {
     const content = input.trim()
     if (!content || loading) return
@@ -74,7 +80,13 @@ export default function Chat() {
       onDone: (newSid) => {
         if (newSid && !sessionId) {
           setSessionId(newSid)
-          setSessions((prev) => [{ id: newSid, started_at: new Date().toISOString(), message_count: 2 }, ...prev])
+          setSessions((prev) => [{
+            id: newSid,
+            title: titleFromMessage(content),
+            started_at: new Date().toISOString(),
+            ended_at: null,
+            message_count: 2,
+          }, ...prev])
         }
       },
       onError: (msg) => {
@@ -118,7 +130,7 @@ export default function Chat() {
               >
                 <Space size={8}>
                   <MessageSquare size={14} style={{ opacity: 0.5 }} />
-                  <Text ellipsis style={{ fontSize: 13, maxWidth: 160 }}>{s.id.slice(0, 12)}</Text>
+                  <Text ellipsis style={{ fontSize: 13, maxWidth: 160 }}>{s.title || s.id.slice(0, 12)}</Text>
                 </Space>
               </List.Item>
             )}
