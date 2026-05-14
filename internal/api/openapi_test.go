@@ -52,11 +52,13 @@ func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
 	paths := spec["paths"].(map[string]any)
 
 	// All registered paths must be present in the spec.
+	// Health/metrics have no /v1 prefix; admin routes are under /admin/v1/.
 	wantPaths := []string{
-		"/v1/health",
-		"/v1/health/live",
-		"/v1/health/ready",
+		"/health/live",
+		"/health/ready",
+		"/metrics",
 		"/v1/chat/completions",
+		"/v1/agent/chat",
 		"/v1/sessions",
 		"/v1/tenants",
 		"/v1/api-keys",
@@ -64,7 +66,12 @@ func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
 		"/v1/execution-receipts",
 		"/v1/usage",
 		"/v1/me",
-		"/v1/metrics",
+		"/v1/gdpr/cleanup-minio",
+		"/admin/v1/bootstrap",
+		"/admin/v1/bootstrap/status",
+		"/admin/v1/tenants/{id}/api-keys",
+		"/admin/v1/pricing-rules",
+		"/admin/v1/audit-logs",
 	}
 
 	for _, p := range wantPaths {

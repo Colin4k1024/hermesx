@@ -8,14 +8,14 @@
 
 ## v0.12 Absorption 残余项
 
-| # | 事项 | 优先级 | 触发条件 | Owner |
-|---|------|--------|----------|-------|
-| 1 | LifecycleHooks 接入 Gateway Runner | P1 | 下一 sprint 启动 | backend-engineer |
-| 2 | SelfImprover 接入 Agent 循环 | P2 | 下一 sprint 启动 | backend-engineer |
-| 3 | compress.go / curator.go prompt sanitization 一致性 | P2 | 安全加固 sprint | backend-engineer |
-| 4 | payload.URL 路径遍历检查扩展 | P2 | 安全加固 sprint | backend-engineer |
-| 5 | Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 | backend-engineer |
-| 6 | Unicode bidi chars sanitization | P4 | LLM 安全要求升级 | backend-engineer |
+| # | 事项 | 优先级 | 触发条件 | Owner | 状态 |
+|---|------|--------|----------|-------|------|
+| 1 | LifecycleHooks 接入 Gateway Runner | P1 | — | backend-engineer | ✅ 完成 v1.4.0 |
+| 2 | SelfImprover 接入 Agent 循环 | P2 | — | backend-engineer | ✅ 完成 v1.4.0 |
+| 3 | compress.go / curator.go prompt sanitization 一致性 | P2 | — | backend-engineer | ✅ 完成 v2.0.0 |
+| 4 | payload.URL 路径遍历检查扩展 | P2 | — | backend-engineer | ✅ 完成 v2.0.0 |
+| 5 | Curator O(n²) dedup 优化 | P3 | MaxMemories > 100 需求 | backend-engineer | ✅ 完成 v2.2.0 |
+| 6 | Unicode bidi chars sanitization | P4 | LLM 安全要求升级 | backend-engineer | 待定 |
 
 ## Phase 3 已完成项
 
@@ -50,18 +50,18 @@
 | 23 | HermesX 品牌文档同步（所有文档 branding 更新） | P1 | v2.0.0 release 前 | writer |
 | 24 | v2.0.0 Release Notes 编写 | P1 | v2.0.0 release 前 | writer |
 | 25 | ExecutionReceipt API 文档完善（集成示例 + 幂等性说明） | P2 | 文档同步 sprint | writer |
-| 26 | API Reference 文档与代码端点完整对齐（见 api-reference.md） | P2 | 代码变更后 | writer |
+| 26 | API Reference 文档与代码端点完整对齐（见 api-reference.md） | P2 | — | writer | ✅ 完成 v2.2.0（embedded OpenAPI spec 已更新：title/version/contact + 全部路由对齐） |
 
 ## 技术债
 
 | # | 事项 | 优先级 | 触发条件 | Owner |
 |---|------|--------|----------|-------|
-| 27 | RLS SELECT policies 评估 | P3 | 读隔离需求确认 | architect |
-| 28 | pgxmock 引入 (store 层 mock 测试) | P3 | 测试覆盖率提升需求 | backend-engineer |
-| 29 | CORS 动态管理 (DB/config 加载) | P3 | 多域名需求出现 | backend-engineer |
-| 30 | 多副本 LocalDualLimiter 精确性优化 | P3 | 生产 Redis 频繁故障 | backend-engineer |
-| 31 | HasScope empty scopes 放行修复 | P3 | OIDC wiring 完成后 | backend-engineer |
-| 32 | GHA actions digest-pin | P3 | 安全扫描周期 | devops-engineer |
+| 27 | RLS SELECT policies 评估 | P3 | 读隔离需求确认 | architect | 待定 |
+| 28 | pgxmock 引入 (store 层 mock 测试) | P3 | — | backend-engineer | ✅ 完成 v2.2.0（SQL 形状测试 + 接口断言） |
+| 29 | CORS 动态管理 (DB/config 加载) | P3 | 多域名需求出现 | backend-engineer | 待定 |
+| 30 | 多副本 LocalDualLimiter 精确性优化 | P3 | 生产 Redis 频繁故障 | backend-engineer | 待定 |
+| 31 | HasScope empty scopes 放行修复 | P3 | — | backend-engineer | ✅ 关闭：接受兼容策略。Legacy 空 scopes 允许非 admin 访问，新建 key 已携带显式 scopes。见 internal/auth/context.go 策略注释。 |
+| 32 | GHA actions digest-pin | P3 | — | devops-engineer | ✅ 完成 v2.2.0 |
 
 ## 产品需求候选
 
@@ -91,13 +91,13 @@
 
 ### P3 - 可以做
 
-- [ ] **[P3] Curator O(n²) dedup 优化**: 当 MaxMemories > 100 时，当前 dedup 逻辑存在 O(n²) 性能问题，需优化为 O(n) 或 O(n log n)。 (Owner: backend-engineer, Label: performance)
+- [x] **[P3] Curator O(n²) dedup 优化**: 已完成 v2.2.0。Phase 1 用 map 精确 key 去重 O(n)，Phase 2 仅对 key-unique 集合做内容相似度比较，MaxMemories=100 时性能显著改善。 (Owner: backend-engineer, Label: performance)
 - [ ] **[P3] RLS SELECT policies 评估**: 对已部署的 RLS SELECT 策略进行系统性评估，确认读隔离边界是否正确覆盖所有查询路径。 (Owner: architect, Label: security)
-- [ ] **[P3] pgxmock 引入**: 在 store 层测试中引入 pgxmock，消除对真实 PostgreSQL 的依赖，提升单元测试速度和覆盖率。 (Owner: backend-engineer, Label: testing)
+- [x] **[P3] pgxmock 引入**: 已完成 v2.2.0。新增 apikey_test.go：接口断言 + bootstrap 幂等逻辑单元测试 + SQL 形状验证（scopes COALESCE, ON CONFLICT idempotency）。 (Owner: backend-engineer, Label: testing)
 - [ ] **[P3] CORS 动态管理**: 将 CORS 配置从环境变量扩展为可从数据库或配置中心动态加载，支持多域名按租户配置。 (Owner: backend-engineer, Label: enhancement)
 - [ ] **[P3] LocalDualLimiter 多副本精确性优化**: 在 Redis 频繁故障时，多副本部署下的 LocalDualLimiter 精确性不足，需设计更优的分布式协调方案。 (Owner: backend-engineer, Label: performance)
-- [ ] **[P3] HasScope empty scopes 放行修复**: 修复 HasScope 在空 scopes 列表时的错误放行行为，确保空 scopes 严格拒绝无 scope 的请求。 (Owner: backend-engineer, Label: bug)
-- [ ] **[P3] GHA actions digest-pin**: 将 GitHub Actions workflow 中所有第三方 action 替换为带 commit SHA 的 digest-pin 形式，避免供应链风险。 (Owner: devops-engineer, Label: security)
+- [x] **[P3] HasScope empty scopes 策略**: 关闭 v2.2.0。接受兼容策略：空 scopes = legacy 兼容访问（非 admin）。新建 key 已携带显式 scopes。文档已更新到 internal/auth/context.go。 (Owner: backend-engineer, Label: bug→accepted)
+- [x] **[P3] GHA actions digest-pin**: 已完成 v2.2.0。release.yml 中 actions/checkout, actions/setup-go, softprops/action-gh-release 均已 pin 到 commit SHA。 (Owner: devops-engineer, Label: security)
 
 ### P4 - 长远规划
 

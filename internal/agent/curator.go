@@ -169,35 +169,46 @@ func (c *MemoryCurator) CurateWithLLM(ctx context.Context, tenantID, userID stri
 }
 
 // deduplicateEntries returns the de-duplicated set and count of duplicates found.
+// Phase 1 removes exact key duplicates in O(n) using a map.
+// Phase 2 runs content-similarity comparison on the key-unique set (O(m²), m ≤ n).
 func (c *MemoryCurator) deduplicateEntries(entries []store.MemoryEntry) ([]store.MemoryEntry, int) {
 	if len(entries) < 2 {
 		return entries, 0
 	}
 
-	seen := make(map[string]bool)
-	var unique []store.MemoryEntry
-	dupes := 0
-
+	// Phase 1: exact key dedup — O(n), preserves first occurrence per normalized key.
+	seenKey := make(map[string]bool, len(entries))
+	keyUnique := make([]store.MemoryEntry, 0, len(entries))
+	exactDupes := 0
 	for i := range entries {
+		lower := strings.ToLower(entries[i].Key)
+		if seenKey[lower] {
+			exactDupes++
+		} else {
+			seenKey[lower] = true
+			keyUnique = append(keyUnique, entries[i])
+		}
+	}
+
+	// Phase 2: content-similarity dedup on key-unique set.
+	// Exact key matches are pre-filtered, so only content similarity is compared.
+	unique := make([]store.MemoryEntry, 0, len(keyUnique))
+	simDupes := 0
+	for i := range keyUnique {
 		isDupe := false
 		for j := range unique {
-			if c.isSimilar(entries[i], unique[j]) {
+			if normalizedSimilarity(keyUnique[i].Content, unique[j].Content) >= c.config.DedupeThreshold {
 				isDupe = true
-				dupes++
+				simDupes++
 				break
 			}
 		}
 		if !isDupe {
-			key := entries[i].Key
-			if !seen[key] {
-				seen[key] = true
-				unique = append(unique, entries[i])
-			} else {
-				dupes++
-			}
+			unique = append(unique, keyUnique[i])
 		}
 	}
-	return unique, dupes
+
+	return unique, exactDupes + simDupes
 }
 
 // findDuplicateKeys returns the keys that are in entries but not in deduped.

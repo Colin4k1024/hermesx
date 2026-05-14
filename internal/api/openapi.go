@@ -10,20 +10,23 @@ func OpenAPISpec() http.HandlerFunc {
 	spec := map[string]any{
 		"openapi": "3.0.3",
 		"info": map[string]any{
-			"title":       "Hermes Agent API",
-			"version":     "1.3.0",
+			"title":       "HermesX Agent API",
+			"version":     "2.2.0",
 			"description": "Enterprise multi-tenant AI agent platform with RBAC, RLS, and execution audit trail.",
-			"contact":     map[string]any{"name": "Hermes Team"},
+			"contact":     map[string]any{"name": "HermesX Team"},
 		},
 		"servers": []map[string]any{
 			{"url": "/", "description": "Current server"},
 		},
 		"paths": map[string]any{
-			"/v1/health":       healthPath(),
-			"/v1/health/live":  pathItem("get", "Kubernetes liveness probe", "200"),
-			"/v1/health/ready": pathItem("get", "Kubernetes readiness probe (checks DB connectivity)", "200"),
+			// Infrastructure — no auth required, no /v1 prefix.
+			"/health/live":  pathItem("get", "Kubernetes liveness probe", "200"),
+			"/health/ready": pathItem("get", "Kubernetes readiness probe (checks DB connectivity)", "200"),
+			"/metrics":      pathItem("get", "Prometheus metrics endpoint", "200"),
 
+			// User-facing API (Bearer auth required).
 			"/v1/chat/completions": chatPath(),
+			"/v1/agent/chat":       agentChatPath(),
 			"/v1/sessions":         sessionsPath(),
 			"/v1/sessions/{id}":    sessionByIDPath(),
 			"/v1/memories":         memoriesPath(),
@@ -39,14 +42,27 @@ func OpenAPISpec() http.HandlerFunc {
 
 			"/v1/usage":   pathItem("get", "Usage summary for billing (input/output/cache tokens)", "200"),
 			"/v1/me":      pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
-			"/v1/metrics": pathItem("get", "Prometheus metrics endpoint", "200"),
 			"/v1/openapi": pathItem("get", "This OpenAPI specification", "200"),
 
-			"/v1/gdpr/export": pathItem("get", "GDPR data export for current tenant", "200"),
-			"/v1/gdpr/data":   pathItem("delete", "GDPR data deletion for current tenant", "200"),
+			"/v1/gdpr/export":          pathItem("get", "GDPR data export for current tenant", "200"),
+			"/v1/gdpr/data":            pathItem("delete", "GDPR data deletion for current tenant", "200"),
+			"/v1/gdpr/cleanup-minio":   gdprCleanupPath(),
 
 			"/v1/skills":        pathItem("get", "List tenant skills", "200"),
 			"/v1/skills/{name}": pathItem("get", "Get skill content by name", "200"),
+
+			// Bootstrap — unauthenticated, IP rate-limited.
+			"/admin/v1/bootstrap":        bootstrapCreatePath(),
+			"/admin/v1/bootstrap/status": bootstrapStatusPath(),
+
+			// Admin API (admin scope required).
+			"/admin/v1/tenants/{id}/sandbox-policy":           sandboxPolicyPath(),
+			"/admin/v1/tenants/{id}/api-keys":                 adminAPIKeysPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}":           adminAPIKeyByIDPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}/rotate":    adminAPIKeyRotatePath(),
+			"/admin/v1/pricing-rules":                         pricingRulesPath(),
+			"/admin/v1/pricing-rules/{model}":                 pricingRuleByModelPath(),
+			"/admin/v1/audit-logs":                            adminAuditLogsPath(),
 		},
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
@@ -67,7 +83,8 @@ func OpenAPISpec() http.HandlerFunc {
 			{"name": "Chat", "description": "OpenAI-compatible chat completions"},
 			{"name": "Sessions", "description": "Conversation session management"},
 			{"name": "Memory", "description": "Per-user key-value memory"},
-			{"name": "Admin", "description": "Tenant and API key management (admin role required)"},
+			{"name": "Bootstrap", "description": "One-time platform admin key creation"},
+			{"name": "Admin", "description": "Tenant, API key, and pricing management (admin scope required)"},
 			{"name": "Audit", "description": "Audit logs and execution receipts (auditor role required)"},
 			{"name": "GDPR", "description": "Data export and deletion"},
 		},
@@ -90,17 +107,6 @@ func pathItem(method, summary, status string) map[string]any {
 	}
 }
 
-func healthPath() map[string]any {
-	return map[string]any{
-		"get": map[string]any{
-			"tags":    []string{"Health"},
-			"summary": "Health check",
-			"responses": map[string]any{
-				"200": map[string]any{"description": "Healthy"},
-			},
-		},
-	}
-}
 
 func chatPath() map[string]any {
 	return map[string]any{
@@ -330,6 +336,217 @@ func executionReceiptByIDPath() map[string]any {
 	}
 }
 
+func agentChatPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Chat"},
+			"summary": "Agent chat (alias for /v1/chat/completions with session persistence)",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/ChatRequest"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Chat response (streaming or JSON)"},
+				"400": map[string]any{"description": "No user message in request"},
+				"401": map[string]any{"description": "Unauthorized"},
+				"403": map[string]any{"description": "Session belongs to another user"},
+			},
+		},
+	}
+}
+
+func gdprCleanupPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"GDPR"},
+			"summary": "Purge orphaned MinIO skill objects for current tenant",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Cleanup complete"},
+				"403": map[string]any{"description": "Forbidden"},
+			},
+		},
+	}
+}
+
+func bootstrapCreatePath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Bootstrap"},
+			"summary": "Create the platform's first admin API key (idempotent, IP rate-limited to 5 RPM)",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/BootstrapRequest"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Admin key created — raw key in response"},
+				"403": map[string]any{"description": "Bootstrap already completed"},
+				"429": map[string]any{"description": "Rate limit exceeded"},
+			},
+			"security": []map[string]any{},
+		},
+	}
+}
+
+func bootstrapStatusPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Bootstrap"},
+			"summary": "Check whether platform bootstrap has been completed",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Bootstrap status (completed: bool)"},
+			},
+			"security": []map[string]any{},
+		},
+	}
+}
+
+func sandboxPolicyPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Get sandbox policy for a tenant",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Sandbox policy"},
+				"404": map[string]any{"description": "Policy not set"},
+			},
+		},
+		"post": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Set sandbox policy for a tenant",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/SandboxPolicy"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Policy updated"},
+			},
+		},
+		"delete": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Delete sandbox policy for a tenant (reverts to default)",
+			"responses": map[string]any{
+				"204": map[string]any{"description": "Deleted"},
+			},
+		},
+	}
+}
+
+func adminAPIKeysPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "List API keys for a specific tenant (admin scope required)",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "API key list"},
+			},
+		},
+		"post": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Create API key for a specific tenant",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/CreateAPIKeyRequest"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"201": map[string]any{"description": "Key created — raw key in response"},
+			},
+		},
+	}
+}
+
+func adminAPIKeyByIDPath() map[string]any {
+	return map[string]any{
+		"delete": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Revoke an API key for a specific tenant",
+			"responses": map[string]any{
+				"204": map[string]any{"description": "Revoked"},
+				"404": map[string]any{"description": "Key not found"},
+			},
+		},
+	}
+}
+
+func adminAPIKeyRotatePath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Rotate (revoke and re-create) an API key",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "New key — raw key in response"},
+			},
+		},
+	}
+}
+
+func pricingRulesPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "List all pricing rules",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Pricing rule list"},
+			},
+		},
+	}
+}
+
+func pricingRuleByModelPath() map[string]any {
+	return map[string]any{
+		"put": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Upsert pricing rule for a model",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Rule upserted"},
+			},
+		},
+		"delete": map[string]any{
+			"tags":    []string{"Admin"},
+			"summary": "Delete pricing rule for a model",
+			"responses": map[string]any{
+				"204": map[string]any{"description": "Deleted"},
+			},
+		},
+	}
+}
+
+func adminAuditLogsPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Audit"},
+			"summary": "List audit logs across all tenants (admin scope required)",
+			"parameters": []map[string]any{
+				{"name": "tenant_id", "in": "query", "schema": map[string]any{"type": "string"}},
+				{"name": "action", "in": "query", "schema": map[string]any{"type": "string"}},
+				{"name": "from", "in": "query", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "to", "in": "query", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer", "default": 50}},
+				{"name": "offset", "in": "query", "schema": map[string]any{"type": "integer", "default": 0}},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Audit log entries with pagination"},
+				"403": map[string]any{"description": "Forbidden — admin scope required"},
+			},
+		},
+	}
+}
+
 func schemas() map[string]any {
 	return map[string]any{
 		"ChatRequest": map[string]any{
@@ -355,7 +572,16 @@ func schemas() map[string]any {
 			"properties": map[string]any{
 				"name":      map[string]any{"type": "string"},
 				"roles":     map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "default": []string{"user"}},
+				"scopes":    map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Fine-grained scopes; empty = legacy role-only access"},
 				"tenant_id": map[string]any{"type": "string", "description": "Only admin callers may specify a foreign tenant_id"},
+			},
+		},
+		"BootstrapRequest": map[string]any{
+			"type":     "object",
+			"required": []string{"name", "tenant_id"},
+			"properties": map[string]any{
+				"name":      map[string]any{"type": "string", "description": "Display name for the bootstrap admin key"},
+				"tenant_id": map[string]any{"type": "string", "format": "uuid", "description": "Platform root tenant ID"},
 			},
 		},
 		"ExecutionReceipt": map[string]any{

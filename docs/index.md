@@ -28,11 +28,11 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | Platform adapters | 15 |
 | Terminal backends | 7 |
 | Bundled skills | 126 |
-| Test files | 123 |
-| Total tests | 1,585 |
+| Test files | 127 |
+| Total tests | 1,597 |
 | RLS-protected tables | 10 |
-| API endpoints | 22+ |
-| Version | v2.1.1 |
+| API endpoints | 33+ |
+| Version | v2.2.0 |
 
 ---
 

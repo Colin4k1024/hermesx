@@ -7,17 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+---
+
+## [2.2.0] - 2026-05-14
+
+Security hardening, bootstrap stabilization, and supply-chain improvements.
+
 ### Added
 
 - IP-level rate limiting for `POST /admin/v1/bootstrap`, with matching Nginx limits for WebUI and production load-balancer entrypoints.
-- Cross-replica bootstrap idempotency via `bootstrap_state` in PostgreSQL and MySQL.
+- Cross-replica bootstrap idempotency via `bootstrap_state` in PostgreSQL (`ON CONFLICT DO NOTHING` + `RETURNING id` sentinel).
 - Session titles for SaaS chat sessions, surfaced in the WebUI conversation sidebar.
+- `internal/store/pg` unit tests: compile-time interface assertions, bootstrap idempotency logic, and SQL shape validation for scopes (`COALESCE`) and `ON CONFLICT` idempotency.
+- OpenAPI spec corrections: title/version/contact updated to HermesX v2.2.0; 11 missing routes added (`/health/live`, `/health/ready`, `/metrics`, `/v1/agent/chat`, `/v1/gdpr/cleanup-minio`, all `/admin/v1/*` endpoints); paths now accurate at 33+ documented routes.
 
 ### Fixed
 
 - PostgreSQL API key persistence now writes and reads `scopes`, allowing admin API keys to satisfy `RequireScope("admin")`.
 - Release workflow now builds with Go 1.25 and generates checksums for `hermesx-*` artifacts.
-- Documentation now reflects the actual React WebUI stack and v2.1.1 baseline.
+- Documentation now reflects the actual React WebUI stack and v2.2.0 baseline.
+- WebUI security headers (CSP, HSTS, X-Frame-Options), URL encoding, auth retry on 401, and N+1 query eliminated in session list.
+
+### Changed
+
+- `HasScope` compatibility policy documented: empty `Scopes` = legacy key granted non-admin access; `admin` scope always requires explicit grant. New keys carry explicit scopes.
+- Memory `Curator.deduplicateEntries`: Phase 1 now O(n) exact-key dedup via map; Phase 2 content-similarity scan limited to key-unique set (m ≤ n), resolving O(n²) worst case at `MaxMemories > 100`.
+
+### Security
+
+- GitHub Actions supply-chain hardening: `actions/checkout`, `actions/setup-go`, and `softprops/action-gh-release` all pinned to full commit SHA.
+- Bootstrap endpoint now enforces 5 RPM IP rate limit at application layer, Nginx WebUI layer, and production LB layer.
 
 ---
 

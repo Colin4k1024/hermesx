@@ -35,10 +35,18 @@ func (ac *AuthContext) HasRole(role string) bool {
 }
 
 // HasScope reports whether the AuthContext contains the given scope.
-// Legacy keys (empty scopes) are allowed read/write access but NOT admin access.
+//
+// Compatibility policy (accepted, not a bug):
+//   - Keys created before scopes were introduced have an empty Scopes slice.
+//   - These legacy keys are granted read/write access to non-admin endpoints to
+//     avoid breaking existing integrations.
+//   - The "admin" scope always requires an explicit grant; legacy keys are never
+//     silently elevated.
+//   - New keys created via the API carry explicit scopes and are evaluated strictly.
+//
+// To migrate: re-issue API keys with explicit scopes and retire legacy ones.
 func (ac *AuthContext) HasScope(scope string) bool {
 	if len(ac.Scopes) == 0 {
-		// Legacy keys only get read/write; admin requires explicit scope grant.
 		return scope != "admin"
 	}
 	return slices.Contains(ac.Scopes, scope)
