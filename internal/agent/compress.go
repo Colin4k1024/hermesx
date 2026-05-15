@@ -615,4 +615,3 @@ func extractToolKeyResult(toolName, content string) string {
 		return truncate(content, 80)
 	}
 }
-

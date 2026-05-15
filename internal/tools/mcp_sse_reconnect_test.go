@@ -265,7 +265,7 @@ func TestReconnectWithBackoff_ContextCancellation(t *testing.T) {
 	select {
 	case <-done:
 		// Good — exited after context cancellation.
-	case <-time.After(5*time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("reconnectWithBackoff did not exit after context cancellation")
 	}
 }

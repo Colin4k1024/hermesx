@@ -18,9 +18,9 @@ var ModelAliases = map[string]string{
 	"codex":      "openai/codex-mini",
 
 	// Google
-	"gemini":      "google/gemini-2.5-pro",
-	"gemini-pro":  "google/gemini-2.5-pro",
-	"flash":       "google/gemini-2.5-flash",
+	"gemini":       "google/gemini-2.5-pro",
+	"gemini-pro":   "google/gemini-2.5-pro",
+	"flash":        "google/gemini-2.5-flash",
 	"gemini-flash": "google/gemini-2.5-flash",
 
 	// DeepSeek

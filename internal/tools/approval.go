@@ -430,7 +430,7 @@ func CheckDangerousCommand(command string, ctx *ToolContext) map[string]any {
 			"status":   "denied",
 			"message":  fmt.Sprintf("blocked by permission policy: %s", decision.Reason),
 		}
-	// ActionAsk falls through to existing approval logic below.
+		// ActionAsk falls through to existing approval logic below.
 	}
 
 	isDangerous, reason := IsDangerousCommand(command)
