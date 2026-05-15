@@ -179,12 +179,16 @@ func getCached(model string) (ModelMeta, bool) {
 }
 
 // GetModelMeta returns metadata for a model using a resolution chain:
+//  0. Resolve short alias (e.g. "opus" → "anthropic/claude-opus-4-20250514")
 //  1. Exact match in hardcoded KnownModels
 //  2. Strip provider prefix and try hardcoded KnownModels
 //  3. Check the in-memory cache
 //  4. Query the models.dev API
 //  5. Fall back to defaults (128K context, 8192 max output)
 func GetModelMeta(model string) ModelMeta {
+	// 0. Resolve short alias first.
+	model = ResolveModelAlias(model)
+
 	// 1. Exact match in hardcoded table.
 	if meta, ok := KnownModels[model]; ok {
 		return meta

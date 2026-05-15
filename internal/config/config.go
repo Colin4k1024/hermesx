@@ -158,6 +158,7 @@ var (
 )
 
 // Load reads the configuration from disk, merging with defaults.
+// Resolution order (later wins): defaults < global < project < env vars.
 func Load() *Config {
 	if p := configPtr.Load(); p != nil {
 		return p
@@ -169,12 +170,21 @@ func Load() *Config {
 	}
 	cfg := DefaultConfig()
 	_ = godotenv.Load(filepath.Join(HermesHome(), ".env"))
+
+	// Layer 1: Global user config (~/.hermes/config.yaml)
 	if data, err := os.ReadFile(filepath.Join(HermesHome(), "config.yaml")); err == nil {
 		var fileConfig Config
 		if err := yaml.Unmarshal(data, &fileConfig); err == nil {
 			mergeConfig(cfg, &fileConfig)
 		}
 	}
+
+	// Layer 2: Project-scoped config ({git_root}/.hermes/config.yaml)
+	if projectCfg := LoadProjectConfig(); projectCfg != nil {
+		mergeConfig(cfg, projectCfg)
+	}
+
+	// Layer 3: Environment variable overrides (highest priority)
 	applyEnvOverrides(cfg)
 	configPtr.Store(cfg)
 	return cfg
@@ -247,6 +257,9 @@ func Reload() *Config {
 		if err := yaml.Unmarshal(data, &fileConfig); err == nil {
 			mergeConfig(cfg, &fileConfig)
 		}
+	}
+	if projectCfg := LoadProjectConfig(); projectCfg != nil {
+		mergeConfig(cfg, projectCfg)
 	}
 	applyEnvOverrides(cfg)
 	configPtr.Store(cfg)

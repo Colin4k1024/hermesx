@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/exec"
@@ -19,6 +20,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/observability"
 )
 
 // ---------- Configuration ----------
@@ -607,6 +609,201 @@ func (c *MCPClient) startNotificationWatcher(ctx context.Context, wg *sync.WaitG
 	}()
 }
 
+// backoffParams controls the exponential backoff used by reconnectWithBackoff.
+type backoffParams struct {
+	initial time.Duration // first sleep duration
+	factor  float64       // multiplier applied after each attempt
+	max     time.Duration // upper cap on sleep duration
+	maxTry  int           // stop after this many attempts (0 = infinite)
+}
+
+// defaultBackoff is the reconnection backoff used by startHealthMonitor.
+var defaultBackoff = backoffParams{
+	initial: 1 * time.Second,
+	factor:  2.0,
+	max:     30 * time.Second,
+	maxTry:  10,
+}
+
+// pingInterval is how often the health monitor sends a JSON-RPC ping.
+const pingInterval = 30 * time.Second
+
+// startHealthMonitor launches a goroutine that:
+//  1. Sends a periodic JSON-RPC "ping" to keep the connection alive and
+//     detect failures early.
+//  2. Watches for the SSE stream to close unexpectedly.
+//  3. On connection loss, calls reconnectWithBackoff to re-establish the
+//     connection and refresh tool definitions.
+//
+// The goroutine exits when ctx is cancelled.
+func (c *MCPClient) startHealthMonitor(ctx context.Context, wg *sync.WaitGroup) {
+	sse, ok := c.transport.(*sseTransportV2)
+	if !ok {
+		return // only SSE transport needs a health monitor
+	}
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		ticker := time.NewTicker(pingInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+
+			case <-ticker.C:
+				// Send a ping; on failure treat it as a connection loss.
+				if err := c.sendPing(); err != nil {
+					select {
+					case <-ctx.Done():
+						return
+					default:
+					}
+					slog.Warn("MCP ping failed, reconnecting",
+						"server", c.name, "error", err)
+					c.reconnectWithBackoff(ctx, defaultBackoff)
+					// After reconnect, obtain the new SSE transport.
+					c.mu.Lock()
+					newSSE, ok := c.transport.(*sseTransportV2)
+					c.mu.Unlock()
+					if !ok {
+						return
+					}
+					sse = newSSE
+					ticker.Reset(pingInterval)
+				}
+
+			case <-sse.StreamDone():
+				// SSE reader goroutine exited — connection was lost.
+				select {
+				case <-ctx.Done():
+					return
+				default:
+				}
+				slog.Warn("MCP SSE stream closed unexpectedly, reconnecting",
+					"server", c.name)
+				c.reconnectWithBackoff(ctx, defaultBackoff)
+				// Update sse reference after reconnect.
+				c.mu.Lock()
+				newSSE, ok := c.transport.(*sseTransportV2)
+				c.mu.Unlock()
+				if !ok {
+					return
+				}
+				sse = newSSE
+				ticker.Reset(pingInterval)
+			}
+		}
+	}()
+}
+
+// sendPing issues a JSON-RPC "ping" to the MCP server and awaits the response.
+// It uses a short timeout so a hung connection is detected quickly.
+func (c *MCPClient) sendPing() error {
+	c.mu.Lock()
+	if !c.connected {
+		c.mu.Unlock()
+		return fmt.Errorf("not connected")
+	}
+	id := c.nextID.Add(1)
+	transport := c.transport
+	c.mu.Unlock()
+
+	pingReq := jsonRPCRequest{
+		JSONRPC: "2.0",
+		ID:      id,
+		Method:  "ping",
+	}
+	if err := transport.Send(pingReq); err != nil {
+		return fmt.Errorf("ping send: %w", err)
+	}
+	// Receive the pong; Receive() already has a 60s timeout internally.
+	resp, err := transport.Receive()
+	if err != nil {
+		return fmt.Errorf("ping receive: %w", err)
+	}
+	if resp.Error != nil {
+		// Some servers return method-not-found for ping — treat as alive.
+		if resp.Error.Code == -32601 {
+			return nil
+		}
+		return fmt.Errorf("ping error: %s", resp.Error.Message)
+	}
+	return nil
+}
+
+// reconnectWithBackoff tears down the current transport, then retries Connect
+// and DiscoverTools with exponential backoff and ±25 % jitter.
+// On success it increments the Prometheus reconnect counter and calls
+// RefreshTools. On permanent failure (maxTry exceeded) it logs and returns.
+func (c *MCPClient) reconnectWithBackoff(ctx context.Context, bp backoffParams) {
+	// Mark disconnected so Connect() will proceed.
+	c.mu.Lock()
+	if c.transport != nil {
+		c.transport.Close() //nolint:errcheck
+	}
+	c.connected = false
+	c.mu.Unlock()
+
+	delay := bp.initial
+	for attempt := 1; ; attempt++ {
+		select {
+		case <-ctx.Done():
+			slog.Info("MCP reconnect cancelled", "server", c.name)
+			return
+		default:
+		}
+
+		if bp.maxTry > 0 && attempt > bp.maxTry {
+			slog.Error("MCP reconnect giving up after max attempts",
+				"server", c.name, "attempts", attempt-1)
+			return
+		}
+
+		slog.Info("MCP reconnecting", "server", c.name, "attempt", attempt, "delay", delay)
+
+		connCtx, connCancel := context.WithTimeout(ctx, 30*time.Second)
+		err := c.Connect(connCtx)
+		connCancel()
+
+		if err == nil {
+			observability.MCPServerReconnectsTotal.WithLabelValues(c.name).Inc()
+			slog.Info("MCP reconnected", "server", c.name, "attempt", attempt)
+
+			// Refresh tool definitions on the new connection.
+			if refreshErr := c.RefreshTools(ctx); refreshErr != nil {
+				slog.Warn("MCP tool refresh after reconnect failed",
+					"server", c.name, "error", refreshErr)
+			}
+			return
+		}
+
+		slog.Warn("MCP reconnect attempt failed",
+			"server", c.name, "attempt", attempt, "error", err)
+
+		// Apply ±25 % jitter: delay * [0.75, 1.25).
+		jitter := delay/4 + time.Duration(rand.Int64N(int64(delay/2)))
+		sleep := delay - delay/4 + jitter
+		if sleep > bp.max {
+			sleep = bp.max
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(sleep):
+		}
+
+		delay = time.Duration(float64(delay) * bp.factor)
+		if delay > bp.max {
+			delay = bp.max
+		}
+	}
+}
+
 // ---------- MCP Manager ----------
 
 // mcpManager manages all MCP server connections.
@@ -700,6 +897,14 @@ func RegisterMCPToolsWithSampling(platform string, samplingClient *llm.Client) {
 		for _, tool := range tools {
 			registerMCPTool(name, client, tool)
 		}
+
+		// Start background goroutines for SSE-based servers.
+		// bgCtx lives for the process lifetime; ShutdownAllMCP closes the
+		// transport which causes both goroutines to exit via ctx / streamDone.
+		bgCtx := context.Background()
+		var bgWG sync.WaitGroup
+		client.startNotificationWatcher(bgCtx, &bgWG)
+		client.startHealthMonitor(bgCtx, &bgWG)
 
 		slog.Info("MCP server registered", "name", name, "tools", len(tools))
 	}

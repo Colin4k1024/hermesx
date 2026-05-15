@@ -66,6 +66,13 @@ type anthropicRequest struct {
 	Messages  []anthropicMessage `json:"messages"`
 	Tools     []anthropicTool    `json:"tools,omitempty"`
 	Stream    bool               `json:"stream,omitempty"`
+	Thinking  *anthropicThinking `json:"thinking,omitempty"`
+}
+
+// anthropicThinking enables extended thinking (reasoning) in Claude models.
+type anthropicThinking struct {
+	Type         string `json:"type"`          // "enabled" or "disabled"
+	BudgetTokens int    `json:"budget_tokens"` // max tokens for thinking output
 }
 
 // anthropicSystemBlock supports cache_control on system prompt blocks.
@@ -473,6 +480,23 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 		applyMessageCaching(apiReq.Messages, c.cacheOpts.Breakpoints)
 	}
 
+	// Enable extended thinking if requested and model supports it.
+	if req.ReasoningLevel != "" && req.ReasoningLevel != "disabled" {
+		budget := reasoningEffortToBudget(req.ReasoningLevel)
+		if budget > 0 {
+			apiReq.Thinking = &anthropicThinking{
+				Type:         "enabled",
+				BudgetTokens: budget,
+			}
+			// When thinking is enabled, max_tokens must accommodate both
+			// thinking and output. Ensure it's at least budget + default output.
+			minTokens := budget + apiReq.MaxTokens
+			if minTokens > apiReq.MaxTokens {
+				apiReq.MaxTokens = minTokens
+			}
+		}
+	}
+
 	// Convert tools to Anthropic format
 	for _, t := range req.Tools {
 		tool := anthropicTool{
@@ -484,6 +508,24 @@ func (c *AnthropicClient) buildAnthropicRequest(req ChatRequest) anthropicReques
 	}
 
 	return apiReq
+}
+
+// reasoningEffortToBudget maps a reasoning effort level to a thinking budget in tokens.
+func reasoningEffortToBudget(effort string) int {
+	switch effort {
+	case "minimal":
+		return 1024
+	case "low":
+		return 2048
+	case "medium":
+		return 4096
+	case "high":
+		return 10000
+	case "xhigh":
+		return 32000
+	default:
+		return 4096 // default to medium
+	}
 }
 
 // applyMessageCaching applies cache_control breakpoints to the last N messages

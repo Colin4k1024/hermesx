@@ -90,4 +90,12 @@ var (
 		},
 		[]string{"operation"},
 	)
+
+	MCPServerReconnectsTotal = promauto.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mcp_server_reconnects_total",
+			Help: "Total MCP server reconnection attempts by server name.",
+		},
+		[]string{"server"},
+	)
 )

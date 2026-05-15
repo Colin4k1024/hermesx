@@ -231,14 +231,22 @@ func (a *AIAgent) compressHybrid(ctx context.Context, messages []llm.Message, ke
 		}
 	}
 
-	// Assemble result: summary + key messages + recent messages
+	// Assemble result: summary (with tool spine) + key messages + recent messages
 	result := make([]llm.Message, 0, len(keyMessages)+keepCount+2)
 
 	if summaryText != "" {
+		// Extract tool spine from compressed messages for structural preservation.
+		spine := ExtractToolSpine(oldMessages)
+		spineText := FormatToolSpine(spine)
+
+		content := fmt.Sprintf("[Context Summary -- %d messages compressed, %d key messages preserved]\n%s",
+			len(summarizable), len(keyMessages), summaryText)
+		if spineText != "" {
+			content += "\n" + spineText
+		}
 		result = append(result, llm.Message{
-			Role: "system",
-			Content: fmt.Sprintf("[Context Summary -- %d messages compressed, %d key messages preserved]\n%s",
-				len(summarizable), len(keyMessages), summaryText),
+			Role:    "system",
+			Content: content,
 		})
 	}
 
@@ -485,3 +493,126 @@ func estimateConversationTokens(messages []llm.Message, systemPrompt string) int
 	}
 	return total
 }
+
+// --- Tool Spine (structured compaction enhancement) ---
+
+// ToolSpineEntry represents a single tool invocation's outcome summary.
+type ToolSpineEntry struct {
+	ToolName  string
+	Success   bool
+	KeyResult string // one-line outcome
+}
+
+// ExtractToolSpine extracts a sequence of tool call outcomes from messages.
+// This preserves "what was tried and what happened" even after full text compression.
+func ExtractToolSpine(messages []llm.Message) []ToolSpineEntry {
+	var spine []ToolSpineEntry
+
+	// Track tool calls (assistant messages) and their results (tool messages).
+	pendingCalls := make(map[string]string) // toolCallID → toolName
+
+	for _, m := range messages {
+		// Collect pending tool calls from assistant messages.
+		for _, tc := range m.ToolCalls {
+			pendingCalls[tc.ID] = tc.Function.Name
+		}
+
+		// Match tool results to their calls.
+		if m.Role == "tool" && m.ToolCallID != "" {
+			toolName := pendingCalls[m.ToolCallID]
+			if toolName == "" {
+				toolName = m.ToolName
+			}
+			if toolName == "" {
+				toolName = "unknown"
+			}
+
+			entry := ToolSpineEntry{
+				ToolName:  toolName,
+				Success:   classifyToolSuccess(m.Content),
+				KeyResult: extractToolKeyResult(toolName, m.Content),
+			}
+			spine = append(spine, entry)
+			delete(pendingCalls, m.ToolCallID)
+		}
+	}
+	return spine
+}
+
+// FormatToolSpine renders a tool spine as a compact text summary.
+func FormatToolSpine(spine []ToolSpineEntry) string {
+	if len(spine) == 0 {
+		return ""
+	}
+
+	var sb strings.Builder
+	sb.WriteString("### Tool Call History\n")
+	for i, entry := range spine {
+		status := "ok"
+		if !entry.Success {
+			status = "FAIL"
+		}
+		sb.WriteString(fmt.Sprintf("%d. %s [%s]: %s\n", i+1, entry.ToolName, status, entry.KeyResult))
+	}
+	return sb.String()
+}
+
+// classifyToolSuccess returns true if the tool result suggests success.
+func classifyToolSuccess(content string) bool {
+	lower := strings.ToLower(content)
+	failureIndicators := []string{
+		"error:", "failed", "not found", "permission denied",
+		"exit code 1", "exit status 1", "timeout", "panic:",
+		"fatal:", "no such file",
+	}
+	for _, indicator := range failureIndicators {
+		if strings.Contains(lower, indicator) {
+			return false
+		}
+	}
+	return true
+}
+
+// extractToolKeyResult extracts a one-line summary from a tool result based on tool type.
+func extractToolKeyResult(toolName, content string) string {
+	switch {
+	case strings.Contains(toolName, "read") || strings.Contains(toolName, "file"):
+		// File read: report filename or line count.
+		lines := strings.Count(content, "\n")
+		if lines > 0 {
+			return fmt.Sprintf("%d lines read", lines)
+		}
+		return truncate(content, 60)
+
+	case strings.Contains(toolName, "search") || strings.Contains(toolName, "grep") || strings.Contains(toolName, "glob"):
+		// Search: count matches.
+		lines := strings.Count(content, "\n")
+		if lines > 0 {
+			return fmt.Sprintf("%d results", lines)
+		}
+		return truncate(content, 60)
+
+	case strings.Contains(toolName, "edit") || strings.Contains(toolName, "write"):
+		// Write/edit: success or file path.
+		if strings.Contains(strings.ToLower(content), "success") || strings.Contains(content, "written") {
+			return "success"
+		}
+		return truncate(content, 60)
+
+	case strings.Contains(toolName, "terminal") || strings.Contains(toolName, "bash") || strings.Contains(toolName, "exec"):
+		// Terminal: exit code + first/last meaningful line.
+		lines := strings.Split(strings.TrimSpace(content), "\n")
+		if len(lines) == 0 {
+			return "(empty output)"
+		}
+		if len(lines) <= 3 {
+			return truncate(strings.Join(lines, "; "), 80)
+		}
+		return fmt.Sprintf("%s ... (%d lines) ... %s",
+			truncate(lines[0], 40), len(lines), truncate(lines[len(lines)-1], 40))
+
+	default:
+		return truncate(content, 80)
+	}
+}
+

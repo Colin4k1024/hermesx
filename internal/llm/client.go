@@ -64,7 +64,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 		return nil, fmt.Errorf("no API key configured. Run 'hermes setup' or set an API key in %s/.env", config.DisplayHermesHome())
 	}
 
-	model := cfg.Model
+	model := ResolveModelAlias(cfg.Model)
 	if model == "" {
 		model = "anthropic/claude-sonnet-4-20250514"
 	}
@@ -127,6 +127,9 @@ func NewClientWithTransport(model, baseURL, apiKey, provider string, t Transport
 }
 
 func newClientInternal(model, baseURL, apiKey, provider string, mode APIMode) (*Client, error) {
+	// Resolve short aliases (e.g. "opus" → "anthropic/claude-opus-4-20250514").
+	model = ResolveModelAlias(model)
+
 	c := &Client{
 		model:    model,
 		provider: provider,

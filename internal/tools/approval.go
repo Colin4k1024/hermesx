@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/permissions"
 )
 
 // ApprovalScope defines how broadly an approval applies.
@@ -415,6 +417,20 @@ var SandboxedEnvironments = map[string]bool{
 func CheckDangerousCommand(command string, ctx *ToolContext) map[string]any {
 	if ctx != nil && SandboxedEnvironments[ctx.Platform] {
 		return map[string]any{"approved": true, "message": nil}
+	}
+
+	// Check declarative permission policy first (if loaded).
+	decision := permissions.Check("terminal", command, "")
+	switch decision.Action {
+	case permissions.ActionAllow:
+		return map[string]any{"approved": true, "message": nil}
+	case permissions.ActionDeny:
+		return map[string]any{
+			"approved": false,
+			"status":   "denied",
+			"message":  fmt.Sprintf("blocked by permission policy: %s", decision.Reason),
+		}
+	// ActionAsk falls through to existing approval logic below.
 	}
 
 	isDangerous, reason := IsDangerousCommand(command)

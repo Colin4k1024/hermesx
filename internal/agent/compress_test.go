@@ -671,3 +671,72 @@ func TestRetryWithMainEnabled_ExplicitFalse(t *testing.T) {
 		t.Error("explicitly false RetryWithMain should return false")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Tool Spine extraction
+// ---------------------------------------------------------------------------
+
+func TestExtractToolSpine(t *testing.T) {
+	messages := []llm.Message{
+		{Role: "user", Content: "Search for auth files"},
+		{
+			Role: "assistant",
+			ToolCalls: []llm.ToolCall{
+				{ID: "tc1", Function: llm.FunctionCall{Name: "grep_search", Arguments: `{"pattern":"auth"}`}},
+			},
+		},
+		{Role: "tool", ToolCallID: "tc1", ToolName: "grep_search", Content: "file1.go:10\nfile2.go:20\nfile3.go:30"},
+		{
+			Role: "assistant",
+			ToolCalls: []llm.ToolCall{
+				{ID: "tc2", Function: llm.FunctionCall{Name: "file_write", Arguments: `{"path":"/tmp/x"}`}},
+			},
+		},
+		{Role: "tool", ToolCallID: "tc2", ToolName: "file_write", Content: "error: permission denied"},
+	}
+
+	spine := ExtractToolSpine(messages)
+	if len(spine) != 2 {
+		t.Fatalf("expected 2 spine entries, got %d", len(spine))
+	}
+
+	// First: grep_search should be success
+	if spine[0].ToolName != "grep_search" {
+		t.Errorf("spine[0].ToolName = %q, want 'grep_search'", spine[0].ToolName)
+	}
+	if !spine[0].Success {
+		t.Error("spine[0] should be success")
+	}
+
+	// Second: file_write should be failure
+	if spine[1].ToolName != "file_write" {
+		t.Errorf("spine[1].ToolName = %q, want 'file_write'", spine[1].ToolName)
+	}
+	if spine[1].Success {
+		t.Error("spine[1] should be failure (permission denied)")
+	}
+}
+
+func TestFormatToolSpine(t *testing.T) {
+	spine := []ToolSpineEntry{
+		{ToolName: "terminal", Success: true, KeyResult: "exit 0"},
+		{ToolName: "file_read", Success: false, KeyResult: "not found"},
+	}
+	text := FormatToolSpine(spine)
+	if !strings.Contains(text, "### Tool Call History") {
+		t.Error("spine format should include header")
+	}
+	if !strings.Contains(text, "terminal [ok]") {
+		t.Error("spine should show 'ok' for success")
+	}
+	if !strings.Contains(text, "file_read [FAIL]") {
+		t.Error("spine should show 'FAIL' for failure")
+	}
+}
+
+func TestFormatToolSpine_Empty(t *testing.T) {
+	text := FormatToolSpine(nil)
+	if text != "" {
+		t.Errorf("empty spine should produce empty string, got %q", text)
+	}
+}

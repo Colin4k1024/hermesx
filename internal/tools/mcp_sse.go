@@ -48,6 +48,10 @@ type sseTransportV2 struct {
 	// onServerRequest is called when the SSE stream receives a server-to-client
 	// request (e.g. sampling/createMessage). The callback receives the raw JSON.
 	onServerRequest func(data []byte)
+
+	// streamDone is closed when the SSE reader goroutine exits (connection lost).
+	// Health monitor watches this to detect disconnects.
+	streamDone chan struct{}
 }
 
 func newSSETransportV2(url string, headers map[string]string) *sseTransportV2 {
@@ -63,6 +67,7 @@ func newSSETransportV2(url string, headers map[string]string) *sseTransportV2 {
 		respCh:     make(chan *jsonRPCResponse, 16),
 		notifyCh:   make(chan jsonRPCRequest, 8),
 		postURL:    postURL,
+		streamDone: make(chan struct{}),
 	}
 }
 
@@ -95,6 +100,7 @@ func (t *sseTransportV2) Connect(ctx context.Context) error {
 	go func() {
 		defer t.wg.Done()
 		defer resp.Body.Close()
+		defer close(t.streamDone)
 		t.readSSEStream(resp)
 	}()
 
@@ -244,6 +250,12 @@ func (t *sseTransportV2) Receive() (*jsonRPCResponse, error) {
 // Notifications returns the notification channel for tools/list_changed etc.
 func (t *sseTransportV2) Notifications() <-chan jsonRPCRequest {
 	return t.notifyCh
+}
+
+// StreamDone returns a channel that is closed when the SSE reader goroutine
+// exits. The health monitor uses this to detect an unexpected disconnection.
+func (t *sseTransportV2) StreamDone() <-chan struct{} {
+	return t.streamDone
 }
 
 // Close cancels the context and waits for the reader goroutine to exit.

@@ -50,6 +50,7 @@ type AIAgent struct {
 	skipContextFiles      bool
 	skipMemory            bool
 	persistSession        bool
+	reasoningLevel        string // "xhigh", "high", "medium", "low", "minimal", ""
 	compressionCfg        CompressionConfig
 
 	// Session resume
@@ -109,6 +110,15 @@ type AIAgent struct {
 func New(opts ...AgentOption) (*AIAgent, error) {
 	cfg := config.Load()
 
+	// Resolve reasoning level from config.
+	var reasoningLvl string
+	if cfg.Reasoning.Enabled {
+		reasoningLvl = cfg.Reasoning.Effort
+		if reasoningLvl == "" {
+			reasoningLvl = "medium"
+		}
+	}
+
 	a := &AIAgent{
 		model:            cfg.Model,
 		baseURL:          cfg.BaseURL,
@@ -118,6 +128,7 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 		maxIterations:    cfg.MaxIterations,
 		platform:         "cli",
 		persistSession:   true,
+		reasoningLevel:   reasoningLvl,
 		compressionCfg:   DefaultCompressionConfig(),
 		multimodalRouter: DefaultMultimodalRouter(),
 		lastActivity:     time.Now(),
@@ -260,9 +271,10 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		apiMessages := a.buildAPIMessages(messages)
 
 		req := llm.ChatRequest{
-			Messages: apiMessages,
-			Tools:    a.toolDefs,
-			Stream:   a.hasStreamConsumers(),
+			Messages:       apiMessages,
+			Tools:          a.toolDefs,
+			Stream:         a.hasStreamConsumers(),
+			ReasoningLevel: a.reasoningLevel,
 		}
 
 		// Route to vision client if images present and model lacks vision.
