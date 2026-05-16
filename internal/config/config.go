@@ -50,8 +50,8 @@ type Config struct {
 // EvolutionConfig controls the Oris evolution integration.
 type EvolutionConfig struct {
 	Enabled          bool    `yaml:"enabled"`
-	StorageMode      string  `yaml:"storage_mode"`    // "sqlite" (default) | "mysql"
-	DBPath           string  `yaml:"db_path"`          // default ~/.hermes/evolution.db
+	StorageMode      string  `yaml:"storage_mode"` // "sqlite" (default) | "mysql"
+	DBPath           string  `yaml:"db_path"`      // default ~/.hermes/evolution.db
 	MySQLDSN         string  `yaml:"mysql_dsn"`
 	MinConfidence    float64 `yaml:"min_confidence"`   // minimum confidence to query (default 0.5)
 	ReplayThreshold  float64 `yaml:"replay_threshold"` // inject gene if confidence ≥ this (default 0.75)
