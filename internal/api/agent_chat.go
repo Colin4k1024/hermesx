@@ -164,6 +164,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		agent.WithSoulContent(soulContent),
 		agent.WithSkillLoader(skillLoader),
 		agent.WithMemoryProvider(memProvider),
+		agent.WithEvolution(h.evolutionImprover),
 	)
 	if err != nil {
 		slog.Error("agent_create_failed", "tenant", tenantID, "error", err)

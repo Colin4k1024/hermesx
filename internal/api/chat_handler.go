@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -38,6 +39,15 @@ type chatHandler struct {
 	provisionedUsers sync.Map
 
 	soulCache *lru.LRU[string, string]
+
+	// evolutionImprover is the global Oris gene-backed evolution path (optional).
+	evolutionImprover *evolution.Improver
+}
+
+// SetEvolutionImprover attaches a shared Oris Improver to the handler.
+// Must be called before the handler starts serving requests.
+func (h *chatHandler) SetEvolutionImprover(imp *evolution.Improver) {
+	h.evolutionImprover = imp
 }
 
 const soulCacheTTL = 30 * time.Minute

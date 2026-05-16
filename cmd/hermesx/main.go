@@ -18,6 +18,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/batch"
 	"github.com/Colin4k1024/hermesx/internal/cli"
 	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/cron"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 	"github.com/Colin4k1024/hermesx/internal/gateway/platforms"
@@ -142,14 +143,49 @@ func buildAgentOptions() []agent.AgentOption {
 	if flagProvider != "" {
 		opts = append(opts, agent.WithProvider(flagProvider))
 	}
+
 	return opts
+}
+
+// buildEvolution opens the evolution store if enabled.
+// Callers must defer gs.Close() when gs != nil (B3: resource lifecycle).
+func buildEvolution() (*evolution.GeneStore, *evolution.Improver) {
+	cfg := config.Load()
+	evCfg := evolution.Config{
+		Enabled:          cfg.Evolution.Enabled,
+		StorageMode:      cfg.Evolution.StorageMode,
+		DBPath:           cfg.Evolution.DBPath,
+		MySQLDSN:         cfg.Evolution.MySQLDSN,
+		MinConfidence:    cfg.Evolution.MinConfidence,
+		ReplayThreshold:  cfg.Evolution.ReplayThreshold,
+		MaxGenesInPrompt: cfg.Evolution.MaxGenesInPrompt,
+	}
+	if !evCfg.Enabled {
+		return nil, nil
+	}
+	gs, err := evolution.Open(evCfg)
+	if err != nil {
+		slog.Warn("evolution store init failed, running without evolution", "error", err)
+		return nil, nil
+	}
+	slog.Debug("Oris evolution enabled for CLI session")
+	return gs, evolution.NewImprover(gs, nil, evCfg)
 }
 
 func runInteractiveCLI() error {
 	setupLogging()
 	_ = config.EnsureHermesHome()
 
-	app, err := cli.NewApp(buildAgentOptions()...)
+	gs, evImp := buildEvolution()
+	if gs != nil {
+		defer gs.Close() // B3: flush SQLite WAL / release MySQL pool on exit
+	}
+	opts := buildAgentOptions()
+	if evImp != nil {
+		opts = append(opts, agent.WithEvolution(evImp))
+	}
+
+	app, err := cli.NewApp(opts...)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return err
@@ -170,7 +206,14 @@ var chatCmd = &cobra.Command{
 		_ = config.EnsureHermesHome()
 
 		query := strings.Join(args, " ")
+		gs, evImp := buildEvolution()
+		if gs != nil {
+			defer gs.Close() // B3
+		}
 		opts := buildAgentOptions()
+		if evImp != nil {
+			opts = append(opts, agent.WithEvolution(evImp))
+		}
 		opts = append(opts, agent.WithQuietMode(true))
 
 		app, err := cli.NewApp(opts...)

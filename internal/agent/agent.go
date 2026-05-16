@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/state"
@@ -65,6 +67,9 @@ type AIAgent struct {
 
 	// Self-improvement loop (optional, async, non-blocking).
 	selfImprover *SelfImprover
+
+	// Oris evolution path (optional, parallel to selfImprover).
+	evolutionImprover *evolution.Improver
 
 	// Runtime state
 	client          *llm.Client
@@ -247,6 +252,14 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 
 	a.apiCallCount = 0
 	a.interruptRequested.Store(false)
+
+	// Oris evolution: inject high-confidence gene strategies into context.
+	if a.evolutionImprover != nil {
+		taskClass := evolution.DetectTaskClass(messages, nil)
+		if strategies := a.evolutionImprover.PreTurnEnrich(ctx, a.tenantID, taskClass); len(strategies) > 0 {
+			messages = prependEvolutionContext(messages, strategies)
+		}
+	}
 
 	// Main agent loop
 	emptyRetryCount := 0
@@ -486,7 +499,36 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		}
 	}
 
+	// Oris evolution: record outcome and persist gene insights asynchronously.
+	if a.evolutionImprover != nil && result.Completed {
+		msgsCopy := make([]llm.Message, len(messages)) // defensive copy: goroutine must not share backing array
+		copy(msgsCopy, messages)
+		go func(msgs []llm.Message, tenantID string, completed bool) {
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 45*time.Second)
+			defer cancel2()
+			a.evolutionImprover.PostTurnRecord(ctx2, tenantID, msgs, completed)
+		}(msgsCopy, a.tenantID, result.Completed)
+	}
+
 	return result, nil
+}
+
+// prependEvolutionContext injects gene strategy texts as a system context message
+// before the conversation messages.
+func prependEvolutionContext(messages []llm.Message, strategies []string) []llm.Message {
+	if len(strategies) == 0 {
+		return messages
+	}
+	var sb strings.Builder
+	sb.WriteString("## Behavioral Strategies (from experience)\n")
+	for i, s := range strategies {
+		sb.WriteString(fmt.Sprintf("%d. %s\n", i+1, s))
+	}
+	hint := llm.Message{Role: "system", Content: sb.String()}
+	result := make([]llm.Message, 0, len(messages)+1)
+	result = append(result, hint)
+	result = append(result, messages...)
+	return result
 }
 
 // Interrupt requests the agent to stop after the current tool call (lock-free).

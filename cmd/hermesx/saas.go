@@ -14,6 +14,8 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/acp"
 	"github.com/Colin4k1024/hermesx/internal/api"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 	"github.com/Colin4k1024/hermesx/internal/gateway/platforms"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
@@ -280,6 +282,32 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 	saasServer := api.NewAPIServer(serverCfg)
 
+	// ── 8.5. Wire Oris evolution (optional, global shared store) ──────────
+	var evolutionStore *evolution.GeneStore // lifted to function scope for shutdown (B3)
+	{
+		hermesCfg := config.Load()
+		evCfg := evolution.Config{
+			Enabled:          hermesCfg.Evolution.Enabled,
+			StorageMode:      hermesCfg.Evolution.StorageMode,
+			DBPath:           hermesCfg.Evolution.DBPath,
+			MySQLDSN:         hermesCfg.Evolution.MySQLDSN,
+			MinConfidence:    hermesCfg.Evolution.MinConfidence,
+			ReplayThreshold:  hermesCfg.Evolution.ReplayThreshold,
+			MaxGenesInPrompt: hermesCfg.Evolution.MaxGenesInPrompt,
+		}
+		if evCfg.Enabled {
+			gs, evErr := evolution.Open(evCfg)
+			if evErr != nil {
+				slog.Warn("evolution store init failed, running without evolution", "error", evErr)
+			} else {
+				evolutionStore = gs
+				evImp := evolution.NewImprover(gs, nil, evCfg)
+				saasServer.AgentChat.SetEvolutionImprover(evImp)
+				slog.Info("Oris evolution enabled (global shared store)")
+			}
+		}
+	}
+
 	// ── 9. Optionally prepare ACP server ─────────────────────
 	var acpServer *acp.ACPServer
 	if acpPortStr := os.Getenv("HERMES_ACP_PORT"); acpPortStr != "" {
@@ -363,7 +391,11 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 		// 4. Cancel background sync.
 		syncCancel()
-		// 5. Close data store.
+		// 5. Close evolution store (flushes SQLite WAL / MySQL pool) (B3).
+		if evolutionStore != nil {
+			_ = evolutionStore.Close()
+		}
+		// 6. Close data store.
 		_ = dataStore.Close()
 
 		slog.Info("Shutdown complete")

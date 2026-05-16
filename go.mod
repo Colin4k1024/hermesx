@@ -3,6 +3,7 @@ module github.com/Colin4k1024/hermesx
 go 1.25.10
 
 require (
+	github.com/Colin4k1024/Oris/sdks/go v0.3.0
 	github.com/alicebob/miniredis/v2 v2.37.0
 	github.com/aws/aws-sdk-go-v2/config v1.32.16
 	github.com/aws/aws-sdk-go-v2/service/bedrockruntime v1.50.5

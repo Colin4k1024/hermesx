@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/tools"
@@ -181,4 +182,11 @@ func WithSoulContent(content string) AgentOption {
 // asynchronously according to the SelfImproveConfig cadence.
 func WithSelfImprover(si *SelfImprover) AgentOption {
 	return func(a *AIAgent) { a.selfImprover = si }
+}
+
+// WithEvolution attaches an Oris evolution Improver to the agent.
+// PreTurnEnrich injects high-confidence gene strategies before each LLM call;
+// PostTurnRecord saves new insights asynchronously after each conversation.
+func WithEvolution(imp *evolution.Improver) AgentOption {
+	return func(a *AIAgent) { a.evolutionImprover = imp }
 }

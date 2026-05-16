@@ -40,8 +40,22 @@ type Config struct {
 	Redis    RedisConfig    `yaml:"redis"`
 	ObjStore ObjStoreConfig `yaml:"objstore"` // RustFS / MinIO (yaml key "minio" accepted by mergeConfig for backward compat)
 
+	// Evolution — Oris gene-backed self-improvement (optional).
+	Evolution EvolutionConfig `yaml:"evolution"`
+
 	// Internal
 	configVersion int `yaml:"_config_version"`
+}
+
+// EvolutionConfig controls the Oris evolution integration.
+type EvolutionConfig struct {
+	Enabled          bool    `yaml:"enabled"`
+	StorageMode      string  `yaml:"storage_mode"`    // "sqlite" (default) | "mysql"
+	DBPath           string  `yaml:"db_path"`          // default ~/.hermes/evolution.db
+	MySQLDSN         string  `yaml:"mysql_dsn"`
+	MinConfidence    float64 `yaml:"min_confidence"`   // minimum confidence to query (default 0.5)
+	ReplayThreshold  float64 `yaml:"replay_threshold"` // inject gene if confidence ≥ this (default 0.75)
+	MaxGenesInPrompt int     `yaml:"max_genes_prompt"` // max genes to inject per turn (default 3)
 }
 
 // DatabaseConfig controls the state store backend.
