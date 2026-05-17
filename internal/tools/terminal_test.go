@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"runtime"
 	"testing"
@@ -11,7 +12,7 @@ func TestTerminalEcho(t *testing.T) {
 		t.Skip("Skipping on Windows")
 	}
 
-	result := handleTerminal(map[string]any{
+	result := handleTerminal(context.Background(), map[string]any{
 		"command": "echo hello-test",
 	}, nil)
 
@@ -35,7 +36,7 @@ func TestTerminalTimeout(t *testing.T) {
 		t.Skip("Skipping on Windows")
 	}
 
-	result := handleTerminal(map[string]any{
+	result := handleTerminal(context.Background(), map[string]any{
 		"command": "sleep 10",
 		"timeout": float64(1),
 	}, nil)
@@ -53,7 +54,7 @@ func TestTerminalTimeout(t *testing.T) {
 }
 
 func TestTerminalMissingCommand(t *testing.T) {
-	result := handleTerminal(map[string]any{}, nil)
+	result := handleTerminal(context.Background(), map[string]any{}, nil)
 	if result != `{"error":"command is required"}` {
 		t.Errorf("Expected error, got: %s", result)
 	}
@@ -64,7 +65,7 @@ func TestTerminalBackground(t *testing.T) {
 		t.Skip("Skipping on Windows")
 	}
 
-	result := handleTerminal(map[string]any{
+	result := handleTerminal(context.Background(), map[string]any{
 		"command":    "sleep 0.1",
 		"background": true,
 	}, nil)
@@ -81,7 +82,7 @@ func TestTerminalBackground(t *testing.T) {
 }
 
 func TestProcessList(t *testing.T) {
-	result := handleProcess(map[string]any{
+	result := handleProcess(context.Background(), map[string]any{
 		"action": "list",
 	}, nil)
 
@@ -94,7 +95,7 @@ func TestProcessList(t *testing.T) {
 }
 
 func TestProcessInvalidAction(t *testing.T) {
-	result := handleProcess(map[string]any{
+	result := handleProcess(context.Background(), map[string]any{
 		"action": "invalid",
 	}, nil)
 

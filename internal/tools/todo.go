@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -83,7 +84,7 @@ func saveTodos(todos []TodoItem) error {
 	return os.WriteFile(getTodoPath(), data, 0644)
 }
 
-func handleTodo(args map[string]any, ctx *ToolContext) string {
+func handleTodo(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 
 	switch action {

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
@@ -190,9 +191,12 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		created := time.Now().Unix()
 		chunkID := sessionID
 
+		var writeMu sync.Mutex
 		writeSSE := func(data []byte) {
+			writeMu.Lock()
 			fmt.Fprintf(w, "data: %s\n\n", data)
 			rc.Flush()
+			writeMu.Unlock()
 		}
 
 		// Role announcement.
@@ -213,13 +217,17 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 			OnToolStart: func(toolName string) {
 				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "started"})
+				writeMu.Lock()
 				fmt.Fprintf(w, "event: tool_call\ndata: %s\n\n", evt)
 				rc.Flush()
+				writeMu.Unlock()
 			},
 			OnToolComplete: func(toolName string) {
 				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "completed"})
+				writeMu.Lock()
 				fmt.Fprintf(w, "event: tool_result\ndata: %s\n\n", evt)
 				rc.Flush()
+				writeMu.Unlock()
 			},
 		})
 
@@ -231,8 +239,10 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			for {
 				select {
 				case <-ticker.C:
+					writeMu.Lock()
 					fmt.Fprintf(w, ": heartbeat\n\n")
 					rc.Flush()
+					writeMu.Unlock()
 				case <-heartDone:
 					return
 				case <-r.Context().Done():

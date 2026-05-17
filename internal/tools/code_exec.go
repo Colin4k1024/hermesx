@@ -60,7 +60,7 @@ func safeEnv() []string {
 	return safe
 }
 
-func handleExecuteCode(args map[string]any, ctx *ToolContext) string {
+func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	language, _ := args["language"].(string)
 	code, _ := args["code"].(string)
 
@@ -84,15 +84,15 @@ func handleExecuteCode(args map[string]any, ctx *ToolContext) string {
 
 	switch language {
 	case "python":
-		return executePython(code, &cfg)
+		return executePython(ctx, code, &cfg)
 	case "bash":
-		return executeBash(code, &cfg)
+		return executeBash(ctx, code, &cfg)
 	default:
 		return toJSON(map[string]any{"error": fmt.Sprintf("Unsupported language: %s", language)})
 	}
 }
 
-func executePython(code string, cfg *SandboxConfig) string {
+func executePython(ctx context.Context, code string, cfg *SandboxConfig) string {
 	// Write code to a temporary file
 	tmpDir := filepath.Join(config.HermesHome(), "cache")
 	os.MkdirAll(tmpDir, 0755)
@@ -103,17 +103,17 @@ func executePython(code string, cfg *SandboxConfig) string {
 	}
 	defer os.Remove(tmpFile)
 
-	return runSandboxed("python3", []string{tmpFile}, tmpDir, "python", cfg)
+	return runSandboxed(ctx, "python3", []string{tmpFile}, tmpDir, "python", cfg)
 }
 
-func executeBash(code string, cfg *SandboxConfig) string {
+func executeBash(ctx context.Context, code string, cfg *SandboxConfig) string {
 	cwd, _ := os.Getwd()
-	return runSandboxed("bash", []string{"-c", code}, cwd, "bash", cfg)
+	return runSandboxed(ctx, "bash", []string{"-c", code}, cwd, "bash", cfg)
 }
 
 // runSandboxed executes a command inside the sandbox constraints defined by cfg.
-func runSandboxed(bin string, cmdArgs []string, workDir, language string, cfg *SandboxConfig) string {
-	execCtx, cancel := context.WithTimeout(context.Background(), cfg.Timeout)
+func runSandboxed(ctx context.Context, bin string, cmdArgs []string, workDir, language string, cfg *SandboxConfig) string {
+	execCtx, cancel := context.WithTimeout(ctx, cfg.Timeout)
 	defer cancel()
 
 	cmd := exec.CommandContext(execCtx, bin, cmdArgs...)

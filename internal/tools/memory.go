@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"sync"
 )
@@ -114,15 +115,15 @@ func init() {
 	})
 }
 
-func handleMemory(args map[string]any, ctx *ToolContext) string {
+func handleMemory(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 	key, _ := args["key"].(string)
 	content, _ := args["content"].(string)
 
 	// Per-agent provider takes precedence over global singleton.
 	var p MemoryProvider
-	if ctx != nil && ctx.MemoryProvider != nil {
-		p = ctx.MemoryProvider
+	if tctx != nil && tctx.MemoryProvider != nil {
+		p = tctx.MemoryProvider
 	} else {
 		p = getMemoryProvider()
 	}

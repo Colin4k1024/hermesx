@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -19,7 +20,7 @@ func TestTodoAddAndList(t *testing.T) {
 	defer cleanup()
 
 	// Add
-	result := handleTodo(map[string]any{"action": "add", "task": "Write tests", "priority": "high"}, nil)
+	result := handleTodo(context.Background(), map[string]any{"action": "add", "task": "Write tests", "priority": "high"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["success"] != true {
@@ -27,7 +28,7 @@ func TestTodoAddAndList(t *testing.T) {
 	}
 
 	// List
-	result = handleTodo(map[string]any{"action": "list"}, nil)
+	result = handleTodo(context.Background(), map[string]any{"action": "list"}, nil)
 	json.Unmarshal([]byte(result), &m)
 	todos, _ := m["todos"].([]any)
 	if len(todos) != 1 {
@@ -39,9 +40,9 @@ func TestTodoUpdate(t *testing.T) {
 	cleanup := setupTodoEnv(t)
 	defer cleanup()
 
-	handleTodo(map[string]any{"action": "add", "task": "Update me"}, nil)
+	handleTodo(context.Background(), map[string]any{"action": "add", "task": "Update me"}, nil)
 
-	result := handleTodo(map[string]any{
+	result := handleTodo(context.Background(), map[string]any{
 		"action":  "update",
 		"task_id": float64(1),
 		"status":  "done",
@@ -57,9 +58,9 @@ func TestTodoRemove(t *testing.T) {
 	cleanup := setupTodoEnv(t)
 	defer cleanup()
 
-	handleTodo(map[string]any{"action": "add", "task": "Remove me"}, nil)
+	handleTodo(context.Background(), map[string]any{"action": "add", "task": "Remove me"}, nil)
 
-	result := handleTodo(map[string]any{"action": "remove", "task_id": float64(1)}, nil)
+	result := handleTodo(context.Background(), map[string]any{"action": "remove", "task_id": float64(1)}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["success"] != true {
@@ -67,7 +68,7 @@ func TestTodoRemove(t *testing.T) {
 	}
 
 	// Verify empty
-	result = handleTodo(map[string]any{"action": "list"}, nil)
+	result = handleTodo(context.Background(), map[string]any{"action": "list"}, nil)
 	json.Unmarshal([]byte(result), &m)
 	count, _ := m["count"].(float64)
 	if count != 0 {
@@ -79,10 +80,10 @@ func TestTodoClear(t *testing.T) {
 	cleanup := setupTodoEnv(t)
 	defer cleanup()
 
-	handleTodo(map[string]any{"action": "add", "task": "A"}, nil)
-	handleTodo(map[string]any{"action": "add", "task": "B"}, nil)
+	handleTodo(context.Background(), map[string]any{"action": "add", "task": "A"}, nil)
+	handleTodo(context.Background(), map[string]any{"action": "add", "task": "B"}, nil)
 
-	result := handleTodo(map[string]any{"action": "clear"}, nil)
+	result := handleTodo(context.Background(), map[string]any{"action": "clear"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["success"] != true {
@@ -91,7 +92,7 @@ func TestTodoClear(t *testing.T) {
 }
 
 func TestTodoMissingTask(t *testing.T) {
-	result := handleTodo(map[string]any{"action": "add"}, nil)
+	result := handleTodo(context.Background(), map[string]any{"action": "add"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] == nil {

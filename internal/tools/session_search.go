@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 
@@ -35,7 +36,7 @@ func init() {
 	})
 }
 
-func handleSessionSearch(args map[string]any, ctx *ToolContext) string {
+func handleSessionSearch(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	query, _ := args["query"].(string)
 	if query == "" {
 		return `{"error":"query is required"}`

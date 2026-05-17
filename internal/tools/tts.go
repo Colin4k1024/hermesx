@@ -60,7 +60,7 @@ func checkTTSRequirements() bool {
 	return err == nil
 }
 
-func handleTextToSpeech(args map[string]any, ctx *ToolContext) string {
+func handleTextToSpeech(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	text, _ := args["text"].(string)
 	if text == "" {
 		return `{"error":"text is required"}`
@@ -104,7 +104,7 @@ func handleTextToSpeech(args map[string]any, ctx *ToolContext) string {
 		cmdArgs = append(cmdArgs, "--volume", volume)
 	}
 
-	execCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	execCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(execCtx, "edge-tts", cmdArgs...)

@@ -936,8 +936,8 @@ func registerMCPTool(serverName string, client *MCPClient, tool mcpToolDef) {
 		Name:    fullName,
 		Toolset: "mcp",
 		Schema:  schema,
-		Handler: func(args map[string]any, ctx *ToolContext) string {
-			callCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string {
+			callCtx, cancel := context.WithTimeout(ctx, 2*time.Minute)
 			defer cancel()
 
 			result, err := mcpClient.CallTool(callCtx, mcpToolName, args)
@@ -1002,7 +1002,7 @@ func registerMCPPlaceholder(name string, server MCPServerConfig, connErr error) 
 				"required": []string{"tool"},
 			},
 		},
-		Handler: func(args map[string]any, ctx *ToolContext) string {
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 			return toJSON(map[string]any{
 				"error":   fmt.Sprintf("MCP server '%s' is not connected: %v", serverName, connErr),
 				"server":  serverName,

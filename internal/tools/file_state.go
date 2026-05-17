@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"sync"
@@ -86,16 +87,16 @@ func init() {
 	})
 }
 
-func handleFileState(args map[string]any, ctx *ToolContext) string {
+func handleFileState(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 	path, _ := args["path"].(string)
 
 	switch action {
 	case "check":
-		conflict, owner := globalFileState.CheckConflict(path, ctx.SessionID)
+		conflict, owner := globalFileState.CheckConflict(path, tctx.SessionID)
 		return toJSON(map[string]any{"conflict": conflict, "owner": owner, "state": globalFileState.GetState(path)})
 	case "mark":
-		globalFileState.MarkModified(path, ctx.SessionID)
+		globalFileState.MarkModified(path, tctx.SessionID)
 		return toJSON(map[string]any{"status": "marked"})
 	default:
 		return toJSON(map[string]any{"error": "unknown action: " + action})

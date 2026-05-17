@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"strings"
@@ -49,7 +50,7 @@ func init() {
 	})
 }
 
-func handleDiscordSend(args map[string]any, ctx *ToolContext) string {
+func handleDiscordSend(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	channelID, _ := args["channel_id"].(string)
 	content, _ := args["content"].(string)
 
@@ -66,7 +67,7 @@ func handleDiscordSend(args map[string]any, ctx *ToolContext) string {
 	return toJSON(map[string]any{"status": "sent", "message_id": msg.ID})
 }
 
-func handleDiscordSearch(args map[string]any, ctx *ToolContext) string {
+func handleDiscordSearch(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	channelID, _ := args["channel_id"].(string)
 	query, _ := args["query"].(string)
 	limit := 10

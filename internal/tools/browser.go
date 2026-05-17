@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 )
 
@@ -263,7 +264,7 @@ func browserStubResponse(tool string) string {
 	})
 }
 
-func handleBrowserNavigate(args map[string]any, ctx *ToolContext) string {
+func handleBrowserNavigate(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_navigate")
@@ -279,7 +280,7 @@ func handleBrowserNavigate(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserSnapshot(args map[string]any, ctx *ToolContext) string {
+func handleBrowserSnapshot(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_snapshot")
@@ -291,7 +292,7 @@ func handleBrowserSnapshot(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserClick(args map[string]any, ctx *ToolContext) string {
+func handleBrowserClick(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_click")
@@ -304,7 +305,7 @@ func handleBrowserClick(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserType(args map[string]any, ctx *ToolContext) string {
+func handleBrowserType(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_type")
@@ -319,7 +320,7 @@ func handleBrowserType(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserScroll(args map[string]any, ctx *ToolContext) string {
+func handleBrowserScroll(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_scroll")
@@ -336,7 +337,7 @@ func handleBrowserScroll(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserBack(args map[string]any, ctx *ToolContext) string {
+func handleBrowserBack(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_back")
@@ -348,7 +349,7 @@ func handleBrowserBack(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserPress(args map[string]any, ctx *ToolContext) string {
+func handleBrowserPress(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_press")
@@ -361,7 +362,7 @@ func handleBrowserPress(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserGetImages(args map[string]any, ctx *ToolContext) string {
+func handleBrowserGetImages(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_get_images")
@@ -373,7 +374,7 @@ func handleBrowserGetImages(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserVision(args map[string]any, ctx *ToolContext) string {
+func handleBrowserVision(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_vision")
@@ -385,7 +386,7 @@ func handleBrowserVision(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserConsole(args map[string]any, ctx *ToolContext) string {
+func handleBrowserConsole(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserStubResponse("browser_console")
@@ -398,7 +399,7 @@ func handleBrowserConsole(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserClose(args map[string]any, ctx *ToolContext) string {
+func handleBrowserClose(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	closeActiveBackend()
 	return toJSON(map[string]any{"status": "browser session closed"})
 }

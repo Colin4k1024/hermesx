@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -146,7 +147,7 @@ func haRequest(method, path string, body io.Reader) ([]byte, int, error) {
 	return data, resp.StatusCode, nil
 }
 
-func handleHAListEntities(args map[string]any, ctx *ToolContext) string {
+func handleHAListEntities(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	domain, _ := args["domain"].(string)
 
 	data, statusCode, err := haRequest("GET", "states", nil)
@@ -192,7 +193,7 @@ func handleHAListEntities(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleHAGetState(args map[string]any, ctx *ToolContext) string {
+func handleHAGetState(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	entityID, _ := args["entity_id"].(string)
 	if entityID == "" {
 		return `{"error":"entity_id is required"}`
@@ -226,7 +227,7 @@ func handleHAGetState(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleHAListServices(args map[string]any, ctx *ToolContext) string {
+func handleHAListServices(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	domain, _ := args["domain"].(string)
 
 	data, statusCode, err := haRequest("GET", "services", nil)
@@ -273,7 +274,7 @@ func handleHAListServices(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleHACallService(args map[string]any, ctx *ToolContext) string {
+func handleHACallService(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	domain, _ := args["domain"].(string)
 	service, _ := args["service"].(string)
 	entityID, _ := args["entity_id"].(string)

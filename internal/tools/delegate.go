@@ -78,11 +78,11 @@ type delegateResult struct {
 	Duration string `json:"duration"`
 }
 
-func handleDelegateTask(args map[string]any, ctx *ToolContext) string {
+func handleDelegateTask(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	// Check delegation depth
 	currentDepth := 0
-	if ctx != nil && ctx.Extra != nil {
-		if d, ok := ctx.Extra[depthContextKey].(int); ok {
+	if tctx != nil && tctx.Extra != nil {
+		if d, ok := tctx.Extra[depthContextKey].(int); ok {
 			currentDepth = d
 		}
 	}
@@ -179,7 +179,7 @@ func handleDelegateTask(args map[string]any, ctx *ToolContext) string {
 				apiKey, baseURL = resolveCredentialPool(provider, cfg)
 			}
 
-			resp, err := runSubAgentWithOptions(t.Goal, model, provider, apiKey, baseURL, cfg, childDepth)
+			resp, err := runSubAgentWithOptions(ctx, t.Goal, model, provider, apiKey, baseURL, cfg, childDepth)
 			if err != nil {
 				result.Error = err.Error()
 				slog.Warn("Delegate task failed", "index", idx, "error", err)
@@ -216,7 +216,7 @@ func handleDelegateTask(args map[string]any, ctx *ToolContext) string {
 
 // runSubAgentWithOptions creates an LLM client with full control over provider/credentials
 // and runs a multi-turn agent loop with tool calling. It enforces the blocked tools list for children.
-func runSubAgentWithOptions(goal, model, provider, apiKey, baseURL string, cfg *config.Config, depth int) (string, error) {
+func runSubAgentWithOptions(parent context.Context, goal, model, provider, apiKey, baseURL string, cfg *config.Config, depth int) (string, error) {
 	var client *llm.Client
 	var err error
 
@@ -232,7 +232,7 @@ func runSubAgentWithOptions(goal, model, provider, apiKey, baseURL string, cfg *
 		return "", fmt.Errorf("create client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	ctx, cancel := context.WithTimeout(parent, 5*time.Minute)
 	defer cancel()
 
 	// Build allowed tool names (all tools minus blocked ones)
@@ -337,7 +337,7 @@ func runSubAgentWithOptions(goal, model, provider, apiKey, baseURL string, cfg *
 				Extra:     map[string]any{depthContextKey: depth},
 			}
 
-			result := Registry().Dispatch(tc.Function.Name, args, toolCtx)
+			result := Registry().Dispatch(ctx, tc.Function.Name, args, toolCtx)
 
 			// Truncate very large results
 			if len(result) > 8000 {

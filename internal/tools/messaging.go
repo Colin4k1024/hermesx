@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -66,7 +67,7 @@ func getGatewayURL() string {
 	return "http://localhost:8765"
 }
 
-func handleSendMessage(args map[string]any, ctx *ToolContext) string {
+func handleSendMessage(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	platform, _ := args["platform"].(string)
 	chatID, _ := args["chat_id"].(string)
 	content, _ := args["content"].(string)

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -22,7 +23,7 @@ func TestRegisterAndDispatch(t *testing.T) {
 				"properties": map[string]any{},
 			},
 		},
-		Handler: func(args map[string]any, ctx *ToolContext) string {
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 			return `{"result":"hello"}`
 		},
 	})
@@ -35,7 +36,7 @@ func TestRegisterAndDispatch(t *testing.T) {
 		t.Errorf("Expected 1 tool, got %d", r.ToolCount())
 	}
 
-	result := r.Dispatch("test_tool", map[string]any{}, nil)
+	result := r.Dispatch(context.Background(), "test_tool", map[string]any{}, nil)
 	if result != `{"result":"hello"}` {
 		t.Errorf("Unexpected result: %s", result)
 	}
@@ -47,7 +48,7 @@ func TestDispatchUnknownTool(t *testing.T) {
 		toolsetChecks: make(map[string]func() bool),
 	}
 
-	result := r.Dispatch("nonexistent", map[string]any{}, nil)
+	result := r.Dispatch(context.Background(), "nonexistent", map[string]any{}, nil)
 	if !strings.Contains(result, "Unknown tool") {
 		t.Errorf("Expected unknown tool error, got: %s", result)
 	}
@@ -66,7 +67,7 @@ func TestGetDefinitions(t *testing.T) {
 			"name":        "available_tool",
 			"description": "Available",
 		},
-		Handler: func(args map[string]any, ctx *ToolContext) string { return "{}" },
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string { return "{}" },
 	})
 
 	r.Register(&ToolEntry{
@@ -76,7 +77,7 @@ func TestGetDefinitions(t *testing.T) {
 			"name":        "unavailable_tool",
 			"description": "Not available",
 		},
-		Handler: func(args map[string]any, ctx *ToolContext) string { return "{}" },
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string { return "{}" },
 		CheckFn: func() bool { return false },
 	})
 
@@ -97,7 +98,7 @@ func TestDeregister(t *testing.T) {
 		Name:    "temp_tool",
 		Toolset: "temp",
 		Schema:  map[string]any{"name": "temp_tool"},
-		Handler: func(args map[string]any, ctx *ToolContext) string { return "{}" },
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string { return "{}" },
 		CheckFn: func() bool { return true },
 	})
 
@@ -122,7 +123,7 @@ func TestGetToolsetForTool(t *testing.T) {
 		Name:    "my_tool",
 		Toolset: "my_toolset",
 		Schema:  map[string]any{"name": "my_tool"},
-		Handler: func(args map[string]any, ctx *ToolContext) string { return "{}" },
+		Handler: func(ctx context.Context, args map[string]any, tctx *ToolContext) string { return "{}" },
 	})
 
 	ts := r.GetToolsetForTool("my_tool")

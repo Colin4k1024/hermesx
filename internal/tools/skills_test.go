@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -22,7 +23,7 @@ description: A test
 # Test
 `), 0644)
 
-	result := handleSkillsList(map[string]any{}, nil)
+	result := handleSkillsList(context.Background(), map[string]any{}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 
@@ -38,7 +39,7 @@ func TestSkillsListEmpty(t *testing.T) {
 	defer os.Unsetenv("HERMES_HOME")
 	os.MkdirAll(filepath.Join(tmpDir, "skills"), 0755)
 
-	result := handleSkillsList(map[string]any{}, nil)
+	result := handleSkillsList(context.Background(), map[string]any{}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	// Should not error
@@ -62,7 +63,7 @@ description: Viewable skill
 Instructions here.
 `), 0644)
 
-	result := handleSkillView(map[string]any{"name": "viewable"}, nil)
+	result := handleSkillView(context.Background(), map[string]any{"name": "viewable"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] != nil {
@@ -76,7 +77,7 @@ func TestSkillViewNotFound(t *testing.T) {
 	defer os.Unsetenv("HERMES_HOME")
 	os.MkdirAll(filepath.Join(tmpDir, "skills"), 0755)
 
-	result := handleSkillView(map[string]any{"name": "nonexistent"}, nil)
+	result := handleSkillView(context.Background(), map[string]any{"name": "nonexistent"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] == nil {
@@ -90,7 +91,7 @@ func TestSkillManageCreate(t *testing.T) {
 	defer os.Unsetenv("HERMES_HOME")
 	os.MkdirAll(filepath.Join(tmpDir, "skills"), 0755)
 
-	result := handleSkillManage(map[string]any{
+	result := handleSkillManage(context.Background(), map[string]any{
 		"action":      "create",
 		"name":        "new-skill",
 		"description": "A brand new skill",
@@ -118,7 +119,7 @@ func TestSkillManageDelete(t *testing.T) {
 	os.MkdirAll(skillDir, 0755)
 	os.WriteFile(filepath.Join(skillDir, "SKILL.md"), []byte("# Delete me"), 0644)
 
-	result := handleSkillManage(map[string]any{
+	result := handleSkillManage(context.Background(), map[string]any{
 		"action": "delete",
 		"name":   "to-delete",
 	}, nil)

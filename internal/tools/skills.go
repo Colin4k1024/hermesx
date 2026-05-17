@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -81,7 +82,7 @@ func getSkillsDir() string {
 	return filepath.Join(config.HermesHome(), "skills")
 }
 
-func handleSkillsList(args map[string]any, ctx *ToolContext) string {
+func handleSkillsList(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	skillsDir := getSkillsDir()
 	os.MkdirAll(skillsDir, 0755)
 
@@ -128,7 +129,7 @@ func handleSkillsList(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleSkillView(args map[string]any, ctx *ToolContext) string {
+func handleSkillView(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	name, _ := args["name"].(string)
 	if name == "" {
 		return `{"error":"name is required"}`
@@ -150,7 +151,7 @@ func handleSkillView(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleSkillManage(args map[string]any, ctx *ToolContext) string {
+func handleSkillManage(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 	name, _ := args["name"].(string)
 	content, _ := args["content"].(string)

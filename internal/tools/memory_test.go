@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -65,7 +66,7 @@ func setupTestProvider(t *testing.T) {
 func TestMemorySaveAndRead(t *testing.T) {
 	setupTestProvider(t)
 
-	result := handleMemory(map[string]any{
+	result := handleMemory(context.Background(), map[string]any{
 		"action":  "save",
 		"key":     "test-key",
 		"content": "test content for memory",
@@ -77,7 +78,7 @@ func TestMemorySaveAndRead(t *testing.T) {
 		t.Errorf("Expected save success, got: %s", result)
 	}
 
-	result = handleMemory(map[string]any{"action": "read"}, nil)
+	result = handleMemory(context.Background(), map[string]any{"action": "read"}, nil)
 	json.Unmarshal([]byte(result), &m)
 	content, _ := m["content"].(string)
 	if content == "" {
@@ -88,9 +89,9 @@ func TestMemorySaveAndRead(t *testing.T) {
 func TestMemoryDelete(t *testing.T) {
 	setupTestProvider(t)
 
-	handleMemory(map[string]any{"action": "save", "key": "to-delete", "content": "will be deleted"}, nil)
+	handleMemory(context.Background(), map[string]any{"action": "save", "key": "to-delete", "content": "will be deleted"}, nil)
 
-	result := handleMemory(map[string]any{"action": "delete", "key": "to-delete"}, nil)
+	result := handleMemory(context.Background(), map[string]any{"action": "delete", "key": "to-delete"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["success"] != true {
@@ -101,7 +102,7 @@ func TestMemoryDelete(t *testing.T) {
 func TestMemoryUserProfile(t *testing.T) {
 	setupTestProvider(t)
 
-	result := handleMemory(map[string]any{
+	result := handleMemory(context.Background(), map[string]any{
 		"action":  "save_user",
 		"content": "Name: Test User\nRole: Developer",
 	}, nil)
@@ -111,7 +112,7 @@ func TestMemoryUserProfile(t *testing.T) {
 		t.Errorf("Expected save_user success, got: %s", result)
 	}
 
-	result = handleMemory(map[string]any{"action": "read_user"}, nil)
+	result = handleMemory(context.Background(), map[string]any{"action": "read_user"}, nil)
 	json.Unmarshal([]byte(result), &m)
 	if m["content"] == nil || m["content"] == "" {
 		t.Error("Expected non-empty user profile")
@@ -121,7 +122,7 @@ func TestMemoryUserProfile(t *testing.T) {
 func TestMemoryInvalidAction(t *testing.T) {
 	setupTestProvider(t)
 
-	result := handleMemory(map[string]any{"action": "invalid"}, nil)
+	result := handleMemory(context.Background(), map[string]any{"action": "invalid"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] == nil {
@@ -142,7 +143,7 @@ func TestMemoryNoProvider(t *testing.T) {
 		activeProviderMu.Unlock()
 	})
 
-	result := handleMemory(map[string]any{"action": "read"}, nil)
+	result := handleMemory(context.Background(), map[string]any{"action": "read"}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] == nil {

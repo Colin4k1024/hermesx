@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -12,7 +13,7 @@ func TestReadFile(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test.txt")
 	os.WriteFile(testFile, []byte("line1\nline2\nline3\n"), 0644)
 
-	result := handleReadFile(map[string]any{
+	result := handleReadFile(context.Background(), map[string]any{
 		"file_path": testFile,
 	}, nil)
 
@@ -29,7 +30,7 @@ func TestReadFile(t *testing.T) {
 }
 
 func TestReadFileNotFound(t *testing.T) {
-	result := handleReadFile(map[string]any{
+	result := handleReadFile(context.Background(), map[string]any{
 		"file_path": "/nonexistent/file.txt",
 	}, nil)
 
@@ -46,7 +47,7 @@ func TestReadFileWithOffset(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "test.txt")
 	os.WriteFile(testFile, []byte("line1\nline2\nline3\nline4\nline5\n"), 0644)
 
-	result := handleReadFile(map[string]any{
+	result := handleReadFile(context.Background(), map[string]any{
 		"file_path": testFile,
 		"offset":    float64(2),
 		"limit":     float64(2),
@@ -65,7 +66,7 @@ func TestWriteFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "output.txt")
 
-	result := handleWriteFile(map[string]any{
+	result := handleWriteFile(context.Background(), map[string]any{
 		"file_path": testFile,
 		"content":   "Hello, World!\nSecond line.",
 	}, nil)
@@ -87,7 +88,7 @@ func TestWriteFileCreatesDirs(t *testing.T) {
 	tmpDir := t.TempDir()
 	testFile := filepath.Join(tmpDir, "sub", "dir", "output.txt")
 
-	result := handleWriteFile(map[string]any{
+	result := handleWriteFile(context.Background(), map[string]any{
 		"file_path": testFile,
 		"content":   "nested content",
 	}, nil)
@@ -105,7 +106,7 @@ func TestPatch(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "patch.txt")
 	os.WriteFile(testFile, []byte("Hello World"), 0644)
 
-	result := handlePatch(map[string]any{
+	result := handlePatch(context.Background(), map[string]any{
 		"file_path":  testFile,
 		"old_string": "Hello",
 		"new_string": "Goodbye",
@@ -129,7 +130,7 @@ func TestPatchNotFound(t *testing.T) {
 	testFile := filepath.Join(tmpDir, "patch.txt")
 	os.WriteFile(testFile, []byte("Hello World"), 0644)
 
-	result := handlePatch(map[string]any{
+	result := handlePatch(context.Background(), map[string]any{
 		"file_path":  testFile,
 		"old_string": "Nonexistent text",
 		"new_string": "Replacement",
@@ -149,7 +150,7 @@ func TestSearchFiles(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "b.go"), []byte("package test"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "c.txt"), []byte("not go"), 0644)
 
-	result := handleSearchFiles(map[string]any{
+	result := handleSearchFiles(context.Background(), map[string]any{
 		"directory": tmpDir,
 		"pattern":   "*.go",
 	}, nil)
@@ -168,7 +169,7 @@ func TestSearchFilesContent(t *testing.T) {
 	os.WriteFile(filepath.Join(tmpDir, "a.go"), []byte("func main() {\n\tfmt.Println(\"hello\")\n}\n"), 0644)
 	os.WriteFile(filepath.Join(tmpDir, "b.go"), []byte("func test() {}\n"), 0644)
 
-	result := handleSearchFiles(map[string]any{
+	result := handleSearchFiles(context.Background(), map[string]any{
 		"directory":     tmpDir,
 		"content_regex": "Println",
 	}, nil)

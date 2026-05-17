@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,7 +27,7 @@ func TestHandleReadFile_TableDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handleReadFile(tt.args, nil)
+			result := handleReadFile(context.Background(), tt.args, nil)
 			if tt.wantErr && !strings.Contains(result, "error") {
 				t.Errorf("expected error, got: %s", result)
 			}
@@ -52,7 +53,7 @@ func TestHandleWriteFile_TableDriven(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handleWriteFile(tt.args, nil)
+			result := handleWriteFile(context.Background(), tt.args, nil)
 			if tt.wantErr && !strings.Contains(result, "error") {
 				t.Errorf("expected error, got: %s", result)
 			}
@@ -76,7 +77,7 @@ func TestHandleDelegateTask_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handleDelegateTask(tt.args, tt.ctx)
+			result := handleDelegateTask(context.Background(), tt.args, tt.ctx)
 			if !strings.Contains(result, tt.want) {
 				t.Errorf("got %q, want to contain %q", result, tt.want)
 			}
@@ -98,7 +99,7 @@ func TestHandleTerminal_Validation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := handleTerminal(tt.args, nil)
+			result := handleTerminal(context.Background(), tt.args, nil)
 			if !strings.Contains(result, tt.want) {
 				t.Errorf("got %q, want to contain %q", result, tt.want)
 			}
@@ -107,7 +108,7 @@ func TestHandleTerminal_Validation(t *testing.T) {
 }
 
 func TestRegistryDispatch_Unknown(t *testing.T) {
-	result := Registry().Dispatch("nonexistent_tool_xyz", map[string]any{}, nil)
+	result := Registry().Dispatch(context.Background(), "nonexistent_tool_xyz", map[string]any{}, nil)
 	if !strings.Contains(result, "error") {
 		t.Errorf("expected error for unknown tool, got: %s", result)
 	}

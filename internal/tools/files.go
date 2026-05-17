@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -129,7 +130,7 @@ func init() {
 	})
 }
 
-func handleReadFile(args map[string]any, ctx *ToolContext) string {
+func handleReadFile(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	filePath, _ := args["file_path"].(string)
 	if filePath == "" {
 		return `{"error":"file_path is required"}`
@@ -182,7 +183,7 @@ func handleReadFile(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleWriteFile(args map[string]any, ctx *ToolContext) string {
+func handleWriteFile(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	filePath, _ := args["file_path"].(string)
 	if filePath == "" {
 		return `{"error":"file_path is required"}`
@@ -215,7 +216,7 @@ func handleWriteFile(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handlePatch(args map[string]any, ctx *ToolContext) string {
+func handlePatch(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	filePath, _ := args["file_path"].(string)
 	if filePath == "" {
 		return `{"error":"file_path is required"}`
@@ -272,7 +273,7 @@ func handlePatch(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func handleSearchFiles(args map[string]any, ctx *ToolContext) string {
+func handleSearchFiles(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	dir, _ := args["directory"].(string)
 	if dir == "" {
 		dir, _ = os.Getwd()

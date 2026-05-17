@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -122,7 +123,7 @@ func listCronJobs() ([]CronJob, error) {
 	return jobs, nil
 }
 
-func handleCronjob(args map[string]any, ctx *ToolContext) string {
+func handleCronjob(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 
 	switch action {

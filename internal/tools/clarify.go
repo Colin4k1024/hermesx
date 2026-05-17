@@ -1,5 +1,7 @@
 package tools
 
+import "context"
+
 func init() {
 	Register(&ToolEntry{
 		Name:    "clarify",
@@ -32,7 +34,7 @@ func init() {
 	})
 }
 
-func handleClarify(args map[string]any, ctx *ToolContext) string {
+func handleClarify(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	question, _ := args["question"].(string)
 	if question == "" {
 		return `{"error":"question is required"}`

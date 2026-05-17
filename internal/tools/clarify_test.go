@@ -1,12 +1,13 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 )
 
 func TestClarify(t *testing.T) {
-	result := handleClarify(map[string]any{
+	result := handleClarify(context.Background(), map[string]any{
 		"question": "What color do you prefer?",
 		"choices":  []any{"Red", "Blue", "Green"},
 	}, nil)
@@ -27,7 +28,7 @@ func TestClarify(t *testing.T) {
 }
 
 func TestClarifyNoChoices(t *testing.T) {
-	result := handleClarify(map[string]any{
+	result := handleClarify(context.Background(), map[string]any{
 		"question": "What should I do next?",
 	}, nil)
 
@@ -39,7 +40,7 @@ func TestClarifyNoChoices(t *testing.T) {
 }
 
 func TestClarifyMissingQuestion(t *testing.T) {
-	result := handleClarify(map[string]any{}, nil)
+	result := handleClarify(context.Background(), map[string]any{}, nil)
 	var m map[string]any
 	json.Unmarshal([]byte(result), &m)
 	if m["error"] == nil {

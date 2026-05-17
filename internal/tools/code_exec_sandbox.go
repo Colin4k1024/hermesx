@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -213,7 +214,7 @@ func ProcessToolCallRequest(rpcDir string, cfg *SandboxConfig, metrics *ExecMetr
 	}
 
 	// Dispatch through global registry
-	result := Registry().Dispatch(req.ToolName, req.Args, nil)
+	result := Registry().Dispatch(context.Background(), req.ToolName, req.Args, nil)
 
 	if metrics != nil {
 		metrics.ToolCallCount++

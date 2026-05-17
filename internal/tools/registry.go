@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -8,8 +9,8 @@ import (
 )
 
 // ToolHandler is the function signature for tool handlers.
-// It receives parsed arguments and returns a JSON string result.
-type ToolHandler func(args map[string]any, ctx *ToolContext) string
+// ctx carries the caller's deadline and cancellation signal.
+type ToolHandler func(ctx context.Context, args map[string]any, tctx *ToolContext) string
 
 // ToolContext provides context to tool handlers.
 type ToolContext struct {
@@ -163,7 +164,7 @@ func (r *ToolRegistry) GetDefinitions(toolNames map[string]bool, quiet bool) []m
 }
 
 // Dispatch executes a tool handler by name.
-func (r *ToolRegistry) Dispatch(name string, args map[string]any, ctx *ToolContext) string {
+func (r *ToolRegistry) Dispatch(ctx context.Context, name string, args map[string]any, tctx *ToolContext) string {
 	r.mu.RLock()
 	entry, ok := r.tools[name]
 	r.mu.RUnlock()
@@ -178,7 +179,7 @@ func (r *ToolRegistry) Dispatch(name string, args map[string]any, ctx *ToolConte
 		}
 	}()
 
-	return entry.Handler(args, ctx)
+	return entry.Handler(ctx, args, tctx)
 }
 
 // GetAllToolNames returns sorted list of all registered tool names.

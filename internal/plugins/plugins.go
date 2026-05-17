@@ -184,7 +184,7 @@ func registerPluginTool(plugin Plugin, pt PluginTool) error {
 	command := pt.Command
 	pluginPath := plugin.Path
 
-	handler := func(args map[string]any, ctx *tools.ToolContext) string {
+	handler := func(ctx context.Context, args map[string]any, tctx *tools.ToolContext) string {
 		if command == "" {
 			return `{"error":"plugin tool has no command defined"}`
 		}

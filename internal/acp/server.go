@@ -251,7 +251,7 @@ func (s *ACPServer) handleTool(w http.ResponseWriter, r *http.Request) {
 		SessionID: req.SessionID,
 		Platform:  "acp",
 	}
-	result := registry.Dispatch(req.Tool, req.Arguments, ctx)
+	result := registry.Dispatch(r.Context(), req.Tool, req.Arguments, ctx)
 
 	if req.SessionID != "" {
 		s.events.Publish(req.SessionID, "tool_complete", map[string]string{

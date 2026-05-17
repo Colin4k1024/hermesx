@@ -57,7 +57,7 @@ type moaResponse struct {
 	DurationMs  int64  `json:"duration_ms"`
 }
 
-func handleMixtureOfAgents(args map[string]any, ctx *ToolContext) string {
+func handleMixtureOfAgents(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	question, _ := args["question"].(string)
 	if question == "" {
 		return `{"error":"question is required"}`
@@ -91,7 +91,7 @@ func handleMixtureOfAgents(args map[string]any, ctx *ToolContext) string {
 			perspective := agentPerspectives[idx%len(agentPerspectives)]
 			start := time.Now()
 
-			resp, err := moaCallAgent(cfg, perspective, question)
+			resp, err := moaCallAgent(ctx, cfg, perspective, question)
 			result := moaResponse{
 				Index:       idx,
 				Perspective: perspective[:min(60, len(perspective))] + "...",
@@ -133,7 +133,7 @@ func handleMixtureOfAgents(args map[string]any, ctx *ToolContext) string {
 		})
 	}
 
-	synthesized, err := moaCallAgent(cfg,
+	synthesized, err := moaCallAgent(ctx, cfg,
 		"You are a synthesis expert. Combine multiple perspectives into one clear, comprehensive answer.",
 		sb.String(),
 	)
@@ -152,13 +152,13 @@ func handleMixtureOfAgents(args map[string]any, ctx *ToolContext) string {
 	})
 }
 
-func moaCallAgent(cfg *config.Config, systemPrompt, userMessage string) (string, error) {
+func moaCallAgent(parentCtx context.Context, cfg *config.Config, systemPrompt, userMessage string) (string, error) {
 	client, err := llm.NewClient(cfg)
 	if err != nil {
 		return "", fmt.Errorf("create client: %w", err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(parentCtx, 3*time.Minute)
 	defer cancel()
 
 	req := llm.ChatRequest{

@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -108,7 +109,7 @@ func checkWebRequirements() bool {
 	return os.Getenv("EXA_API_KEY") != "" || os.Getenv("FIRECRAWL_API_KEY") != ""
 }
 
-func handleWebSearch(args map[string]any, ctx *ToolContext) string {
+func handleWebSearch(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	query, _ := args["query"].(string)
 	if query == "" {
 		return `{"error":"query is required"}`
@@ -194,7 +195,7 @@ func fallbackSearch(query string, numResults int) string {
 	})
 }
 
-func handleWebExtract(args map[string]any, ctx *ToolContext) string {
+func handleWebExtract(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	urlsRaw, ok := args["urls"].([]any)
 	if !ok || len(urlsRaw) == 0 {
 		return `{"error":"urls is required"}`
@@ -306,7 +307,7 @@ func checkFirecrawlRequirements() bool {
 	return os.Getenv("FIRECRAWL_API_KEY") != ""
 }
 
-func handleWebCrawl(args map[string]any, ctx *ToolContext) string {
+func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	crawlURL, _ := args["url"].(string)
 	if crawlURL == "" {
 		return `{"error":"url is required"}`

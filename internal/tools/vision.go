@@ -85,7 +85,7 @@ func checkVisionGenRequirements() bool {
 	return os.Getenv("FAL_KEY") != ""
 }
 
-func handleVisionAnalyze(args map[string]any, ctx *ToolContext) string {
+func handleVisionAnalyze(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	imagePath, _ := args["image_path"].(string)
 	imageURL, _ := args["image_url"].(string)
 	prompt, _ := args["prompt"].(string)
@@ -145,7 +145,7 @@ func handleVisionAnalyze(args map[string]any, ctx *ToolContext) string {
 	}
 
 	// Call the multimodal LLM with the image
-	analysis, err := callVisionLLM(client, imageContent, prompt)
+	analysis, err := callVisionLLM(ctx, client, imageContent, prompt)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Vision analysis failed: %v", err)})
 	}
@@ -191,7 +191,7 @@ func getVisionClient() *llm.Client {
 }
 
 // callVisionLLM sends an image to a multimodal LLM for analysis.
-func callVisionLLM(client *llm.Client, imageContent, prompt string) (string, error) {
+func callVisionLLM(ctx context.Context, client *llm.Client, imageContent, prompt string) (string, error) {
 	// Build multimodal message with image_url content part
 	// The OpenAI vision format uses content as an array of parts
 	messages := []llm.Message{
@@ -203,7 +203,7 @@ func callVisionLLM(client *llm.Client, imageContent, prompt string) (string, err
 		},
 	}
 
-	timeoutCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	timeoutCtx, cancel := context.WithTimeout(ctx, 60*time.Second)
 	defer cancel()
 
 	resp, err := client.CreateChatCompletion(timeoutCtx, llm.ChatRequest{
@@ -217,7 +217,7 @@ func callVisionLLM(client *llm.Client, imageContent, prompt string) (string, err
 	return resp.Content, nil
 }
 
-func handleImageGenerate(args map[string]any, ctx *ToolContext) string {
+func handleImageGenerate(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	prompt, _ := args["prompt"].(string)
 	if prompt == "" {
 		return `{"error":"prompt is required"}`

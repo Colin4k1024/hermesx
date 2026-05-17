@@ -1,5 +1,7 @@
 package tools
 
+import "context"
+
 func init() {
 	rlTools := []struct {
 		name        string
@@ -162,7 +164,7 @@ func init() {
 
 // makeRLStubHandler returns a handler that explains the RL framework is not installed.
 func makeRLStubHandler(toolName string) ToolHandler {
-	return func(args map[string]any, ctx *ToolContext) string {
+	return func(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 		return toJSON(map[string]any{
 			"error": "Tinker-Atropos RL framework is not installed",
 			"tool":  toolName,

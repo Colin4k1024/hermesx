@@ -85,22 +85,22 @@ func (rr *ReceiptRecorder) CheckIdempotency(ctx context.Context, tenantID, idemp
 }
 
 // DispatchWithReceipt executes a tool and records the execution receipt.
-func DispatchWithReceipt(r *ToolRegistry, recorder *ReceiptRecorder, name string, args map[string]any, ctx *ToolContext) string {
+func DispatchWithReceipt(callCtx context.Context, r *ToolRegistry, recorder *ReceiptRecorder, name string, args map[string]any, tctx *ToolContext) string {
 	if recorder == nil {
-		return r.Dispatch(name, args, ctx)
+		return r.Dispatch(callCtx, name, args, tctx)
 	}
 
 	// Idempotency check: if this exact call was already executed, return cached result.
-	if ctx != nil && ctx.Extra != nil {
-		if idKey, ok := ctx.Extra["idempotency_id"].(string); ok && idKey != "" && ctx.TenantID != "" {
-			if existing, found := recorder.CheckIdempotency(context.Background(), ctx.TenantID, idKey); found {
+	if tctx != nil && tctx.Extra != nil {
+		if idKey, ok := tctx.Extra["idempotency_id"].(string); ok && idKey != "" && tctx.TenantID != "" {
+			if existing, found := recorder.CheckIdempotency(callCtx, tctx.TenantID, idKey); found {
 				return existing.Output
 			}
 		}
 	}
 
 	start := time.Now()
-	result := r.Dispatch(name, args, ctx)
+	result := r.Dispatch(callCtx, name, args, tctx)
 	duration := time.Since(start)
 	durationMs := int(duration.Milliseconds())
 
@@ -110,13 +110,13 @@ func DispatchWithReceipt(r *ToolRegistry, recorder *ReceiptRecorder, name string
 	}
 
 	tenantID := ""
-	if ctx != nil {
-		tenantID = ctx.TenantID
+	if tctx != nil {
+		tenantID = tctx.TenantID
 	}
 	observability.ToolExecutionDuration.WithLabelValues(name, status, tenantID).Observe(duration.Seconds())
 	observability.ToolExecutionsTotal.WithLabelValues(name, status, tenantID).Inc()
 
-	receipt := buildReceipt(name, args, ctx, result, durationMs)
+	receipt := buildReceipt(name, args, tctx, result, durationMs)
 	if receipt != nil {
 		if err := recorder.store.Create(context.Background(), receipt); err != nil {
 			slog.Warn("failed to record execution receipt", "tool", name, "error", err)

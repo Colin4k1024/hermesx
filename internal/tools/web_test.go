@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"testing"
 )
 
@@ -26,7 +27,7 @@ func TestStripHTML(t *testing.T) {
 }
 
 func TestWebSearchMissingQuery(t *testing.T) {
-	result := handleWebSearch(map[string]any{}, nil)
+	result := handleWebSearch(context.Background(), map[string]any{}, nil)
 	if result == "" {
 		t.Error("Expected non-empty result")
 	}
@@ -34,14 +35,14 @@ func TestWebSearchMissingQuery(t *testing.T) {
 
 func TestWebSearchNoAPIKey(t *testing.T) {
 	// Without EXA_API_KEY, should return fallback message
-	result := handleWebSearch(map[string]any{"query": "test"}, nil)
+	result := handleWebSearch(context.Background(), map[string]any{"query": "test"}, nil)
 	if result == "" {
 		t.Error("Expected non-empty fallback result")
 	}
 }
 
 func TestWebExtractMissingURLs(t *testing.T) {
-	result := handleWebExtract(map[string]any{}, nil)
+	result := handleWebExtract(context.Background(), map[string]any{}, nil)
 	if result == "" {
 		t.Error("Expected error for missing urls")
 	}

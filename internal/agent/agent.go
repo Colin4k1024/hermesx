@@ -277,6 +277,16 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		a.apiCallCount++
 		a.lastActivity = time.Now()
 
+		// Proactive context compression when approaching model limits.
+		if a.ShouldCompress(messages) {
+			slog.Info("Context pressure: compressing", "session", a.sessionID)
+			if compressed, compErr := a.CompressContext(ctx, messages); compErr == nil {
+				messages = compressed
+			} else {
+				slog.Warn("Compression failed, continuing", "error", compErr)
+			}
+		}
+
 		// Fire step callback
 		a.fireStep(a.apiCallCount, nil)
 
@@ -313,6 +323,15 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		}
 
 		if err != nil {
+			classified := ClassifyError(err, 0, a.provider, a.model)
+			if classified != nil && classified.ShouldCompress && !a.isInCompressionCooldown() {
+				slog.Warn("Context overflow detected, compressing and retrying", "session", a.sessionID)
+				if compressed, compErr := a.CompressContext(ctx, messages); compErr == nil {
+					messages = compressed
+					a.apiCallCount--
+					continue
+				}
+			}
 			slog.Error("API call failed", "error", err, "attempt", a.apiCallCount)
 			result.FinalResponse = fmt.Sprintf("API error: %v", err)
 			result.Completed = false
@@ -325,6 +344,9 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 		if a.sessionDB != nil {
 			a.sessionDB.UpdateTokenCounts(a.sessionID, resp.Usage.PromptTokens, resp.Usage.CompletionTokens, 0, 0, 0)
 		}
+
+		// Log context pressure for observability.
+		LogContextPressure(a.totalInputTokens, llm.GetModelMeta(a.model).ContextLength, a.sessionID)
 
 		// Extract reasoning from think blocks if not already present
 		if resp.Reasoning == "" && resp.Content != "" {
@@ -423,7 +445,7 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 
 		// Handle tool calls
 		if len(resp.ToolCalls) > 0 {
-			toolResults := a.executeToolCalls(resp.ToolCalls)
+			toolResults := a.executeToolCalls(ctx, resp.ToolCalls)
 
 			for _, tr := range toolResults {
 				messages = append(messages, tr)
@@ -489,13 +511,15 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 	// Self-improvement: record turn and trigger async review when due.
 	if a.selfImprover != nil && result.Completed {
 		if shouldReview := a.selfImprover.RecordTurn(); shouldReview {
+			msgsCopy := make([]llm.Message, len(messages))
+			copy(msgsCopy, messages)
 			go func(msgs []llm.Message, tid, uid string) {
 				ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
 				defer cancel2()
 				if _, err := a.selfImprover.Review(ctx2, msgs, tid, uid); err != nil {
 					slog.Warn("Self-improvement review failed", "error", err)
 				}
-			}(messages, a.tenantID, a.userID)
+			}(msgsCopy, a.tenantID, a.userID)
 		}
 	}
 
@@ -597,7 +621,7 @@ func (a *AIAgent) Close() {
 
 // executeToolCalls runs tool calls, parallelizing when safe.
 // Uses smart path-based overlap detection for file-scoped tools.
-func (a *AIAgent) executeToolCalls(toolCalls []llm.ToolCall) []llm.Message {
+func (a *AIAgent) executeToolCalls(ctx context.Context, toolCalls []llm.ToolCall) []llm.Message {
 	if len(toolCalls) == 1 || !ShouldParallelizeToolBatch(toolCalls) {
 		// Sequential execution
 		var results []llm.Message
@@ -605,7 +629,7 @@ func (a *AIAgent) executeToolCalls(toolCalls []llm.ToolCall) []llm.Message {
 			if a.isInterrupted() {
 				break
 			}
-			results = append(results, a.executeSingleTool(tc))
+			results = append(results, a.executeSingleTool(ctx, tc))
 		}
 		return results
 	}
@@ -616,7 +640,7 @@ func (a *AIAgent) executeToolCalls(toolCalls []llm.ToolCall) []llm.Message {
 		msg   llm.Message
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	parallelCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
 	defer cancel()
 
 	var wg sync.WaitGroup
@@ -641,9 +665,9 @@ func (a *AIAgent) executeToolCalls(toolCalls []llm.ToolCall) []llm.Message {
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
-				msg := a.executeSingleTool(call)
+				msg := a.executeSingleTool(parallelCtx, call)
 				resultCh <- indexedResult{index: idx, msg: msg}
-			case <-ctx.Done():
+			case <-parallelCtx.Done():
 				resultCh <- indexedResult{index: idx, msg: llm.Message{
 					Role:       "tool",
 					Content:    `{"error":"tool execution timed out"}`,
@@ -664,7 +688,7 @@ func (a *AIAgent) executeToolCalls(toolCalls []llm.ToolCall) []llm.Message {
 	return collected
 }
 
-func (a *AIAgent) executeSingleTool(tc llm.ToolCall) llm.Message {
+func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Message {
 	toolName := tc.Function.Name
 	a.fireToolStart(toolName)
 	a.fireToolProgress(toolName, truncate(tc.Function.Arguments, 100))
@@ -684,7 +708,7 @@ func (a *AIAgent) executeSingleTool(tc llm.ToolCall) llm.Message {
 		MemoryProvider: a.memoryProvider,
 	}
 
-	toolResult := tools.Registry().Dispatch(toolName, args, toolCtx)
+	toolResult := tools.Registry().Dispatch(ctx, toolName, args, toolCtx)
 
 	// Redact secrets before the result enters conversation history
 	toolResult = RedactSecrets(toolResult)
@@ -755,7 +779,11 @@ func (a *AIAgent) buildToolDefs(cfg *config.Config) {
 
 func (a *AIAgent) streamingAPICall(ctx context.Context, req llm.ChatRequest) (*llm.ChatResponse, error) {
 	deltaCh, errCh := a.client.CreateChatCompletionStream(ctx, req)
+	return a.consumeStream(deltaCh, errCh)
+}
 
+// consumeStream drains a streaming delta channel and collects the response.
+func (a *AIAgent) consumeStream(deltaCh <-chan llm.StreamDelta, errCh <-chan error) (*llm.ChatResponse, error) {
 	resp := &llm.ChatResponse{}
 	var contentBuilder []byte
 
@@ -776,13 +804,9 @@ func (a *AIAgent) streamingAPICall(ctx context.Context, req llm.ChatRequest) (*l
 		}
 	}
 
-	// Check for streaming error
-	select {
-	case err := <-errCh:
-		if err != nil {
-			return nil, err
-		}
-	default:
+	// Block until the stream wrapper closes errCh (always happens after deltaCh drains).
+	if err := <-errCh; err != nil {
+		return nil, err
 	}
 
 	resp.Content = string(contentBuilder)
@@ -879,10 +903,19 @@ func (a *AIAgent) tryFallbackModels(ctx context.Context, req llm.ChatRequest, pr
 			continue
 		}
 
-		resp, err := fbClient.CreateChatCompletion(ctx, req)
-		if err != nil {
-			slog.Warn("Fallback model also failed", "model", fb.Model, "error", err)
-			primaryErr = err
+		var resp *llm.ChatResponse
+		var fbErr error
+
+		if req.Stream && a.hasStreamConsumers() {
+			deltaCh, errCh := fbClient.CreateChatCompletionStream(ctx, req)
+			resp, fbErr = a.consumeStream(deltaCh, errCh)
+		} else {
+			resp, fbErr = fbClient.CreateChatCompletion(ctx, req)
+		}
+
+		if fbErr != nil {
+			slog.Warn("Fallback model also failed", "model", fb.Model, "error", fbErr)
+			primaryErr = fbErr
 			continue
 		}
 
@@ -894,8 +927,9 @@ func (a *AIAgent) tryFallbackModels(ctx context.Context, req llm.ChatRequest, pr
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen] + "..."
+	return string(runes[:maxLen]) + "..."
 }

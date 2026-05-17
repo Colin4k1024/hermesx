@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -463,7 +464,7 @@ func browserError(tool string, err error) string {
 	})
 }
 
-func handleBrowserNavigateImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserNavigateImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	navURL, _ := args["url"].(string)
 	if navURL == "" {
 		return `{"error":"url is required"}`
@@ -492,7 +493,7 @@ func handleBrowserNavigateImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserSnapshotImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserSnapshotImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserError("browser_snapshot", err)
@@ -506,7 +507,7 @@ func handleBrowserSnapshotImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserClickImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserClickImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	ref, _ := args["ref"].(string)
 	if ref == "" {
 		return `{"error":"ref is required"}`
@@ -525,7 +526,7 @@ func handleBrowserClickImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserTypeImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserTypeImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	ref, _ := args["ref"].(string)
 	text, _ := args["text"].(string)
 	clearFirst, _ := args["clear_first"].(bool)
@@ -547,7 +548,7 @@ func handleBrowserTypeImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserScrollImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserScrollImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	direction, _ := args["direction"].(string)
 	if direction == "" {
 		return `{"error":"direction is required"}`
@@ -571,7 +572,7 @@ func handleBrowserScrollImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserBackImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserBackImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserError("browser_back", err)
@@ -585,7 +586,7 @@ func handleBrowserBackImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserPressImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserPressImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	key, _ := args["key"].(string)
 	if key == "" {
 		return `{"error":"key is required"}`
@@ -604,7 +605,7 @@ func handleBrowserPressImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserGetImagesImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserGetImagesImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	backend, err := getOrCreateBackend()
 	if err != nil {
 		return browserError("browser_get_images", err)
@@ -618,7 +619,7 @@ func handleBrowserGetImagesImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserVisionImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserVisionImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	// Vision requires a screenshot + multimodal LLM. For now, we take a
 	// snapshot and return it -- full vision analysis would require piping
 	// the screenshot through a vision model.
@@ -643,7 +644,7 @@ func handleBrowserVisionImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(snapshot)
 }
 
-func handleBrowserConsoleImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserConsoleImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	script, _ := args["script"].(string)
 	if script == "" {
 		return `{"error":"script is required"}`
@@ -662,7 +663,7 @@ func handleBrowserConsoleImpl(args map[string]any, ctx *ToolContext) string {
 	return toJSON(result)
 }
 
-func handleBrowserCloseImpl(args map[string]any, ctx *ToolContext) string {
+func handleBrowserCloseImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	activeBackendMu.Lock()
 	hasBackend := activeBackend != nil
 	activeBackendMu.Unlock()

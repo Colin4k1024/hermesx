@@ -94,7 +94,7 @@ func init() {
 	})
 }
 
-func handleTerminal(args map[string]any, ctx *ToolContext) string {
+func handleTerminal(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	command, _ := args["command"].(string)
 	if command == "" {
 		return `{"error":"command is required"}`
@@ -120,7 +120,7 @@ func handleTerminal(args map[string]any, ctx *ToolContext) string {
 
 	// Sudo handling: detect sudo commands and warn
 	if isSudoCommand(command) {
-		if ctx != nil && ctx.Platform == "cli" {
+		if tctx != nil && tctx.Platform == "cli" {
 			slog.Warn("Sudo command detected", "command", command)
 		}
 		return toJSON(map[string]any{
@@ -132,7 +132,7 @@ func handleTerminal(args map[string]any, ctx *ToolContext) string {
 	}
 
 	// Dangerous command check: detect and request approval.
-	approvalResult := CheckDangerousCommand(command, ctx)
+	approvalResult := CheckDangerousCommand(command, tctx)
 	if approved, ok := approvalResult["approved"].(bool); ok && !approved {
 		msg, _ := approvalResult["message"].(string)
 		if msg == "" {
@@ -157,7 +157,7 @@ func handleTerminal(args map[string]any, ctx *ToolContext) string {
 		return startBackground(command, workDir)
 	}
 
-	result := executeCommand(command, workDir, timeout)
+	result := executeCommandWithCtx(ctx, command, workDir, timeout)
 
 	// Track working directory changes: if the command is a cd, update TERMINAL_CWD
 	updateTerminalCWD(command, workDir)
@@ -278,11 +278,12 @@ func updateTerminalCWD(command, workDir string) {
 	}
 }
 
-func executeCommand(command, workDir string, timeout int) string {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+// executeCommandWithCtx runs a command with a parent context, applying an additional timeout.
+func executeCommandWithCtx(parent context.Context, command, workDir string, timeout int) string {
+	cmdCtx, cancel := context.WithTimeout(parent, time.Duration(timeout)*time.Second)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
+	cmd := exec.CommandContext(cmdCtx, "sh", "-c", command)
 	if workDir != "" {
 		cmd.Dir = workDir
 	} else {
@@ -305,7 +306,7 @@ func executeCommand(command, workDir string, timeout int) string {
 	if err != nil {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
-		} else if ctx.Err() == context.DeadlineExceeded {
+		} else if cmdCtx.Err() == context.DeadlineExceeded {
 			return toJSON(map[string]any{
 				"error":     "Command timed out",
 				"timeout":   timeout,
@@ -324,6 +325,11 @@ func executeCommand(command, workDir string, timeout int) string {
 	}
 
 	return toJSON(result)
+}
+
+// executeCommand is the legacy entry point without parent context (used by background processes).
+func executeCommand(command, workDir string, timeout int) string {
+	return executeCommandWithCtx(context.Background(), command, workDir, timeout)
 }
 
 func startBackground(command, workDir string) string {
@@ -378,7 +384,7 @@ func startBackground(command, workDir string) string {
 	})
 }
 
-func handleProcess(args map[string]any, ctx *ToolContext) string {
+func handleProcess(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	action, _ := args["action"].(string)
 	processID, _ := args["process_id"].(string)
 
