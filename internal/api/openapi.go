@@ -32,13 +32,22 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/memories":         memoriesPath(),
 			"/v1/memories/{key}":   memoryByKeyPath(),
 
-			"/v1/tenants":                 tenantsPath(),
-			"/v1/tenants/{id}":            tenantByIDPath(),
-			"/v1/api-keys":                apiKeysPath(),
-			"/v1/api-keys/{id}":           apiKeyByIDPath(),
-			"/v1/audit-logs":              auditLogsPath(),
-			"/v1/execution-receipts":      executionReceiptsPath(),
-			"/v1/execution-receipts/{id}": executionReceiptByIDPath(),
+			"/v1/tenants":                           tenantsPath(),
+			"/v1/tenants/{id}":                      tenantByIDPath(),
+			"/v1/api-keys":                          apiKeysPath(),
+			"/v1/api-keys/{id}":                     apiKeyByIDPath(),
+			"/v1/audit-logs":                        auditLogsPath(),
+			"/v1/execution-receipts":                executionReceiptsPath(),
+			"/v1/execution-receipts/{id}":           executionReceiptByIDPath(),
+			"/v1/workflow-definitions":              workflowDefinitionsPath(),
+			"/v1/workflow-definitions/{id}":         workflowDefinitionByIDPath(),
+			"/v1/workflow-definitions/{id}/publish": workflowDefinitionPublishPath(),
+			"/v1/workflow-runs":                     workflowRunsPath(),
+			"/v1/workflow-runs/{id}":                workflowRunByIDPath(),
+			"/v1/workflow-runs/{id}/cancel":         workflowRunActionPath("Cancel workflow run"),
+			"/v1/workflow-runs/{id}/retry":          workflowRunActionPath("Retry paused workflow run"),
+			"/v1/workflow-tasks":                    workflowTasksPath(),
+			"/v1/workflow-tasks/{id}/complete":      workflowTaskCompletePath(),
 
 			"/v1/usage":   pathItem("get", "Usage summary for billing (input/output/cache tokens)", "200"),
 			"/v1/me":      pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
@@ -87,6 +96,7 @@ func OpenAPISpec() http.HandlerFunc {
 			{"name": "Bootstrap", "description": "One-time platform admin key creation"},
 			{"name": "Admin", "description": "Tenant, API key, and pricing management (admin scope required)"},
 			{"name": "Audit", "description": "Audit logs and execution receipts (auditor role required)"},
+			{"name": "Workflows", "description": "Fixed SOP workflow definitions, runs, and human tasks"},
 			{"name": "GDPR", "description": "Data export and deletion"},
 		},
 	}
@@ -333,6 +343,57 @@ func executionReceiptByIDPath() map[string]any {
 				"404": map[string]any{"description": "Not found"},
 			},
 		},
+	}
+}
+
+func workflowDefinitionsPath() map[string]any {
+	return map[string]any{
+		"get":  map[string]any{"tags": []string{"Workflows"}, "summary": "List workflow definitions", "responses": map[string]any{"200": map[string]any{"description": "Workflow definitions"}}},
+		"post": map[string]any{"tags": []string{"Workflows"}, "summary": "Create workflow definition", "responses": map[string]any{"201": map[string]any{"description": "Workflow definition created"}}},
+	}
+}
+
+func workflowDefinitionByIDPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{"tags": []string{"Workflows"}, "summary": "Get workflow definition", "responses": map[string]any{"200": map[string]any{"description": "Workflow definition"}}},
+		"put": map[string]any{"tags": []string{"Workflows"}, "summary": "Update workflow definition draft", "responses": map[string]any{"200": map[string]any{"description": "Workflow definition updated"}}},
+	}
+}
+
+func workflowDefinitionPublishPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{"tags": []string{"Workflows"}, "summary": "Publish immutable workflow version", "responses": map[string]any{"201": map[string]any{"description": "Workflow version published"}}},
+	}
+}
+
+func workflowRunsPath() map[string]any {
+	return map[string]any{
+		"get":  map[string]any{"tags": []string{"Workflows"}, "summary": "List workflow runs", "responses": map[string]any{"200": map[string]any{"description": "Workflow runs"}}},
+		"post": map[string]any{"tags": []string{"Workflows"}, "summary": "Start workflow run from latest published version", "responses": map[string]any{"201": map[string]any{"description": "Workflow run started"}}},
+	}
+}
+
+func workflowRunByIDPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{"tags": []string{"Workflows"}, "summary": "Get workflow run with steps", "responses": map[string]any{"200": map[string]any{"description": "Workflow run"}}},
+	}
+}
+
+func workflowRunActionPath(summary string) map[string]any {
+	return map[string]any{
+		"post": map[string]any{"tags": []string{"Workflows"}, "summary": summary, "responses": map[string]any{"200": map[string]any{"description": "Workflow run updated"}}},
+	}
+}
+
+func workflowTasksPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{"tags": []string{"Workflows"}, "summary": "List pending human workflow tasks for current identity", "responses": map[string]any{"200": map[string]any{"description": "Workflow tasks"}}},
+	}
+}
+
+func workflowTaskCompletePath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{"tags": []string{"Workflows"}, "summary": "Complete a pending human workflow task", "responses": map[string]any{"200": map[string]any{"description": "Workflow task completed"}}},
 	}
 }
 

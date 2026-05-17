@@ -16,17 +16,21 @@ import (
 const gdprExportMaxSessions = 1000
 
 var gdprAllowedTables = map[string]struct{}{
-	"messages":         {},
-	"sessions":         {},
-	"memories":         {},
-	"user_profiles":    {},
-	"api_keys":         {},
-	"cron_jobs":        {},
-	"users":            {},
-	"audit_logs":       {},
-	"usage_records":    {},
-	"roles":            {},
-	"purge_audit_logs": {},
+	"messages":             {},
+	"sessions":             {},
+	"memories":             {},
+	"user_profiles":        {},
+	"api_keys":             {},
+	"cron_jobs":            {},
+	"users":                {},
+	"audit_logs":           {},
+	"usage_records":        {},
+	"roles":                {},
+	"purge_audit_logs":     {},
+	"workflow_definitions": {},
+	"workflow_versions":    {},
+	"workflow_runs":        {},
+	"workflow_step_runs":   {},
 }
 
 // GDPRHandler serves data export and deletion endpoints.
@@ -107,11 +111,18 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 			}
 		}
 
+		var workflowDefinitions []*store.WorkflowDefinition
+		var workflowRuns []*store.WorkflowRun
+		if wfStore := h.store.Workflows(); wfStore != nil {
+			workflowDefinitions, _ = wfStore.ListDefinitions(ctx, tenantID)
+			workflowRuns, _, _ = wfStore.ListRuns(ctx, tenantID, store.WorkflowRunListOptions{Limit: 1000})
+		}
+
 		// Audit the export action.
 		_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
 			TenantID:  tenantID,
 			Action:    "GDPR_EXPORT",
-			Detail:    fmt.Sprintf("sessions=%d memories=%d profiles=%d", len(sessions), len(memories), len(profiles)),
+			Detail:    fmt.Sprintf("sessions=%d memories=%d profiles=%d workflow_definitions=%d workflow_runs=%d", len(sessions), len(memories), len(profiles), len(workflowDefinitions), len(workflowRuns)),
 			RequestID: middleware.RequestIDFromContext(ctx),
 		})
 
@@ -139,6 +150,10 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 		enc.Encode(memories)
 		fmt.Fprint(w, `,"profiles":`)
 		enc.Encode(profiles)
+		fmt.Fprint(w, `,"workflow_definitions":`)
+		enc.Encode(workflowDefinitions)
+		fmt.Fprint(w, `,"workflow_runs":`)
+		enc.Encode(workflowRuns)
 		fmt.Fprint(w, `}`)
 	}
 }
@@ -264,6 +279,13 @@ func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *
 		jobs, _ := cronStore.List(ctx, tenantID)
 		for _, j := range jobs {
 			_ = cronStore.Delete(ctx, tenantID, j.ID)
+		}
+	}
+
+	// Delete workflow state.
+	if wfStore := h.store.Workflows(); wfStore != nil {
+		if _, err := wfStore.DeleteAllByTenant(ctx, tenantID); err != nil {
+			return fmt.Errorf("delete workflows: %w", err)
 		}
 	}
 

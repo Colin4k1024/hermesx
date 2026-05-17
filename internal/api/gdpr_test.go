@@ -106,6 +106,7 @@ func (m *mockGDPRStore) CronJobs() store.CronJobStore                   { return
 func (m *mockGDPRStore) Roles() store.RoleStore                         { return nil }
 func (m *mockGDPRStore) PricingRules() store.PricingRuleStore           { return nil }
 func (m *mockGDPRStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (m *mockGDPRStore) Workflows() store.WorkflowStore                 { return nil }
 func (m *mockGDPRStore) Close() error                                   { return nil }
 func (m *mockGDPRStore) Migrate(_ context.Context) error                { return nil }
 

@@ -477,6 +477,99 @@ var migrations = []migration{
 		key_id UUID,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 	)`},
+
+	// v2.3.0: fixed SOP workflow definitions, immutable versions, and runtime state.
+	{82, `CREATE TABLE IF NOT EXISTS workflow_definitions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		name TEXT NOT NULL,
+		description TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'draft',
+		graph_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+		latest_version_id UUID,
+		created_by TEXT NOT NULL DEFAULT '',
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{83, `CREATE TABLE IF NOT EXISTS workflow_versions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		definition_id UUID NOT NULL REFERENCES workflow_definitions(id) ON DELETE CASCADE,
+		version INT NOT NULL,
+		graph_json JSONB NOT NULL,
+		published_by TEXT NOT NULL DEFAULT '',
+		published_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE (definition_id, version)
+	)`},
+	{84, `CREATE TABLE IF NOT EXISTS workflow_runs (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		definition_id UUID NOT NULL REFERENCES workflow_definitions(id),
+		version_id UUID NOT NULL REFERENCES workflow_versions(id),
+		status TEXT NOT NULL DEFAULT 'pending',
+		started_by TEXT NOT NULL DEFAULT '',
+		input_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+		variables_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+		error TEXT NOT NULL DEFAULT '',
+		started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		completed_at TIMESTAMPTZ,
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{85, `CREATE TABLE IF NOT EXISTS workflow_step_runs (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id),
+		run_id UUID NOT NULL REFERENCES workflow_runs(id) ON DELETE CASCADE,
+		node_id TEXT NOT NULL,
+		node_type TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		attempt INT NOT NULL DEFAULT 0,
+		assignee_user_id TEXT NOT NULL DEFAULT '',
+		assignee_role TEXT NOT NULL DEFAULT '',
+		input_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+		output_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+		outcome TEXT NOT NULL DEFAULT '',
+		error TEXT NOT NULL DEFAULT '',
+		started_at TIMESTAMPTZ,
+		completed_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE (run_id, node_id)
+	)`},
+	{86, `CREATE INDEX IF NOT EXISTS idx_workflow_defs_tenant ON workflow_definitions(tenant_id, created_at DESC)`},
+	{87, `CREATE INDEX IF NOT EXISTS idx_workflow_versions_def ON workflow_versions(tenant_id, definition_id, version DESC)`},
+	{88, `CREATE INDEX IF NOT EXISTS idx_workflow_runs_tenant ON workflow_runs(tenant_id, started_at DESC)`},
+	{89, `CREATE INDEX IF NOT EXISTS idx_workflow_steps_run ON workflow_step_runs(tenant_id, run_id)`},
+	{90, `CREATE INDEX IF NOT EXISTS idx_workflow_steps_human ON workflow_step_runs(tenant_id, status, assignee_user_id, assignee_role)`},
+	{91, `ALTER TABLE workflow_definitions ENABLE ROW LEVEL SECURITY`},
+	{92, `ALTER TABLE workflow_versions ENABLE ROW LEVEL SECURITY`},
+	{93, `ALTER TABLE workflow_runs ENABLE ROW LEVEL SECURITY`},
+	{94, `ALTER TABLE workflow_step_runs ENABLE ROW LEVEL SECURITY`},
+	{95, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_definitions' AND policyname = 'tenant_isolation_workflow_definitions') THEN
+			CREATE POLICY tenant_isolation_workflow_definitions ON workflow_definitions
+			USING (tenant_id::text = current_setting('app.current_tenant', true))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_versions' AND policyname = 'tenant_isolation_workflow_versions') THEN
+			CREATE POLICY tenant_isolation_workflow_versions ON workflow_versions
+			USING (tenant_id::text = current_setting('app.current_tenant', true))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_runs' AND policyname = 'tenant_isolation_workflow_runs') THEN
+			CREATE POLICY tenant_isolation_workflow_runs ON workflow_runs
+			USING (tenant_id::text = current_setting('app.current_tenant', true))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'workflow_step_runs' AND policyname = 'tenant_isolation_workflow_step_runs') THEN
+			CREATE POLICY tenant_isolation_workflow_step_runs ON workflow_step_runs
+			USING (tenant_id::text = current_setting('app.current_tenant', true))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+	END $$`},
+	{96, `ALTER TABLE workflow_definitions FORCE ROW LEVEL SECURITY`},
+	{97, `ALTER TABLE workflow_versions FORCE ROW LEVEL SECURITY`},
+	{98, `ALTER TABLE workflow_runs FORCE ROW LEVEL SECURITY`},
+	{99, `ALTER TABLE workflow_step_runs FORCE ROW LEVEL SECURITY`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

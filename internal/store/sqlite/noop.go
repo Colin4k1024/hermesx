@@ -207,3 +207,58 @@ func (n *noopExecutionReceiptStore) GetByIdempotencyID(_ context.Context, _, _ s
 }
 
 var _ store.ExecutionReceiptStore = (*noopExecutionReceiptStore)(nil)
+
+// --- WorkflowStore noop ---
+
+type noopWorkflowStore struct{}
+
+func (n *noopWorkflowStore) CreateDefinition(_ context.Context, _ *store.WorkflowDefinition) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) UpdateDefinition(_ context.Context, _ *store.WorkflowDefinition) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) GetDefinition(_ context.Context, _, _ string) (*store.WorkflowDefinition, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) ListDefinitions(_ context.Context, _ string) ([]*store.WorkflowDefinition, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) CreateVersion(_ context.Context, _ *store.WorkflowVersion) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) GetVersion(_ context.Context, _, _ string) (*store.WorkflowVersion, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) GetLatestVersion(_ context.Context, _, _ string) (*store.WorkflowVersion, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) CreateRun(_ context.Context, _ *store.WorkflowRun, _ []*store.WorkflowStepRun) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) GetRun(_ context.Context, _, _ string) (*store.WorkflowRun, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) ListRuns(_ context.Context, _ string, _ store.WorkflowRunListOptions) ([]*store.WorkflowRun, int, error) {
+	return nil, 0, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) UpdateRun(_ context.Context, _ *store.WorkflowRun) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) GetStepRun(_ context.Context, _, _ string) (*store.WorkflowStepRun, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) ListStepRuns(_ context.Context, _, _ string) ([]*store.WorkflowStepRun, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) UpdateStepRun(_ context.Context, _ *store.WorkflowStepRun) error {
+	return errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) ListPendingHumanTasks(_ context.Context, _, _ string, _ []string) ([]*store.WorkflowStepRun, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopWorkflowStore) DeleteAllByTenant(_ context.Context, _ string) (int64, error) {
+	return 0, errSQLiteUnsupported
+}
+
+var _ store.WorkflowStore = (*noopWorkflowStore)(nil)

@@ -189,6 +189,71 @@ var migrations = []string{
 		key_id     CHAR(36)    NULL,
 		created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS workflow_definitions (
+		id                CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id         CHAR(36)     NOT NULL,
+		name              VARCHAR(255) NOT NULL,
+		description       TEXT         NOT NULL,
+		status            VARCHAR(32)  NOT NULL DEFAULT 'draft',
+		graph_json        MEDIUMTEXT   NOT NULL,
+		latest_version_id CHAR(36)     NULL,
+		created_by        VARCHAR(255) NOT NULL DEFAULT '',
+		created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		updated_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		INDEX idx_workflow_defs_tenant (tenant_id, created_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS workflow_versions (
+		id            CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id     CHAR(36)     NOT NULL,
+		definition_id CHAR(36)     NOT NULL,
+		version        INT          NOT NULL,
+		graph_json     MEDIUMTEXT   NOT NULL,
+		published_by   VARCHAR(255) NOT NULL DEFAULT '',
+		published_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		UNIQUE KEY uk_workflow_version (definition_id, version),
+		INDEX idx_workflow_versions_def (tenant_id, definition_id, version)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS workflow_runs (
+		id             CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id      CHAR(36)     NOT NULL,
+		definition_id  CHAR(36)     NOT NULL,
+		version_id     CHAR(36)     NOT NULL,
+		status         VARCHAR(32)  NOT NULL DEFAULT 'pending',
+		started_by     VARCHAR(255) NOT NULL DEFAULT '',
+		input_json     MEDIUMTEXT   NOT NULL,
+		variables_json MEDIUMTEXT   NOT NULL,
+		error          TEXT         NOT NULL,
+		started_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		completed_at   DATETIME(3)  NULL,
+		updated_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		INDEX idx_workflow_runs_tenant (tenant_id, started_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS workflow_step_runs (
+		id               CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id        CHAR(36)     NOT NULL,
+		run_id           CHAR(36)     NOT NULL,
+		node_id          VARCHAR(255) NOT NULL,
+		node_type        VARCHAR(64)  NOT NULL,
+		status           VARCHAR(32)  NOT NULL DEFAULT 'pending',
+		attempt          INT          NOT NULL DEFAULT 0,
+		assignee_user_id VARCHAR(255) NOT NULL DEFAULT '',
+		assignee_role    VARCHAR(255) NOT NULL DEFAULT '',
+		input_json        MEDIUMTEXT   NOT NULL,
+		output_json       MEDIUMTEXT   NOT NULL,
+		outcome           VARCHAR(255) NOT NULL DEFAULT '',
+		error             TEXT         NOT NULL,
+		started_at        DATETIME(3)  NULL,
+		completed_at      DATETIME(3)  NULL,
+		created_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		updated_at        DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		UNIQUE KEY uk_workflow_step (run_id, node_id),
+		INDEX idx_workflow_steps_run (tenant_id, run_id),
+		INDEX idx_workflow_steps_human (tenant_id, status, assignee_user_id, assignee_role)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

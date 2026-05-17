@@ -18,16 +18,20 @@ const (
 )
 
 var allowedCascadeTables = map[string]struct{}{
-	"role_permissions": {},
-	"roles":            {},
-	"messages":         {},
-	"sessions":         {},
-	"memories":         {},
-	"user_profiles":    {},
-	"api_keys":         {},
-	"cron_jobs":        {},
-	"users":            {},
-	"audit_logs":       {},
+	"role_permissions":     {},
+	"roles":                {},
+	"messages":             {},
+	"sessions":             {},
+	"memories":             {},
+	"user_profiles":        {},
+	"api_keys":             {},
+	"cron_jobs":            {},
+	"workflow_step_runs":   {},
+	"workflow_runs":        {},
+	"workflow_versions":    {},
+	"workflow_definitions": {},
+	"users":                {},
+	"audit_logs":           {},
 }
 
 // TenantCleanupJob purges soft-deleted tenants after the retention window.
@@ -146,6 +150,10 @@ func (j *TenantCleanupJob) purgeTenant(ctx context.Context, tenantID string) err
 		"user_profiles",
 		"api_keys",
 		"cron_jobs",
+		"workflow_step_runs",
+		"workflow_runs",
+		"workflow_versions",
+		"workflow_definitions",
 		"users",
 		"audit_logs",
 	}

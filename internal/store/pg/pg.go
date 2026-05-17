@@ -31,6 +31,7 @@ type PGStore struct {
 	roles             *pgRoleStore
 	pricingRules      *pgPricingRuleStore
 	executionReceipts *pgExecutionReceiptStore
+	workflows         *pgWorkflowStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -69,6 +70,7 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.roles = &pgRoleStore{pool: pool}
 	s.pricingRules = &pgPricingRuleStore{pool: pool}
 	s.executionReceipts = &pgExecutionReceiptStore{pool: pool}
+	s.workflows = &pgWorkflowStore{pool: pool}
 	return s, nil
 }
 
@@ -84,6 +86,7 @@ func (s *PGStore) CronJobs() store.CronJobStore                   { return s.cro
 func (s *PGStore) Roles() store.RoleStore                         { return s.roles }
 func (s *PGStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *PGStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
+func (s *PGStore) Workflows() store.WorkflowStore                 { return s.workflows }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

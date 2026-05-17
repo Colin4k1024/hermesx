@@ -122,6 +122,13 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.Handle("/v1/execution-receipts/", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
 	api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
+	workflowH := NewWorkflowHandler(cfg.Store.Workflows())
+	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
+	api.HandleFunc("/v1/workflow-definitions/", workflowH.ServeDefinitionsHTTP)
+	api.HandleFunc("/v1/workflow-runs", workflowH.ServeRunsHTTP)
+	api.HandleFunc("/v1/workflow-runs/", workflowH.ServeRunsHTTP)
+	api.HandleFunc("/v1/workflow-tasks", workflowH.ServeTasksHTTP)
+	api.HandleFunc("/v1/workflow-tasks/", workflowH.ServeTasksHTTP)
 
 	me := NewMeHandler(cfg.Store)
 	api.Handle("/v1/me", me)
