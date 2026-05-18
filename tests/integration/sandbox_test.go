@@ -3,6 +3,7 @@
 package integration
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestSandbox_Python_Basic(t *testing.T) {
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "python",
 		"code":     "print('hello from sandbox')",
 		"timeout":  float64(10),
@@ -41,7 +42,7 @@ func TestSandbox_Python_Basic(t *testing.T) {
 }
 
 func TestSandbox_Bash_Basic(t *testing.T) {
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "bash",
 		"code":     "echo 'bash sandbox test'",
 		"timeout":  float64(10),
@@ -57,7 +58,7 @@ func TestSandbox_Bash_Basic(t *testing.T) {
 }
 
 func TestSandbox_Timeout(t *testing.T) {
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "bash",
 		"code":     "sleep 30",
 		"timeout":  float64(2),
@@ -183,7 +184,7 @@ func TestSandbox_EnvStripped(t *testing.T) {
 	os.Setenv("SECRET_TOKEN", "super-secret-value")
 	defer os.Unsetenv("SECRET_TOKEN")
 
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "bash",
 		"code":     "env",
 		"timeout":  float64(10),
@@ -206,7 +207,7 @@ func TestSandbox_EnvStripped(t *testing.T) {
 }
 
 func TestSandbox_UnsupportedLanguage(t *testing.T) {
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "ruby",
 		"code":     "puts 'hello'",
 	}, nil)
@@ -221,7 +222,7 @@ func TestSandbox_UnsupportedLanguage(t *testing.T) {
 }
 
 func TestSandbox_EmptyCode_Rejected(t *testing.T) {
-	result := tools.Registry().Dispatch("execute_code", map[string]any{
+	result := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "python",
 		"code":     "",
 	}, nil)

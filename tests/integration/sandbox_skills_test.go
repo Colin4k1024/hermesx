@@ -205,14 +205,14 @@ func TestSkill_SandboxExecution_PerTenant_Isolation(t *testing.T) {
 	tenantB := testEnv.CreateTestTenant(t, "sandbox-exec-b", "pro")
 
 	// Execute code as tenant A
-	resultA := tools.Registry().Dispatch("execute_code", map[string]any{
+	resultA := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "python",
 		"code":     "import os; print(os.environ.get('TENANT_ID', 'none'))",
 		"timeout":  float64(10),
 	}, &tools.ToolContext{TenantID: tenantA.ID})
 
 	// Execute code as tenant B
-	resultB := tools.Registry().Dispatch("execute_code", map[string]any{
+	resultB := tools.Registry().Dispatch(context.Background(), "execute_code", map[string]any{
 		"language": "python",
 		"code":     "import os; print(os.environ.get('TENANT_ID', 'none'))",
 		"timeout":  float64(10),
