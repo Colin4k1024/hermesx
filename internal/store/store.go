@@ -24,6 +24,7 @@ type Store interface {
 	Roles() RoleStore
 	PricingRules() PricingRuleStore
 	ExecutionReceipts() ExecutionReceiptStore
+	Workflows() WorkflowStore
 	Close() error
 	Migrate(ctx context.Context) error
 }
@@ -162,6 +163,31 @@ type ExecutionReceiptStore interface {
 	GetByIdempotencyID(ctx context.Context, tenantID, idempotencyID string) (*ExecutionReceipt, error)
 }
 
+// WorkflowStore manages fixed SOP workflow definitions, immutable versions,
+// runtime instances, and per-node execution state.
+type WorkflowStore interface {
+	CreateDefinition(ctx context.Context, def *WorkflowDefinition) error
+	UpdateDefinition(ctx context.Context, def *WorkflowDefinition) error
+	GetDefinition(ctx context.Context, tenantID, definitionID string) (*WorkflowDefinition, error)
+	ListDefinitions(ctx context.Context, tenantID string) ([]*WorkflowDefinition, error)
+
+	CreateVersion(ctx context.Context, version *WorkflowVersion) error
+	GetVersion(ctx context.Context, tenantID, versionID string) (*WorkflowVersion, error)
+	GetLatestVersion(ctx context.Context, tenantID, definitionID string) (*WorkflowVersion, error)
+
+	CreateRun(ctx context.Context, run *WorkflowRun, steps []*WorkflowStepRun) error
+	GetRun(ctx context.Context, tenantID, runID string) (*WorkflowRun, error)
+	ListRuns(ctx context.Context, tenantID string, opts WorkflowRunListOptions) ([]*WorkflowRun, int, error)
+	UpdateRun(ctx context.Context, run *WorkflowRun) error
+
+	GetStepRun(ctx context.Context, tenantID, stepRunID string) (*WorkflowStepRun, error)
+	ListStepRuns(ctx context.Context, tenantID, runID string) ([]*WorkflowStepRun, error)
+	UpdateStepRun(ctx context.Context, step *WorkflowStepRun) error
+	ListPendingHumanTasks(ctx context.Context, tenantID, userID string, roles []string) ([]*WorkflowStepRun, error)
+
+	DeleteAllByTenant(ctx context.Context, tenantID string) (int64, error)
+}
+
 // ReceiptListOptions controls pagination and filtering for execution receipt queries.
 type ReceiptListOptions struct {
 	SessionID string
@@ -169,6 +195,14 @@ type ReceiptListOptions struct {
 	Status    string
 	Limit     int
 	Offset    int
+}
+
+// WorkflowRunListOptions controls pagination and filtering for workflow runs.
+type WorkflowRunListOptions struct {
+	DefinitionID string
+	Status       string
+	Limit        int
+	Offset       int
 }
 
 // ListOptions controls pagination and filtering for list queries.

@@ -36,6 +36,7 @@ func (t *TracedStore) PricingRules() PricingRuleStore {
 func (t *TracedStore) ExecutionReceipts() ExecutionReceiptStore {
 	return &tracedExecutionReceipts{t.inner.ExecutionReceipts()}
 }
+func (t *TracedStore) Workflows() WorkflowStore          { return &tracedWorkflows{t.inner.Workflows()} }
 func (t *TracedStore) Close() error                      { return t.inner.Close() }
 func (t *TracedStore) Migrate(ctx context.Context) error { return t.inner.Migrate(ctx) }
 
@@ -800,6 +801,202 @@ func (p *tracedPricingRules) Delete(ctx context.Context, modelKey string) error 
 		return err
 	}
 	return nil
+}
+
+// ── Workflows ────────────────────────────────────────────────────────────────
+
+type tracedWorkflows struct{ inner WorkflowStore }
+
+func (w *tracedWorkflows) CreateDefinition(ctx context.Context, def *WorkflowDefinition) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.CreateDefinition")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", def.TenantID))
+	if err := w.inner.CreateDefinition(ctx, def); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) UpdateDefinition(ctx context.Context, def *WorkflowDefinition) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.UpdateDefinition")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", def.TenantID))
+	if err := w.inner.UpdateDefinition(ctx, def); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) GetDefinition(ctx context.Context, tenantID, definitionID string) (*WorkflowDefinition, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.GetDefinition")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.GetDefinition(ctx, tenantID, definitionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) ListDefinitions(ctx context.Context, tenantID string) ([]*WorkflowDefinition, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.ListDefinitions")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.ListDefinitions(ctx, tenantID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) CreateVersion(ctx context.Context, version *WorkflowVersion) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.CreateVersion")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", version.TenantID))
+	if err := w.inner.CreateVersion(ctx, version); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) GetVersion(ctx context.Context, tenantID, versionID string) (*WorkflowVersion, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.GetVersion")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.GetVersion(ctx, tenantID, versionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) GetLatestVersion(ctx context.Context, tenantID, definitionID string) (*WorkflowVersion, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.GetLatestVersion")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.GetLatestVersion(ctx, tenantID, definitionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) CreateRun(ctx context.Context, run *WorkflowRun, steps []*WorkflowStepRun) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.CreateRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", run.TenantID))
+	if err := w.inner.CreateRun(ctx, run, steps); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) GetRun(ctx context.Context, tenantID, runID string) (*WorkflowRun, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.GetRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.GetRun(ctx, tenantID, runID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) ListRuns(ctx context.Context, tenantID string, opts WorkflowRunListOptions) ([]*WorkflowRun, int, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.ListRuns")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, n, err := w.inner.ListRuns(ctx, tenantID, opts)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, n, err
+}
+
+func (w *tracedWorkflows) UpdateRun(ctx context.Context, run *WorkflowRun) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.UpdateRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", run.TenantID))
+	if err := w.inner.UpdateRun(ctx, run); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) GetStepRun(ctx context.Context, tenantID, stepRunID string) (*WorkflowStepRun, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.GetStepRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.GetStepRun(ctx, tenantID, stepRunID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) ListStepRuns(ctx context.Context, tenantID, runID string) ([]*WorkflowStepRun, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.ListStepRuns")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.ListStepRuns(ctx, tenantID, runID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) UpdateStepRun(ctx context.Context, step *WorkflowStepRun) error {
+	ctx, span := tracer.Start(ctx, "store.Workflows.UpdateStepRun")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", step.TenantID))
+	if err := w.inner.UpdateStepRun(ctx, step); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (w *tracedWorkflows) ListPendingHumanTasks(ctx context.Context, tenantID, userID string, roles []string) ([]*WorkflowStepRun, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.ListPendingHumanTasks")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := w.inner.ListPendingHumanTasks(ctx, tenantID, userID, roles)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (w *tracedWorkflows) DeleteAllByTenant(ctx context.Context, tenantID string) (int64, error) {
+	ctx, span := tracer.Start(ctx, "store.Workflows.DeleteAllByTenant")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	n, err := w.inner.DeleteAllByTenant(ctx, tenantID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return n, err
 }
 
 // ── ExecutionReceipts ────────────────────────────────────────────────────────

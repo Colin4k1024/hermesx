@@ -47,6 +47,7 @@ func (s *SQLiteStore) PricingRules() store.PricingRuleStore { return &noopPricin
 func (s *SQLiteStore) ExecutionReceipts() store.ExecutionReceiptStore {
 	return &noopExecutionReceiptStore{}
 }
+func (s *SQLiteStore) Workflows() store.WorkflowStore  { return &noopWorkflowStore{} }
 func (s *SQLiteStore) Close() error                    { return s.db.Close() }
 func (s *SQLiteStore) Migrate(_ context.Context) error { return nil } // SQLite migrations handled by SessionDB
 

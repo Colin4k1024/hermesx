@@ -191,6 +191,135 @@ type ExecutionReceipt struct {
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
 
+const (
+	WorkflowDefinitionDraft     = "draft"
+	WorkflowDefinitionPublished = "published"
+	WorkflowDefinitionArchived  = "archived"
+
+	WorkflowNodeStart       = "start"
+	WorkflowNodeHumanTask   = "human_task"
+	WorkflowNodeServiceTask = "service_task"
+	WorkflowNodeAgentTask   = "agent_task"
+	WorkflowNodeEnd         = "end"
+
+	WorkflowRunPending   = "pending"
+	WorkflowRunRunning   = "running"
+	WorkflowRunWaiting   = "waiting"
+	WorkflowRunPaused    = "paused"
+	WorkflowRunCompleted = "completed"
+	WorkflowRunCancelled = "cancelled"
+
+	WorkflowStepPending      = "pending"
+	WorkflowStepReady        = "ready"
+	WorkflowStepRunning      = "running"
+	WorkflowStepWaitingHuman = "waiting_human"
+	WorkflowStepSucceeded    = "succeeded"
+	WorkflowStepFailed       = "failed"
+	WorkflowStepSkipped      = "skipped"
+)
+
+// WorkflowDefinition is the mutable authoring record for a fixed SOP.
+// Published versions snapshot GraphJSON so running instances never drift.
+type WorkflowDefinition struct {
+	ID              string    `json:"id" db:"id"`
+	TenantID        string    `json:"tenant_id" db:"tenant_id"`
+	Name            string    `json:"name" db:"name"`
+	Description     string    `json:"description,omitempty" db:"description"`
+	Status          string    `json:"status" db:"status"`
+	GraphJSON       string    `json:"graph_json" db:"graph_json"`
+	LatestVersionID string    `json:"latest_version_id,omitempty" db:"latest_version_id"`
+	CreatedBy       string    `json:"created_by,omitempty" db:"created_by"`
+	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// WorkflowVersion is an immutable published snapshot of a workflow definition.
+type WorkflowVersion struct {
+	ID           string    `json:"id" db:"id"`
+	TenantID     string    `json:"tenant_id" db:"tenant_id"`
+	DefinitionID string    `json:"definition_id" db:"definition_id"`
+	Version      int       `json:"version" db:"version"`
+	GraphJSON    string    `json:"graph_json" db:"graph_json"`
+	PublishedBy  string    `json:"published_by,omitempty" db:"published_by"`
+	PublishedAt  time.Time `json:"published_at" db:"published_at"`
+}
+
+// WorkflowNode is one vertex in the workflow DAG.
+type WorkflowNode struct {
+	ID             string         `json:"id"`
+	Type           string         `json:"type"`
+	Name           string         `json:"name,omitempty"`
+	AssigneeUserID string         `json:"assignee_user_id,omitempty"`
+	AssigneeRole   string         `json:"assignee_role,omitempty"`
+	Config         map[string]any `json:"config,omitempty"`
+}
+
+// WorkflowCondition is a deterministic predicate over explicit workflow data.
+type WorkflowCondition struct {
+	Path  string `json:"path,omitempty"`
+	Op    string `json:"op,omitempty"`
+	Value any    `json:"value,omitempty"`
+}
+
+// WorkflowEdge connects two nodes. Outcome is most useful for human tasks;
+// Condition is evaluated against input, variables, and prior step outputs.
+type WorkflowEdge struct {
+	From      string             `json:"from"`
+	To        string             `json:"to"`
+	Outcome   string             `json:"outcome,omitempty"`
+	Condition *WorkflowCondition `json:"condition,omitempty"`
+}
+
+// WorkflowGraph is the JSON authoring contract for a workflow definition.
+type WorkflowGraph struct {
+	Nodes []WorkflowNode `json:"nodes"`
+	Edges []WorkflowEdge `json:"edges"`
+}
+
+// WorkflowRun is a tenant-scoped runtime instance pinned to one immutable version.
+type WorkflowRun struct {
+	ID            string     `json:"id" db:"id"`
+	TenantID      string     `json:"tenant_id" db:"tenant_id"`
+	DefinitionID  string     `json:"definition_id" db:"definition_id"`
+	VersionID     string     `json:"version_id" db:"version_id"`
+	Status        string     `json:"status" db:"status"`
+	StartedBy     string     `json:"started_by,omitempty" db:"started_by"`
+	InputJSON     string     `json:"input_json" db:"input_json"`
+	VariablesJSON string     `json:"variables_json" db:"variables_json"`
+	Error         string     `json:"error,omitempty" db:"error"`
+	StartedAt     time.Time  `json:"started_at" db:"started_at"`
+	CompletedAt   *time.Time `json:"completed_at,omitempty" db:"completed_at"`
+	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// WorkflowStepRun is the per-node runtime state for one workflow instance.
+type WorkflowStepRun struct {
+	ID             string     `json:"id" db:"id"`
+	TenantID       string     `json:"tenant_id" db:"tenant_id"`
+	RunID          string     `json:"run_id" db:"run_id"`
+	NodeID         string     `json:"node_id" db:"node_id"`
+	NodeType       string     `json:"node_type" db:"node_type"`
+	Status         string     `json:"status" db:"status"`
+	Attempt        int        `json:"attempt" db:"attempt"`
+	AssigneeUserID string     `json:"assignee_user_id,omitempty" db:"assignee_user_id"`
+	AssigneeRole   string     `json:"assignee_role,omitempty" db:"assignee_role"`
+	InputJSON      string     `json:"input_json,omitempty" db:"input_json"`
+	OutputJSON     string     `json:"output_json,omitempty" db:"output_json"`
+	Outcome        string     `json:"outcome,omitempty" db:"outcome"`
+	Error          string     `json:"error,omitempty" db:"error"`
+	StartedAt      *time.Time `json:"started_at,omitempty" db:"started_at"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty" db:"completed_at"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
+}
+
+// HumanTaskOutcome is the request payload used to resolve a waiting human task.
+type HumanTaskOutcome struct {
+	Outcome   string         `json:"outcome"`
+	Output    map[string]any `json:"output,omitempty"`
+	Variables map[string]any `json:"variables,omitempty"`
+}
+
 // APIKey represents a hashed API key bound to a tenant.
 type APIKey struct {
 	ID        string     `json:"id" db:"id"`
