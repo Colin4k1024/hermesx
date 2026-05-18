@@ -35,7 +35,13 @@ func mustParseCIDR(s string) *net.IPNet {
 }
 
 // isBlockedIP returns true if the IP should be blocked for SSRF protection.
+// Deprecated: use egress.IsBlockedIP for new code.
 func isBlockedIP(ip net.IP) bool {
+	return IsBlockedIP(ip)
+}
+
+// IsBlockedIP is the exported version of SSRF IP blocking logic.
+func IsBlockedIP(ip net.IP) bool {
 	if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() ||
 		ip.IsLinkLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
 		return true

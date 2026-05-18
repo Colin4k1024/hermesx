@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sort"
 	"sync"
+
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 )
 
 // ToolHandler is the function signature for tool handlers.
@@ -20,9 +22,10 @@ type ToolContext struct {
 	Platform        string
 	TenantID        string
 	UserID          string
-	Extra           map[string]any  // Additional context (e.g., delegation depth)
-	ApprovalHandler ApprovalHandler // Optional handler for interactive command approval
-	MemoryProvider  MemoryProvider  // Per-agent memory provider (overrides global singleton)
+	Extra           map[string]any          // Additional context (e.g., delegation depth)
+	ApprovalHandler ApprovalHandler         // Optional handler for interactive command approval
+	MemoryProvider  MemoryProvider          // Per-agent memory provider (overrides global singleton)
+	SecretResolver  secrets.SecretResolver  // Just-in-time secret resolution with leak detection
 }
 
 // ToolEntry holds metadata for a registered tool.

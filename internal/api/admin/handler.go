@@ -71,6 +71,10 @@ func (h *AdminHandler) Handler() http.Handler {
 	// Tenant usage aggregation (cross-tenant, bypasses RLS — requires BYPASSRLS role).
 	mux.HandleFunc("GET /admin/v1/usage/tenants", h.listTenantUsage)
 
+	// Secret pattern management endpoints.
+	mux.HandleFunc("GET /admin/v1/secrets/patterns", h.listSecretPatterns)
+	mux.HandleFunc("POST /admin/v1/secrets/patterns", h.createSecretPattern)
+
 	// Wrap with RequireScope("admin") middleware.
 	return middleware.RequireScope("admin")(mux)
 }

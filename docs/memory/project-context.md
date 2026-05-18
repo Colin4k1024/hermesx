@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: v2.2.0-stabilization
-**前任务**: 2026-05-09-k8s-fullstack-deploy（已完成）
-**阶段**: active
-**版本目标**: v2.2.0 — 发布口径同步 + Bootstrap 安全加固 + API/WebUI 契约修复
+**当前任务**: 2026-05-18-security-enhancement-ironclaw
+**前任务**: v2.2.0-stabilization（已完成）
+**阶段**: released
+**版本目标**: v2.2.0 — Security Enhancement (Prompt Injection Defense + Credential Isolation + Network Allowlisting)
 
 ## Tech Stack
 
@@ -57,10 +57,15 @@
 - v2.1.0 MySQL 全量实现工作量大（~31h 估时，按子接口拆 PR）
 - v2.1.0 pprof admin 端点需严格访问控制（生产默认 disabled）
 
-## 下一步（v2.2.0 候选）
+## 下一步（v2.3.0 候选）
 
-1. [Verify] v2.2.0-stabilization 完整验证：Go test/vet + WebUI typecheck/build + Docker/K8s smoke
-2. [Infra] store/pg unit tests — pgxmock introduction
-3. [Perf] Curator O(n²) dedup optimization
-4. [Security] GHA actions digest-pin（deferred from v2.1.0）
-5. [UX] Admin Dashboard tenant-level usage aggregation
+1. [Security] 工具层 HTTP client 迁移到 SecureTransport (C3 — 50 tools 逐个迁移)
+2. [Security] HTTP redirect 绕过防护 — CheckRedirect hook (C4)
+3. [Security] Canary token TTL 清理 + RemoveToken 集成 (H5)
+4. [Security] ResolvedValues 接口限制 (H6)
+5. [Security] Unicode NFKC normalization for input guard (M3)
+6. [Security] Agent loop interceptor 集成 (S1.6)
+7. [Security] 高风险工具迁移 SecretResolver (S2.4, 10 tools)
+8. [Security] Admin API 统一交付 (Safety + Egress + Secret patterns)
+9. [Infra] store/pg unit tests — pgxmock introduction
+10. [Perf] Curator O(n²) dedup optimization

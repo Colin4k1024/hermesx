@@ -1,0 +1,114 @@
+package egress
+
+import (
+	"encoding/json"
+	"net/http"
+	"strings"
+)
+
+type AdminHandler struct {
+	store  *PostgresStore
+	policy *AllowlistPolicy
+}
+
+func NewAdminHandler(store *PostgresStore, policy *AllowlistPolicy) *AdminHandler {
+	return &AdminHandler{store: store, policy: policy}
+}
+
+// RegisterRoutes registers admin egress endpoints.
+// IMPORTANT: caller must wrap mux with admin auth middleware (e.g. RequireScope("admin"))
+// before exposing these routes. See internal/api/admin/handler.go for the pattern.
+func (h *AdminHandler) RegisterRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /admin/egress/rules", h.listRules)
+	mux.HandleFunc("POST /admin/egress/rules", h.createRule)
+	mux.HandleFunc("DELETE /admin/egress/rules/", h.deleteRule)
+}
+
+func (h *AdminHandler) listRules(w http.ResponseWriter, r *http.Request) {
+	tenantID := r.URL.Query().Get("tenant_id")
+	rules, err := h.store.ListRules(r.Context(), tenantID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(rules)
+}
+
+type createRuleRequest struct {
+	TenantID    string `json:"tenant_id"`
+	HostPattern string `json:"host_pattern"`
+	PathPrefix  string `json:"path_prefix"`
+	Action      Action `json:"action"`
+	Priority    int    `json:"priority"`
+}
+
+func (h *AdminHandler) createRule(w http.ResponseWriter, r *http.Request) {
+	var req createRuleRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.TenantID == "" || req.HostPattern == "" {
+		http.Error(w, "tenant_id and host_pattern are required", http.StatusBadRequest)
+		return
+	}
+	if req.Action == "" {
+		req.Action = ActionAllow
+	}
+	if req.Action != ActionAllow && req.Action != ActionDeny {
+		http.Error(w, "action must be 'allow' or 'deny'", http.StatusBadRequest)
+		return
+	}
+	if req.PathPrefix == "" {
+		req.PathPrefix = "/"
+	}
+
+	rule := EgressRule{
+		TenantID:    req.TenantID,
+		HostPattern: req.HostPattern,
+		PathPrefix:  req.PathPrefix,
+		Action:      req.Action,
+		Priority:    req.Priority,
+	}
+
+	id, err := h.store.CreateRule(r.Context(), rule)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if h.policy != nil {
+		h.policy.Reload(r.Context())
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]string{"id": id})
+}
+
+func (h *AdminHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/admin/egress/rules/")
+	if id == "" {
+		http.Error(w, "rule id is required", http.StatusBadRequest)
+		return
+	}
+
+	tenantID := r.URL.Query().Get("tenant_id")
+	if tenantID == "" {
+		http.Error(w, "tenant_id is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.store.DeleteRule(r.Context(), id, tenantID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if h.policy != nil {
+		h.policy.Reload(r.Context())
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
