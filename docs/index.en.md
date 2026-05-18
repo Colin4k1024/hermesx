@@ -37,7 +37,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | Test files | 127 |
 | Total tests | 1,597 |
 | RLS-protected tables | 10 |
-| API endpoints | 43+ |
+| API endpoints | 51+ |
 | Version | v2.2.0 |
 
 ---
@@ -92,6 +92,14 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | `GET /v1/gdpr/export` | Data export (GDPR) |
 | `DELETE /v1/gdpr/data` | Data deletion (GDPR) |
 | `POST /v1/gdpr/cleanup-minio` | Clean up object storage |
+| `GET/POST/PUT /v1/workflow-definitions` | Workflow definition management |
+| `POST /v1/workflow-definitions/{id}/publish` | Publish workflow version |
+| `POST/GET /v1/workflow-runs` | Start/query workflow instances |
+| `GET /v1/workflow-runs/{id}` | Workflow instance details |
+| `POST /v1/workflow-runs/{id}/cancel` | Cancel workflow instance |
+| `POST /v1/workflow-runs/{id}/retry` | Retry paused instance |
+| `GET /v1/workflow-tasks` | List pending human tasks |
+| `POST /v1/workflow-tasks/{id}/complete` | Complete a human task |
 | `GET /v1/openapi` | OpenAPI specification |
 | `GET /health/live` / `GET /health/ready` | Health checks |
 | `GET /metrics` | Prometheus metrics |
@@ -317,6 +325,65 @@ Embedded web management UI providing visual management for sessions, configurati
 **Deployment:** Dashboard starts as an optional standalone module with configurable port; SPA static assets are embedded in the binary.
 
 **Auth:** Write operations require Bearer Token; empty value enters development no-auth mode.
+
+---
+
+## Fixed SOP Workflow Engine
+
+Orchestrate agent tasks, HTTP service calls, and conditional branches into persistent, auditable DAG workflows with human-in-the-loop support and pause/retry semantics.
+
+### Node Types
+
+| Type | Description |
+|------|-------------|
+| `start` | Flow entry point, completes automatically |
+| `agent_task` | Invokes a full agent loop; task instruction passed via `config.prompt`, result written into downstream context |
+| `service_task` | Calls an external HTTP service with custom Method/Headers; JSON response auto-merged into step output |
+| `human_task` | Pauses the flow awaiting human action; resume via `POST /v1/workflow-tasks/{id}/complete`, can update variables |
+| `end` | Flow exit point, completes automatically |
+
+### Conditional Routing
+
+Edges support two-level filtering:
+
+- **Outcome matching** — matches the upstream step's `outcome` field (e.g., `approved` / `rejected`)
+- **Condition expressions** — supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `exists`, `contains`, `startsWith`, `endsWith`; path syntax: `input.field`, `variables.key`, `steps.{nodeID}.output.field`
+
+### Instance Lifecycle
+
+```
+running → waiting (awaiting human) → running → completed
+                                   → paused (step failed, retryable)
+                                   → cancelled
+```
+
+### Version Control
+
+- Definitions support `draft` → `published` → `archived` state transitions
+- Each publish snapshots GraphJSON; running instances are pinned to the version at launch time and never drift
+
+### Storage Backends
+
+PostgreSQL and MySQL dual implementation, tables: `workflow_definitions`, `workflow_versions`, `workflow_runs`, `workflow_step_runs`
+
+### API Quick Example
+
+```bash
+# 1. Create definition
+POST /v1/workflow-definitions
+{"name":"Approval Flow","graph":{"nodes":[...],"edges":[...]}}
+
+# 2. Publish
+POST /v1/workflow-definitions/{id}/publish
+
+# 3. Start instance
+POST /v1/workflow-runs
+{"definition_id":"{id}","input":{"amount":10000}}
+
+# 4. Complete human task
+POST /v1/workflow-tasks/{stepRunID}/complete
+{"outcome":"approved","output":{"comment":"Approved"},"variables":{"approved":true}}
+```
 
 ---
 

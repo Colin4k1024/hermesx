@@ -37,7 +37,7 @@
 | 测试文件 | 127 个 |
 | 测试总数 | 1,597 个 |
 | RLS 保护表 | 10 个 |
-| API 端点 | 43+ 个 |
+| API 端点 | 51+ 个 |
 | 版本 | v2.2.0 |
 
 ---
@@ -92,6 +92,14 @@
 | `GET /v1/gdpr/export` | 数据导出（GDPR） |
 | `DELETE /v1/gdpr/data` | 数据删除（GDPR） |
 | `POST /v1/gdpr/cleanup-minio` | 清理对象存储 |
+| `GET/POST/PUT /v1/workflow-definitions` | 工作流定义管理 |
+| `POST /v1/workflow-definitions/{id}/publish` | 发布工作流版本 |
+| `POST/GET /v1/workflow-runs` | 启动/查询工作流实例 |
+| `GET /v1/workflow-runs/{id}` | 工作流实例详情 |
+| `POST /v1/workflow-runs/{id}/cancel` | 取消工作流实例 |
+| `POST /v1/workflow-runs/{id}/retry` | 重试暂停的实例 |
+| `GET /v1/workflow-tasks` | 查询待处理人工任务 |
+| `POST /v1/workflow-tasks/{id}/complete` | 完成人工任务 |
 | `GET /v1/openapi` | OpenAPI 规范 |
 | `GET /health/live` / `GET /health/ready` | 健康检查 |
 | `GET /metrics` | Prometheus 指标 |
@@ -317,6 +325,65 @@ BatchConfig{
 **部署：** Dashboard 作为可选模块独立启动，端口可配置，SPA 静态资源内嵌到二进制中。
 
 **鉴权：** Write 操作需 Bearer Token；空值时进入开发无鉴权模式。
+
+---
+
+## 固定 SOP 工作流引擎
+
+将多个 Agent 任务、HTTP 服务调用和条件分支编排为可持久化、可审计的 DAG 工作流，支持人工介入和断点重试。
+
+### 节点类型
+
+| 类型 | 说明 |
+|------|------|
+| `start` | 流程起点，自动完成 |
+| `agent_task` | 调用完整 Agent 循环，通过 `config.prompt` 传入任务指令，结果写入下游上下文 |
+| `service_task` | HTTP 调用外部服务，支持自定义 Method、Header，响应 JSON 自动合并到步骤输出 |
+| `human_task` | 暂停流程等待人工操作，通过 `/v1/workflow-tasks/{id}/complete` 继续，可携带变量更新 |
+| `end` | 流程终点，自动完成 |
+
+### 条件路由
+
+边（Edge）支持两级筛选：
+
+- **Outcome 匹配** — 上游步骤的 `outcome` 字段（如 `approved` / `rejected`）
+- **条件表达式** — 支持 `eq`、`ne`、`gt`、`gte`、`lt`、`lte`、`exists`、`contains`、`startsWith`、`endsWith`，路径语法为 `input.field`、`variables.key`、`steps.{nodeID}.output.field`
+
+### 实例生命周期
+
+```
+running → waiting（等待人工）→ running → completed
+                            → paused（步骤失败，可 retry）
+                            → cancelled
+```
+
+### 版本控制
+
+- 定义（Definition）支持 `draft` → `published` → `archived` 状态流转
+- 每次发布快照 GraphJSON，运行中实例永远锁定在启动时的版本，互不影响
+
+### 存储后端
+
+PostgreSQL 和 MySQL 双实现，表结构：`workflow_definitions`、`workflow_versions`、`workflow_runs`、`workflow_step_runs`
+
+### API 快速示例
+
+```bash
+# 1. 创建定义
+POST /v1/workflow-definitions
+{"name":"审批流","graph":{"nodes":[...],"edges":[...]}}
+
+# 2. 发布
+POST /v1/workflow-definitions/{id}/publish
+
+# 3. 启动实例
+POST /v1/workflow-runs
+{"definition_id":"{id}","input":{"申请金额":10000}}
+
+# 4. 完成人工任务
+POST /v1/workflow-tasks/{stepRunID}/complete
+{"outcome":"approved","output":{"comment":"同意"},"variables":{"approved":true}}
+```
 
 ---
 
