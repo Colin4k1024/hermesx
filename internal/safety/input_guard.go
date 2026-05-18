@@ -2,6 +2,8 @@ package safety
 
 import (
 	"strings"
+
+	"golang.org/x/text/unicode/norm"
 )
 
 type InputGuard struct {
@@ -18,6 +20,10 @@ func (ig *InputGuard) Scan(text string, customPatterns []InputPattern) []Pattern
 	if text == "" {
 		return nil
 	}
+
+	// Normalize to NFKC before matching so visually equivalent Unicode variants
+	// (e.g. fullwidth letters, compatibility decompositions) cannot bypass rules.
+	text = norm.NFKC.String(text)
 
 	var matches []PatternMatch
 

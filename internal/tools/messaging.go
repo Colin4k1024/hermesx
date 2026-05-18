@@ -51,7 +51,7 @@ func init() {
 func checkMessagingRequirements() bool {
 	// Gateway must be running on localhost
 	gatewayURL := getGatewayURL()
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 2 * time.Second} // CheckFn has no tctx; uses local client
 	resp, err := client.Get(gatewayURL + "/health")
 	if err != nil {
 		return false
@@ -102,8 +102,8 @@ func handleSendMessage(ctx context.Context, args map[string]any, tctx *ToolConte
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	tctx.HTTPClient.Timeout = 30 * time.Second
+	resp, err := tctx.HTTPClient.Do(req)
 	if err != nil {
 		return toJSON(map[string]any{
 			"error":   fmt.Sprintf("Gateway request failed: %v", err),

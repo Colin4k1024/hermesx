@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"sync"
@@ -12,8 +13,11 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/state"
 	"github.com/Colin4k1024/hermesx/internal/tools"
@@ -70,6 +74,18 @@ type AIAgent struct {
 
 	// Oris evolution path (optional, parallel to selfImprover).
 	evolutionImprover *evolution.Improver
+
+	// Safety interceptor (optional). When non-nil, input is checked before each
+	// LLM call and output is checked after each LLM response.
+	safetyInterceptor safety.SafetyInterceptor
+
+	// SecretResolver (optional). When non-nil, injected into every ToolContext so
+	// tools resolve credentials via the secrets subsystem instead of os.Getenv.
+	secretResolver secrets.SecretResolver
+
+	// sharedTransport is the egress-aware HTTP transport reused across tool calls
+	// to avoid per-call connection pool creation (M-1).
+	sharedTransport *http.Transport
 
 	// Runtime state
 	client          *llm.Client
@@ -143,6 +159,9 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 	for _, opt := range opts {
 		opt(a)
 	}
+
+	// Build the shared egress-aware transport once (M-1: avoid per-call pool).
+	a.sharedTransport = egress.NewSecureTransport(egress.NewAllowAllPolicy())
 
 	// Create iteration budget if not shared
 	if a.budget == nil {
@@ -306,6 +325,35 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 			activeClient = vc
 		}
 
+		// Safety: check input before LLM call.
+		if a.safetyInterceptor != nil {
+			safetyMsgs := make([]safety.Message, 0, len(apiMessages))
+			for _, m := range apiMessages {
+				safetyMsgs = append(safetyMsgs, safety.Message{Role: m.Role, Content: m.Content})
+			}
+			safetyCtx, safetyCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			inputResult, inputErr := a.safetyInterceptor.CheckInput(safetyCtx, a.tenantID, safetyMsgs)
+			safetyCancel()
+			if inputErr != nil {
+				if a.safetyInterceptor.IsModeEnforce(ctx, a.tenantID) {
+					// B-5: fail-closed under ModeEnforce — safety unavailable must block.
+					blockErr := fmt.Errorf("safety enforce: CheckInput unavailable: %w", inputErr)
+					a.fireError(blockErr)
+					a.interruptRequested.Store(true)
+					result.Interrupted = true
+					break
+				}
+				slog.Warn("safety: CheckInput error, degrading to allow", "error", inputErr, "session", a.sessionID)
+			} else if inputResult != nil && inputResult.Action == safety.ActionBlock {
+				slog.Warn("safety: input blocked", "reason", inputResult.Reason, "session", a.sessionID)
+				blockErr := fmt.Errorf("safety block: %s", inputResult.Reason)
+				a.fireError(blockErr)
+				a.interruptRequested.Store(true)
+				result.Interrupted = true
+				break
+			}
+		}
+
 		// Call LLM (with fallback chain on failure)
 		a.fireHeartbeat()
 		var resp *llm.ChatResponse
@@ -391,6 +439,31 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 			break
 		}
 		emptyRetryCount = 0
+
+		// Safety: check output after LLM response, before appending to history.
+		if a.safetyInterceptor != nil && resp.Content != "" {
+			safetyCtx, safetyCancel := context.WithTimeout(ctx, 500*time.Millisecond)
+			outputResult, outputErr := a.safetyInterceptor.CheckOutput(safetyCtx, a.tenantID, resp.Content)
+			safetyCancel()
+			if outputErr != nil {
+				if a.safetyInterceptor.IsModeEnforce(ctx, a.tenantID) {
+					// B-5: fail-closed under ModeEnforce — safety unavailable must block.
+					blockErr := fmt.Errorf("safety enforce: CheckOutput unavailable: %w", outputErr)
+					a.fireError(blockErr)
+					a.interruptRequested.Store(true)
+					result.Interrupted = true
+					break
+				}
+				slog.Warn("safety: CheckOutput error, degrading to allow", "error", outputErr, "session", a.sessionID)
+			} else if outputResult != nil && outputResult.Action == safety.ActionBlock {
+				slog.Warn("safety: output blocked", "reason", outputResult.Reason, "session", a.sessionID)
+				blockErr := fmt.Errorf("safety block: %s", outputResult.Reason)
+				a.fireError(blockErr)
+				a.interruptRequested.Store(true)
+				result.Interrupted = true
+				break
+			}
+		}
 
 		// Validate tool calls for truncation
 		if len(resp.ToolCalls) > 0 {
@@ -699,6 +772,35 @@ func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Me
 		slog.Warn("Failed to parse tool args", "tool", toolName, "error", err)
 	}
 
+	// Attach tenant ID to context so CheckRedirect and DialContext can enforce
+	// egress policy on redirect targets without a separate parameter.
+	ctx = egress.WithTenant(ctx, a.tenantID)
+
+	// Look up the tool entry to read MaxRedirects before building the client.
+	entry := tools.Registry().Lookup(toolName)
+	maxRedirects := 0
+	if entry != nil {
+		maxRedirects = entry.MaxRedirects
+	}
+
+	// Build a per-call http.Client backed by the shared SecureTransport (M-1:
+	// reuse the agent-level transport to avoid creating a new idle-pool per call).
+	// AllowAllPolicy transition: per-tenant allowlists wired in v2.4.0 (ADR).
+	httpClient := &http.Client{
+		Transport: a.sharedTransport,
+		Timeout:   30 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if maxRedirects == 0 {
+				return http.ErrUseLastResponse
+			}
+			if len(via) >= maxRedirects {
+				// M-2: limit exceeded must return ErrNotAllowed, not ErrUseLastResponse.
+				return egress.ErrNotAllowed
+			}
+			return nil
+		},
+	}
+
 	toolCtx := &tools.ToolContext{
 		SessionID:      a.sessionID,
 		ToolCallID:     tc.ID,
@@ -706,6 +808,8 @@ func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Me
 		TenantID:       a.tenantID,
 		UserID:         a.userID,
 		MemoryProvider: a.memoryProvider,
+		HTTPClient:     httpClient,
+		SecretResolver: a.secretResolver, // B-1: inject resolver so tools skip os.Getenv
 	}
 
 	toolResult := tools.Registry().Dispatch(ctx, toolName, args, toolCtx)

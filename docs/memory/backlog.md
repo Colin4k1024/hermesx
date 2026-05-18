@@ -156,3 +156,32 @@
 
 - [x] **[P2] useSse 401/403 auto-logout**: useSse.ts 已在 401/403 时调用 `disconnectUser()` 并返回 Session expired。(Owner: frontend-engineer, Label: security)
 - [x] **[P2] Bootstrap DB unique constraint**: 改为 `bootstrap_state` 原子 claim，覆盖不同 bootstrap name 的跨实例竞态，比 `(tenant_id, name)` 约束更准确。(Owner: backend-engineer, Label: reliability)
+
+---
+
+## v2.3.0 Security Integration Sprint 遗留项（来源: 2026-05-18-v230-security-integration closeout）
+
+**更新时间**: 2026-05-18 | **更新角色**: tech-lead
+
+### 已完成（v2.3.0 原 backlog 候选项）
+
+| # | 事项 | 完成版本 |
+|---|------|---------|
+| C4 (partial) | SecureTransport redirect count 限制 | ✅ v2.3.0 |
+| S1.6 | SafetyInterceptor 接入 agent.go 对话循环 | ✅ v2.3.0 |
+| S2.4 | 高风险工具 SecretResolver 迁移 | ✅ v2.3.0 |
+| S1.5/S2.5 | Admin API 三 handler 统一注册 + RequireScope | ✅ v2.3.0 |
+| H5 | Canary token TTL 清理 goroutine | ✅ v2.3.0 |
+| H6 | ResolvedValues 接口限制（WithAllowedKeys） | ✅ v2.3.0 |
+| M3 | Unicode NFKC normalization（input_guard） | ✅ v2.3.0 |
+| S2.6 | forbidigo linter（warn-only）| ✅ v2.3.0 |
+| S3.5 | CachedEgressPolicy（TTL 60s）| ✅ v2.3.0 |
+
+### 遗留项（v2.4.0 目标）
+
+- [ ] **[P1] per-tenant EgressPolicy**：AllowAllPolicy 过渡结束，为每租户配置主机 allowlist，替换当前全放通策略。(Owner: tech-lead, Label: security)
+- [ ] **[P2] redirect 目标 IP 验证**：CheckRedirect 当前仅限制 redirect 次数，未验证 redirect 目标是否为内网/CGNAT。需在 SecureTransport 中扩展 CheckRedirect 回调，对 redirect 目标 IP 执行 IsBlockedIP 检查。(Owner: backend-engineer, Label: security)
+- [ ] **[P2] 共享 Transport 连接池生产验证**：per-call `http.Client{Transport: sharedTransport}` 在开发/staging 负载下经 -race 验证安全，需在生产流量下确认无连接池泄漏。(Owner: backend-engineer, Label: reliability)
+- [ ] **[P2] Canary goroutine 双实例统一**：main.go 与 InterceptorChain 各持一个独立 CanaryDetector 实例，待 v2.4.0 统一接入 Runner 时迁移为单实例。(Owner: backend-engineer, Label: reliability)
+- [ ] **[P3] Admin DI 完整重构**：AdminHandler struct 字段注入已完成，但 main.go 侧仍为 singleton 初始化。下一 sprint 完整迁移到 server-level DI 容器，消除测试竞态风险。(Owner: backend-engineer, Label: maintainability)
+- [ ] **[P3] WASM sandbox（ADR-006）**：工具隔离沙箱，原定 v2.3.0 但 ADR-006 推迟，待安全需求明确后重新规划。(Owner: architect, Label: security)

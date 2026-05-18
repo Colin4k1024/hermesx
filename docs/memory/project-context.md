@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-18-security-enhancement-ironclaw
-**前任务**: v2.2.0-stabilization（已完成）
-**阶段**: released
-**版本目标**: v2.2.0 — Security Enhancement (Prompt Injection Defense + Credential Isolation + Network Allowlisting)
+**当前任务**: 2026-05-18-v230-security-integration
+**前任务**: 2026-05-18-security-enhancement-ironclaw（已合并到 main）
+**阶段**: closed（v2.3.0 Security Integration Sprint CLOSED — 9 Story 完成，B-1~B-5 修复，26/26 -race，全链路 artifacts 落盘，6 项 R 类遗留已入 v2.4.0 backlog）
+**版本目标**: v2.3.0 — Security Integration Sprint (safety/egress/secrets 三子系统接入主链路)
 
 ## Tech Stack
 
@@ -27,7 +27,9 @@
 - v2.1.0 CLOSED (infra upgrade — ObjectStore interface + RustFS, pprof + OTel + Prometheus, MySQL adapter; K8s local deployment validated 2026-05-08)
 - hermesx-webui RELEASED (v2.1.0-webui — Admin Console + User Portal; 4 CRITICAL + 4 HIGH 安全修复; Bootstrap 端点; 旧 HTML 下线; webui CI)
 - v2.1.1 RELEASED (2026-05-09 — K8s MySQL 全栈部署验证 + 8 Bug 修复; 详见 session 004)
-- v2.2.0-stabilization ACTIVE (2026-05-14 — Bootstrap IP 限流、跨实例原子初始化、PG API key scopes 修复、会话标题 UX、发布/文档口径同步)
+- v2.2.0-stabilization CLOSED (2026-05-14 — Bootstrap IP 限流、跨实例原子初始化、PG API key scopes 修复、会话标题 UX、发布/文档口径同步)
+- IronClaw security-enhancement MERGED to main (2026-05-18 — safety/egress/secrets 三包构建完成，5236 行新增，未接入主链路)
+- v2.3.0 security-integration CLOSED (2026-05-18 — 全部 9 Story 完成，5 阻塞项(B-1~B-5) + 6 MEDIUM 项修复，26/26 -race 通过，全链路 9 个 artifacts 落盘，6 项遗留入 v2.4.0 backlog)
 
 ## 已完成
 
@@ -49,23 +51,38 @@
 - OIDC IdP: wired and production-ready (set OIDC_ISSUER_URL to activate)
 - GitHub Container Registry: automated image push on main
 
+## 依赖（v2.3.0 新增）
+
+- DB migrations 000001/000002（safety_policies + secret_patterns 表）必须在集成测试前执行
+- `RequireScope("admin")` 中间件已存在（v1.4.0 RBAC）
+
 ## 风险
 
 - ChatStream breaker.Execute double-counts (accepted — low streaming volume)
-- GHA actions not digest-pinned (P3 — deferred to security sweep)
-- v2.1.0 RustFS SDK 兼容性未验证（集成测试前未知）
-- v2.1.0 MySQL 全量实现工作量大（~31h 估时，按子接口拆 PR）
-- v2.1.0 pprof admin 端点需严格访问控制（生产默认 disabled）
+- v2.3.0 #36+#37 原子 PR 引入回归风险（准入条件：新增失败 ≤ 5）
+- Safety audit 模式上线后需要明确日志消费方和 enforce 升级标准
+- OAuth 工具 redirect 目标域须预先注册到 tenant egress allowlist
 
-## 下一步（v2.3.0 候选）
+## 下一步（v2.3.0 执行顺序）
 
-1. [Security] 工具层 HTTP client 迁移到 SecureTransport (C3 — 50 tools 逐个迁移)
-2. [Security] HTTP redirect 绕过防护 — CheckRedirect hook (C4)
-3. [Security] Canary token TTL 清理 + RemoveToken 集成 (H5)
-4. [Security] ResolvedValues 接口限制 (H6)
-5. [Security] Unicode NFKC normalization for input guard (M3)
-6. [Security] Agent loop interceptor 集成 (S1.6)
-7. [Security] 高风险工具迁移 SecretResolver (S2.4, 10 tools)
-8. [Security] Admin API 统一交付 (Safety + Egress + Secret patterns)
-9. [Infra] store/pg unit tests — pgxmock introduction
-10. [Perf] Curator O(n²) dedup optimization
+**P1（关键路径）**
+1. Story A: SafetyInterceptor → agent.go RunConversation（#38，8h，可并行）
+2. Story B: SecureTransport + CheckRedirect 原子 PR（#36+#37，16h，关键路径）
+3. Story E: Canary token TTL 清理（#41，6h，可与 A 并行）
+
+**P2（Story B 完成后）**
+4. Story C: 高风险 10 工具迁移 SecretResolver（#39，10h）
+5. Story D: Admin API 三 handler 统一注册（#40，10h，可与 C 并行）
+
+**P3（条件进入，P1 回归 ≤ 5）**
+6. Story F: #42/#43/#44/#45（17h）
+
+**当前阶段产出**：
+- `docs/artifacts/2026-05-18-v230-security-integration/prd.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/arch-design.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/delivery-plan.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/execute-log.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/test-plan.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/launch-acceptance.md` ✅ READY
+- `docs/artifacts/2026-05-18-v230-security-integration/deployment-context.md` ✅
+- `docs/artifacts/2026-05-18-v230-security-integration/release-plan.md` ✅

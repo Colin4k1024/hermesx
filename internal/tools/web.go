@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -123,16 +124,26 @@ func handleWebSearch(ctx context.Context, args map[string]any, tctx *ToolContext
 		}
 	}
 
-	apiKey := os.Getenv("EXA_API_KEY")
+	var apiKey string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		apiKey, resolveErr = tctx.SecretResolver.Resolve(ctx, "EXA_API_KEY")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "EXA_API_KEY", "error", resolveErr)
+		}
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv("EXA_API_KEY") // fallback for backward compat
+	}
 	if apiKey == "" {
 		// Fallback to simple HTTP search
 		return fallbackSearch(query, numResults)
 	}
 
-	return exaSearch(query, numResults, apiKey)
+	return exaSearch(query, numResults, apiKey, tctx.HTTPClient)
 }
 
-func exaSearch(query string, numResults int, apiKey string) string {
+func exaSearch(query string, numResults int, apiKey string, client *http.Client) string {
 	payload := map[string]any{
 		"query":      query,
 		"numResults": numResults,
@@ -150,7 +161,7 @@ func exaSearch(query string, numResults int, apiKey string) string {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", apiKey)
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client.Timeout = 30 * time.Second
 	resp, err := client.Do(req)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Search failed: %v", err)})
@@ -208,15 +219,25 @@ func handleWebExtract(ctx context.Context, args map[string]any, tctx *ToolContex
 		}
 	}
 
-	firecrawlKey := os.Getenv("FIRECRAWL_API_KEY")
+	var firecrawlKey string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		firecrawlKey, resolveErr = tctx.SecretResolver.Resolve(ctx, "FIRECRAWL_API_KEY")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "FIRECRAWL_API_KEY", "error", resolveErr)
+		}
+	}
+	if firecrawlKey == "" {
+		firecrawlKey = os.Getenv("FIRECRAWL_API_KEY") // fallback for backward compat
+	}
 
 	var results []map[string]any
 	for _, u := range urls {
 		if firecrawlKey != "" {
-			result := firecrawlExtract(u, firecrawlKey)
+			result := firecrawlExtract(u, firecrawlKey, tctx.HTTPClient)
 			results = append(results, result)
 		} else {
-			result := simpleExtract(u)
+			result := simpleExtract(u, tctx.HTTPClient)
 			results = append(results, result)
 		}
 	}
@@ -227,7 +248,7 @@ func handleWebExtract(ctx context.Context, args map[string]any, tctx *ToolContex
 	})
 }
 
-func firecrawlExtract(targetURL, apiKey string) map[string]any {
+func firecrawlExtract(targetURL, apiKey string, client *http.Client) map[string]any {
 	payload := map[string]any{
 		"url":     targetURL,
 		"formats": []string{"markdown"},
@@ -238,7 +259,7 @@ func firecrawlExtract(targetURL, apiKey string) map[string]any {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{Timeout: 60 * time.Second}
+	client.Timeout = 60 * time.Second
 	resp, err := client.Do(req)
 	if err != nil {
 		return map[string]any{"url": targetURL, "error": fmt.Sprintf("Extract failed: %v", err)}
@@ -265,21 +286,13 @@ func firecrawlExtract(targetURL, apiKey string) map[string]any {
 	return map[string]any{"url": targetURL, "error": "No content extracted"}
 }
 
-func simpleExtract(targetURL string) map[string]any {
+func simpleExtract(targetURL string, client *http.Client) map[string]any {
 	parsed, err := url.Parse(targetURL)
 	if err != nil {
 		return map[string]any{"url": targetURL, "error": "Invalid URL"}
 	}
 
-	client := &http.Client{
-		Timeout: 30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if len(via) >= 5 {
-				return fmt.Errorf("too many redirects")
-			}
-			return nil
-		},
-	}
+	client.Timeout = 30 * time.Second
 
 	req, _ := http.NewRequest("GET", parsed.String(), nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; HermesAgent/1.0)")
@@ -326,7 +339,17 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 		outputFormat = f
 	}
 
-	firecrawlKey := os.Getenv("FIRECRAWL_API_KEY")
+	var firecrawlKey string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		firecrawlKey, resolveErr = tctx.SecretResolver.Resolve(ctx, "FIRECRAWL_API_KEY")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "FIRECRAWL_API_KEY", "error", resolveErr)
+		}
+	}
+	if firecrawlKey == "" {
+		firecrawlKey = os.Getenv("FIRECRAWL_API_KEY") // fallback for backward compat
+	}
 	if firecrawlKey == "" {
 		return toJSON(map[string]any{
 			"error":   "FIRECRAWL_API_KEY is not set",
@@ -351,8 +374,8 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+firecrawlKey)
 
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	tctx.HTTPClient.Timeout = 30 * time.Second
+	resp, err := tctx.HTTPClient.Do(req)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Crawl request failed: %v", err)})
 	}
@@ -380,7 +403,7 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 
 	// Poll for crawl completion.
 	pollURL := fmt.Sprintf("https://api.firecrawl.dev/v1/crawl/%s", jobID)
-	pollClient := &http.Client{Timeout: 15 * time.Second}
+	tctx.HTTPClient.Timeout = 15 * time.Second
 
 	for attempt := 0; attempt < 30; attempt++ {
 		time.Sleep(2 * time.Second)
@@ -388,7 +411,7 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 		pollReq, _ := http.NewRequest("GET", pollURL, nil)
 		pollReq.Header.Set("Authorization", "Bearer "+firecrawlKey)
 
-		pollResp, err := pollClient.Do(pollReq)
+		pollResp, err := tctx.HTTPClient.Do(pollReq)
 		if err != nil {
 			continue
 		}

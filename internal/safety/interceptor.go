@@ -51,6 +51,9 @@ type Message struct {
 type SafetyInterceptor interface {
 	CheckInput(ctx context.Context, tenantID string, messages []Message) (*SafetyResult, error)
 	CheckOutput(ctx context.Context, tenantID string, output string) (*SafetyResult, error)
+	// IsModeEnforce reports whether the tenant's active policy is ModeEnforce.
+	// Used by the agent loop to decide fail-closed vs. fail-open on timeout.
+	IsModeEnforce(ctx context.Context, tenantID string) bool
 }
 
 type InterceptorChain struct {
@@ -169,6 +172,15 @@ func (ic *InterceptorChain) CheckOutput(ctx context.Context, tenantID string, ou
 
 func (ic *InterceptorChain) Canary() *CanaryDetector {
 	return ic.canary
+}
+
+// IsModeEnforce returns true when the tenant's active policy is ModeEnforce.
+func (ic *InterceptorChain) IsModeEnforce(ctx context.Context, tenantID string) bool {
+	policy, err := ic.resolvePolicy(ctx, tenantID)
+	if err != nil || policy == nil {
+		return false
+	}
+	return policy.Mode == ModeEnforce
 }
 
 func (ic *InterceptorChain) resolvePolicy(ctx context.Context, tenantID string) (*Policy, error) {

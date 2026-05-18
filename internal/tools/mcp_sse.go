@@ -63,7 +63,12 @@ func newSSETransportV2(url string, headers map[string]string) *sseTransportV2 {
 	return &sseTransportV2{
 		url:        url,
 		headers:    headers,
-		httpClient: &http.Client{Timeout: 0}, // no timeout for SSE long-poll
+		// SSE long-poll requires Timeout: 0 (no deadline on the stream read).
+		// This client is intentionally not backed by SecureTransport: MCP server
+		// addresses are operator-configured at startup, not resolved at tool-call
+		// time, so egress policy is enforced at connection establishment by the
+		// MCP server allowlist rather than per-request here.
+		httpClient: &http.Client{Timeout: 0},
 		respCh:     make(chan *jsonRPCResponse, 16),
 		notifyCh:   make(chan jsonRPCRequest, 8),
 		postURL:    postURL,

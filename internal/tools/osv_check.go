@@ -58,7 +58,7 @@ func CheckPackageForMalware(command string, args []string) string {
 		return ""
 	}
 
-	malware, err := queryOSV(pkg, ecosystem, version)
+	malware, err := queryOSV(pkg, ecosystem, version, http.DefaultClient)
 	if err != nil {
 		// Fail-open: network errors allow the package.
 		return ""
@@ -169,7 +169,7 @@ func parsePyPIPackage(token string) (string, string) {
 }
 
 // queryOSV queries the OSV API for MAL-* malware advisories.
-func queryOSV(pkg, ecosystem, version string) ([]osvVuln, error) {
+func queryOSV(pkg, ecosystem, version string, client *http.Client) ([]osvVuln, error) {
 	query := osvQuery{
 		Package: osvPackage{Name: pkg, Ecosystem: ecosystem},
 		Version: version,
@@ -180,7 +180,7 @@ func queryOSV(pkg, ecosystem, version string) ([]osvVuln, error) {
 		return nil, fmt.Errorf("marshal query: %w", err)
 	}
 
-	client := &http.Client{Timeout: osvTimeout}
+	client.Timeout = osvTimeout
 	req, err := http.NewRequest("POST", osvEndpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)

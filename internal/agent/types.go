@@ -3,6 +3,8 @@ package agent
 import (
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 )
@@ -42,6 +44,7 @@ type StreamCallbacks struct {
 	OnStep         func(iteration int, prevTools []string)
 	OnStatus       func(msg string)
 	OnClarify      func(question string, choices []string) string
+	OnError        func(err error)
 }
 
 // AgentOption is a functional option for configuring AIAgent.
@@ -189,4 +192,20 @@ func WithSelfImprover(si *SelfImprover) AgentOption {
 // PostTurnRecord saves new insights asynchronously after each conversation.
 func WithEvolution(imp *evolution.Improver) AgentOption {
 	return func(a *AIAgent) { a.evolutionImprover = imp }
+}
+
+// WithSafetyInterceptor attaches a SafetyInterceptor to the agent.
+// When non-nil, CheckInput is called before each LLM call and CheckOutput is
+// called after each LLM response. In audit (log_only) mode violations are
+// logged but the conversation continues. In enforce mode a block result sets
+// the interrupt flag and notifies via StreamCallbacks.OnError.
+func WithSafetyInterceptor(si safety.SafetyInterceptor) AgentOption {
+	return func(a *AIAgent) { a.safetyInterceptor = si }
+}
+
+// WithSecretResolver attaches a SecretResolver to the agent. When non-nil it is
+// injected into every ToolContext so tools resolve credentials via the secrets
+// subsystem instead of falling back to os.Getenv.
+func WithSecretResolver(r secrets.SecretResolver) AgentOption {
+	return func(a *AIAgent) { a.secretResolver = r }
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 	"github.com/Colin4k1024/hermesx/internal/gateway/platforms"
+	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	pgstore "github.com/Colin4k1024/hermesx/internal/store/pg"
@@ -522,6 +523,18 @@ func runGateway() error {
 	if err := runner.Start(); err != nil {
 		return fmt.Errorf("start gateway: %w", err)
 	}
+
+	// Start canary token TTL cleanup loop.
+	// Tokens live at most 24 h; the sweep runs every 12 h.
+	canaryCtx, canaryCancel := context.WithCancel(context.Background())
+	canaryDetector := safety.NewCanaryDetector()
+	canaryTTL := 24 * time.Hour
+	stopCanaryCleanup := canaryDetector.StartCleanupLoop(canaryCtx, canaryTTL)
+	slog.Info("Canary token cleanup loop started", "ttl", canaryTTL)
+	defer func() {
+		canaryCancel()
+		stopCanaryCleanup()
+	}()
 
 	// Start ACP server if configured.
 	if acpPortStr := os.Getenv("HERMES_ACP_PORT"); acpPortStr != "" {

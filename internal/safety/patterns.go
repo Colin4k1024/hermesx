@@ -68,9 +68,9 @@ func (pr *PatternRegistry) loadDefaults() {
 		{Name: "above_text", Category: "prompt_extraction", Regex: regexp.MustCompile(`(?i)(repeat|copy|paste|write)\s+(the\s+)?(text|content|message)\s+(above|before|preceding)`), Severity: 7},
 		{Name: "verbatim_repeat", Category: "prompt_extraction", Regex: regexp.MustCompile(`(?i)repeat\s+(everything|all|verbatim|word\s+for\s+word)`), Severity: 8},
 
-		{Name: "delimiter_close", Category: "delimiter_injection", Regex: regexp.MustCompile("(?i)(</?system>|</?instruction>|\\[/?INST\\]|<\\|im_end\\|>|<\\|im_start\\|>)"), Severity: 6},
+		{Name: "delimiter_close", Category: "delimiter_injection", Regex: regexp.MustCompile(`(?i)(</?system>|</?instruction>|\[/?INST\]|<\|im_end\|>|<\|im_start\|>)`), Severity: 6},
 		{Name: "xml_system_tag", Category: "delimiter_injection", Regex: regexp.MustCompile(`(?i)<\s*/?\s*(system|assistant|function_call|tool_result)\s*>`), Severity: 8},
-		{Name: "markdown_role", Category: "delimiter_injection", Regex: regexp.MustCompile("(?i)###\\s*(system|assistant|function)\\s*\\n"), Severity: 6},
+		{Name: "markdown_role", Category: "delimiter_injection", Regex: regexp.MustCompile(`(?i)###\s*(system|assistant|function)\s*\n`), Severity: 6},
 
 		{Name: "base64_instruct", Category: "encoding_attack", Regex: regexp.MustCompile(`(?i)(decode|execute|run|eval)\s+(this\s+)?base64`), Severity: 7},
 		{Name: "hex_instruct", Category: "encoding_attack", Regex: regexp.MustCompile(`(?i)(decode|execute|run)\s+(this\s+)?hex(adecimal)?`), Severity: 7},

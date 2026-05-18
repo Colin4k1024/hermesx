@@ -4,8 +4,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/Colin4k1024/hermesx/internal/store/pg"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,10 +17,14 @@ import (
 // AdminHandler provides administrative API endpoints for tenant management,
 // sandbox policy configuration, and API key lifecycle operations.
 type AdminHandler struct {
-	store        store.Store
-	pool         *pgxpool.Pool
-	logger       *slog.Logger
-	pricingCache *metering.PricingStore
+	store           store.Store
+	pool            *pgxpool.Pool
+	logger          *slog.Logger
+	pricingCache    *metering.PricingStore
+	egressHandler   *egress.AdminHandler
+	policyStore     safety.PolicyStore
+	canaryDetector  *safety.CanaryDetector
+	leakScanner     *secrets.LeakScanner
 }
 
 // NewAdminHandler creates an AdminHandler with the given store and logger.
@@ -42,6 +49,27 @@ type AdminOption func(*AdminHandler)
 // WithPricingCache enables cache invalidation when pricing rules are modified.
 func WithPricingCache(ps *metering.PricingStore) AdminOption {
 	return func(h *AdminHandler) { h.pricingCache = ps }
+}
+
+// WithEgressHandler registers the egress admin handler so its routes are
+// served under /admin/v1/egress/... with the same RequireScope("admin") guard.
+func WithEgressHandler(eh *egress.AdminHandler) AdminOption {
+	return func(h *AdminHandler) { h.egressHandler = eh }
+}
+
+// WithPolicyStore wires the safety policy store into the admin handler (M-8).
+func WithPolicyStore(ps safety.PolicyStore) AdminOption {
+	return func(h *AdminHandler) { h.policyStore = ps }
+}
+
+// WithCanaryDetector wires the canary detector into the admin handler (M-8).
+func WithCanaryDetector(cd *safety.CanaryDetector) AdminOption {
+	return func(h *AdminHandler) { h.canaryDetector = cd }
+}
+
+// WithLeakScanner wires the secret leak scanner into the admin handler (M-8).
+func WithLeakScanner(ls *secrets.LeakScanner) AdminOption {
+	return func(h *AdminHandler) { h.leakScanner = ls }
 }
 
 // Handler returns an http.Handler that serves all admin routes under /admin/v1/.
@@ -74,6 +102,20 @@ func (h *AdminHandler) Handler() http.Handler {
 	// Secret pattern management endpoints.
 	mux.HandleFunc("GET /admin/v1/secrets/patterns", h.listSecretPatterns)
 	mux.HandleFunc("POST /admin/v1/secrets/patterns", h.createSecretPattern)
+
+	// Canary token management endpoints.
+	mux.HandleFunc("GET /admin/v1/secrets/canary-tokens", h.listCanaryTokens)
+	mux.HandleFunc("DELETE /admin/v1/secrets/canary-tokens/{id}", h.deleteCanaryToken)
+
+	// Safety policy management endpoints.
+	mux.HandleFunc("GET /admin/v1/safety/rules", h.listSafetyRules)
+	mux.HandleFunc("PUT /admin/v1/safety/rules/{id}", h.updateSafetyRule)
+	mux.HandleFunc("POST /admin/v1/safety/scan", h.safetyManualScan)
+
+	// Egress allowlist management endpoints (delegated to egress.AdminHandler).
+	if h.egressHandler != nil {
+		h.egressHandler.RegisterV1Routes(mux)
+	}
 
 	// Wrap with RequireScope("admin") middleware.
 	return middleware.RequireScope("admin")(mux)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"sort"
 	"sync"
 
@@ -26,6 +27,11 @@ type ToolContext struct {
 	ApprovalHandler ApprovalHandler        // Optional handler for interactive command approval
 	MemoryProvider  MemoryProvider         // Per-agent memory provider (overrides global singleton)
 	SecretResolver  secrets.SecretResolver // Just-in-time secret resolution with leak detection
+	// HTTPClient is a pre-configured *http.Client backed by SecureTransport with
+	// per-call CheckRedirect honouring the tool's MaxRedirects limit. Tools
+	// should use this client instead of creating their own http.Client instances
+	// so that all outbound traffic passes through the egress policy layer.
+	HTTPClient *http.Client
 }
 
 // ToolEntry holds metadata for a registered tool.
@@ -39,6 +45,10 @@ type ToolEntry struct {
 	IsAsync     bool
 	Description string
 	Emoji       string
+	// MaxRedirects controls how many HTTP redirects this tool is permitted to
+	// follow. 0 means deny-all redirects (default). Set to a positive value
+	// for tools that genuinely need redirect following (e.g. web crawlers).
+	MaxRedirects int
 }
 
 // ToolRegistry is the central registry for all tools.
@@ -108,6 +118,13 @@ func (r *ToolRegistry) Deregister(name string) {
 	if !hasOthers {
 		delete(r.toolsetChecks, entry.Toolset)
 	}
+}
+
+// Lookup returns the ToolEntry for the given name, or nil if not found.
+func (r *ToolRegistry) Lookup(name string) *ToolEntry {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return r.tools[name]
 }
 
 // GetDefinitions returns OpenAI-format tool schemas for the requested tool names.

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -127,8 +128,8 @@ func handleVisionAnalyze(ctx context.Context, args map[string]any, tctx *ToolCon
 		imageContent = imageURL
 	}
 
-	// Try to get a vision-capable LLM client
-	client := getVisionClient()
+	// Try to get a vision-capable LLM client (uses SecretResolver when available)
+	client := getVisionClientResolved(ctx, tctx)
 	if client == nil {
 		// Fallback: return metadata so the main LLM can handle it in conversation context
 		result := map[string]any{
@@ -163,16 +164,38 @@ func handleVisionAnalyze(ctx context.Context, args map[string]any, tctx *ToolCon
 	return toJSON(result)
 }
 
-// getVisionClient creates a vision-capable LLM client from environment variables.
-func getVisionClient() *llm.Client {
+// getVisionClientResolved is the tctx-aware variant used by handlers.
+func getVisionClientResolved(ctx context.Context, tctx *ToolContext) *llm.Client {
+	var apiKey, openrouterKey string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var err error
+		apiKey, err = tctx.SecretResolver.Resolve(ctx, "AUXILIARY_VISION_API_KEY")
+		if err != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "AUXILIARY_VISION_API_KEY", "error", err)
+		}
+		openrouterKey, err = tctx.SecretResolver.Resolve(ctx, "OPENROUTER_API_KEY")
+		if err != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "OPENROUTER_API_KEY", "error", err)
+		}
+	}
+	if apiKey == "" {
+		apiKey = os.Getenv("AUXILIARY_VISION_API_KEY") // fallback for backward compat
+	}
+	if openrouterKey == "" {
+		openrouterKey = os.Getenv("OPENROUTER_API_KEY") // fallback for backward compat
+	}
+	return getVisionClientWithCreds(apiKey, openrouterKey)
+}
+
+func getVisionClientWithCreds(apiKey, openrouterKey string) *llm.Client {
 	model := os.Getenv("AUXILIARY_VISION_MODEL")
 	if model == "" {
 		return nil
 	}
 
-	key := os.Getenv("AUXILIARY_VISION_API_KEY")
+	key := apiKey
 	if key == "" {
-		key = os.Getenv("OPENROUTER_API_KEY")
+		key = openrouterKey
 	}
 	if key == "" {
 		return nil
@@ -233,7 +256,17 @@ func handleImageGenerate(ctx context.Context, args map[string]any, tctx *ToolCon
 		model = "fal-ai/flux/schnell"
 	}
 
-	falKey := os.Getenv("FAL_KEY")
+	var falKey string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		falKey, resolveErr = tctx.SecretResolver.Resolve(ctx, "FAL_KEY")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "FAL_KEY", "error", resolveErr)
+		}
+	}
+	if falKey == "" {
+		falKey = os.Getenv("FAL_KEY") // fallback for backward compat
+	}
 	if falKey == "" {
 		return toJSON(map[string]any{"error": "FAL_KEY environment variable is not set"})
 	}
@@ -265,8 +298,8 @@ func handleImageGenerate(ctx context.Context, args map[string]any, tctx *ToolCon
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Key "+falKey)
 
-	client := &http.Client{Timeout: 120 * time.Second}
-	resp, err := client.Do(req)
+	tctx.HTTPClient.Timeout = 120 * time.Second
+	resp, err := tctx.HTTPClient.Do(req)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("API request failed: %v", err)})
 	}

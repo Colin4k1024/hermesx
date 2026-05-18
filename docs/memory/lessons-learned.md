@@ -251,3 +251,35 @@
 2. 字段名在整个系统中只应有一个 canonical 形式（如 `input_tokens` 而非同时存在 `total_input_tokens`）。
 3. 涉及 auth context 中的 identity，写入和读取必须使用相同来源——不能写时用 key ID、读时用 header override。
 
+
+---
+
+## 2026-05-18 — v2.3.0 Security Integration: 安全子系统"接线完整性"必须作为 execute 自检项
+
+**场景：** Story C（SecretResolver 高风险工具迁移）在 execute-log 中标记为完成，但 QA 安全评审发现 `executeSingleTool` 未将 `AIAgent.secretResolver` 注入到 `ToolContext`，导致 Story C 整个功能在运行时完全失效（所有工具 handler 走 `tctx.SecretResolver == nil` 分支，无一通过 SecretResolver 解析）。
+
+**问题：**
+1. 安全子系统（SecretResolver/SafetyInterceptor/SecureTransport）的"接线完整性"无法通过编译断言验证，只能通过运行时路径测试。execute 阶段只验证了"代码在那里"，未验证"代码被调用"。
+2. `AIAgent` struct 缺少 `secretResolver` 字段本身应在 execute 开始前就通过 arch-design 契约锁定——struct 扩展是 Story C 的前置依赖，不是实现细节。
+3. 新增安全子系统的集成路径（注入点）需要在 delivery-plan 的 Story slice 中显式列出，不能只描述"工具迁移"而省略"注入路径"。
+
+**建议：**
+1. 安全子系统 Story 完成后，增加一项"接线完整性"自检：枚举所有注入点（struct field / constructor / call site），逐一确认非 nil 路径能被触达。
+2. 跨 Story 的共享接口扩展（如 `AIAgent` struct 新字段）应作为独立前置 Story 或前置子任务，而非隐含在下游 Story 里。
+3. 若无集成测试直接覆盖注入路径，至少要有一个 smoke test 在真实 Agent 实例上触发工具调用，验证 `tctx.SecretResolver != nil`。
+
+---
+
+## 2026-05-18 — v2.3.0 Security Integration: Opaque Handle 是防御纵深的基础，不是可选优化
+
+**场景：** `CanaryDetector.ListTokens()` 最初直接暴露原始 canary token 值（`TokenInfo{Token: string}`），这是 B-2 安全阻塞项。QA 安全评审发现后，修复为 `TokenInfo{ID: hex(sha256(token)[:4])}`，并增加 `RemoveTokenByID` 替代 `RemoveToken`。
+
+**问题：**
+1. 初始设计中"列出 token"用于管理目的，但返回原始 token 值等同于把 secret 通过 Admin API 再次暴露。任何 admin scope 用户均可读取全部 token，泄漏后无法撤销（token 已在日志/响应里）。
+2. "只有 admin 能访问"不是充分理由——Admin API 本身可能有 scope 提升漏洞、日志泄漏、SSRF 响应回显等二次暴露路径。
+3. Delete-by-ID 在语义上比 Delete-by-value 更安全：调用方不需要持有原始 token 才能删除，降低了操作时的 token 暴露面。
+
+**建议：**
+1. 任何对外暴露"token/secret 列表"的接口，默认应使用不可逆摘要（如 `sha256[:4]` hex），而非原始值——即便接口有鉴权保护。
+2. 管理接口的设计原则：读出来的东西不应比写进去时的权限要求更低。Canary token 是只写的 secret，列出时应只暴露 handle。
+3. 在新增任何返回 sensitive 列表的 Admin API 时，安全评审应在 design 阶段就审查响应体字段，而不是等 execute 完成后发现。

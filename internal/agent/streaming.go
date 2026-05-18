@@ -53,3 +53,10 @@ func (a *AIAgent) fireStatus(msg string) {
 func (a *AIAgent) hasStreamConsumers() bool {
 	return a.callbacks != nil && a.callbacks.OnStreamDelta != nil
 }
+
+// fireError fires the error callback if registered.
+func (a *AIAgent) fireError(err error) {
+	if a.callbacks != nil && a.callbacks.OnError != nil {
+		a.callbacks.OnError(err)
+	}
+}

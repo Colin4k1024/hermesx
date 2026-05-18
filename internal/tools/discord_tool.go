@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"os"
 	"strings"
 
@@ -50,11 +51,26 @@ func init() {
 	})
 }
 
+func resolveDiscordToken(ctx context.Context, tctx *ToolContext) string {
+	var token string
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		token, resolveErr = tctx.SecretResolver.Resolve(ctx, "DISCORD_BOT_TOKEN")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "DISCORD_BOT_TOKEN", "error", resolveErr)
+		}
+	}
+	if token == "" {
+		token = os.Getenv("DISCORD_BOT_TOKEN") // fallback for backward compat
+	}
+	return token
+}
+
 func handleDiscordSend(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	channelID, _ := args["channel_id"].(string)
 	content, _ := args["content"].(string)
 
-	sess, err := discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
+	sess, err := discordgo.New("Bot " + resolveDiscordToken(ctx, tctx))
 	if err != nil {
 		return toJSON(map[string]any{"error": err.Error()})
 	}
@@ -75,7 +91,7 @@ func handleDiscordSearch(ctx context.Context, args map[string]any, tctx *ToolCon
 		limit = int(l)
 	}
 
-	sess, err := discordgo.New("Bot " + os.Getenv("DISCORD_BOT_TOKEN"))
+	sess, err := discordgo.New("Bot " + resolveDiscordToken(ctx, tctx))
 	if err != nil {
 		return toJSON(map[string]any{"error": err.Error()})
 	}

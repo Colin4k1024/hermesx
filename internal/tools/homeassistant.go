@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"strings"
@@ -119,9 +120,25 @@ func checkHARequirements() bool {
 	return os.Getenv("HASS_URL") != "" && os.Getenv("HASS_TOKEN") != ""
 }
 
-func haRequest(method, path string, body io.Reader) ([]byte, int, error) {
-	hassURL := strings.TrimRight(os.Getenv("HASS_URL"), "/")
-	hassToken := os.Getenv("HASS_TOKEN")
+// resolveHACreds resolves HASS_TOKEN (credential) via SecretResolver with
+// os.Getenv fallback. HASS_URL is a non-credential endpoint and is always
+// read from the environment directly.
+func resolveHACreds(ctx context.Context, tctx *ToolContext) (hassURL, hassToken string) {
+	hassURL = strings.TrimRight(os.Getenv("HASS_URL"), "/")
+	if tctx != nil && tctx.SecretResolver != nil {
+		var resolveErr error
+		hassToken, resolveErr = tctx.SecretResolver.Resolve(ctx, "HASS_TOKEN")
+		if resolveErr != nil {
+			slog.Warn("secrets: resolve failed, falling back to env", "key", "HASS_TOKEN", "error", resolveErr)
+		}
+	}
+	if hassToken == "" {
+		hassToken = os.Getenv("HASS_TOKEN") // fallback for backward compat
+	}
+	return hassURL, hassToken
+}
+
+func haRequest(method, path string, body io.Reader, client *http.Client, hassURL, hassToken string) ([]byte, int, error) {
 
 	url := hassURL + "/api/" + path
 	req, err := http.NewRequest(method, url, body)
@@ -132,7 +149,7 @@ func haRequest(method, path string, body io.Reader) ([]byte, int, error) {
 	req.Header.Set("Authorization", "Bearer "+hassToken)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client.Timeout = 30 * time.Second
 	resp, err := client.Do(req)
 	if err != nil {
 		return nil, 0, fmt.Errorf("request failed: %w", err)
@@ -150,7 +167,8 @@ func haRequest(method, path string, body io.Reader) ([]byte, int, error) {
 func handleHAListEntities(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	domain, _ := args["domain"].(string)
 
-	data, statusCode, err := haRequest("GET", "states", nil)
+	hassURL, hassToken := resolveHACreds(ctx, tctx)
+	data, statusCode, err := haRequest("GET", "states", nil, tctx.HTTPClient, hassURL, hassToken)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Home Assistant API error: %v", err)})
 	}
@@ -199,7 +217,8 @@ func handleHAGetState(ctx context.Context, args map[string]any, tctx *ToolContex
 		return `{"error":"entity_id is required"}`
 	}
 
-	data, statusCode, err := haRequest("GET", "states/"+entityID, nil)
+	hassURL, hassToken := resolveHACreds(ctx, tctx)
+	data, statusCode, err := haRequest("GET", "states/"+entityID, nil, tctx.HTTPClient, hassURL, hassToken)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Home Assistant API error: %v", err)})
 	}
@@ -230,7 +249,8 @@ func handleHAGetState(ctx context.Context, args map[string]any, tctx *ToolContex
 func handleHAListServices(ctx context.Context, args map[string]any, tctx *ToolContext) string {
 	domain, _ := args["domain"].(string)
 
-	data, statusCode, err := haRequest("GET", "services", nil)
+	hassURL, hassToken := resolveHACreds(ctx, tctx)
+	data, statusCode, err := haRequest("GET", "services", nil, tctx.HTTPClient, hassURL, hassToken)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Home Assistant API error: %v", err)})
 	}
@@ -298,7 +318,8 @@ func handleHACallService(ctx context.Context, args map[string]any, tctx *ToolCon
 	body, _ := json.Marshal(payload)
 	path := fmt.Sprintf("services/%s/%s", domain, service)
 
-	respData, statusCode, err := haRequest("POST", path, strings.NewReader(string(body)))
+	hassURL, hassToken := resolveHACreds(ctx, tctx)
+	respData, statusCode, err := haRequest("POST", path, strings.NewReader(string(body)), tctx.HTTPClient, hassURL, hassToken)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Service call failed: %v", err)})
 	}
