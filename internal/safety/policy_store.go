@@ -44,11 +44,11 @@ func (ps *PostgresPolicyStore) GetPolicy(ctx context.Context, tenantID string) (
 	query := `SELECT id, tenant_id, mode, input_patterns, output_rules FROM safety_policies WHERE tenant_id = $1`
 
 	var (
-		id              string
-		tid             string
-		mode            string
+		id               string
+		tid              string
+		mode             string
 		inputPatternsRaw []byte
-		outputRulesRaw  []byte
+		outputRulesRaw   []byte
 	)
 
 	err := ps.pool.QueryRow(ctx, query, tenantID).Scan(&id, &tid, &mode, &inputPatternsRaw, &outputRulesRaw)
@@ -141,11 +141,11 @@ func (ps *PostgresPolicyStore) ListPolicies(ctx context.Context) ([]Policy, erro
 	var policies []Policy
 	for rows.Next() {
 		var (
-			id              string
-			tid             string
-			mode            string
+			id               string
+			tid              string
+			mode             string
 			inputPatternsRaw []byte
-			outputRulesRaw  []byte
+			outputRulesRaw   []byte
 		)
 
 		if err := rows.Scan(&id, &tid, &mode, &inputPatternsRaw, &outputRulesRaw); err != nil {
