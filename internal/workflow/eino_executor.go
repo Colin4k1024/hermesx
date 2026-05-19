@@ -21,10 +21,10 @@ var _ AgentExecutor = (*EinoAgentExecutor)(nil)
 // EinoAgentExecutor implements AgentExecutor using the Eino-based ReAct agent.
 // Safety infrastructure is mandatory — construct via NewEinoAgentExecutor.
 type EinoAgentExecutor struct {
-	transport          llm.Transport
-	tools              []*tools.ToolEntry
-	safetyInterceptor  safety.SafetyInterceptor
-	leakScanner        *secrets.LeakScanner
+	transport         llm.Transport
+	tools             []*tools.ToolEntry
+	safetyInterceptor safety.SafetyInterceptor
+	leakScanner       *secrets.LeakScanner
 }
 
 // NewEinoAgentExecutor creates an executor backed by Eino's ReAct agent.

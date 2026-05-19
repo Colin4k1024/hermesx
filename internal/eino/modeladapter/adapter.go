@@ -210,4 +210,3 @@ func convertDelta(delta *llm.StreamDelta) *schema.Message {
 	}
 	return msg
 }
-

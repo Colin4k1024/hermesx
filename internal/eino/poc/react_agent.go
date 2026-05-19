@@ -23,11 +23,11 @@ type ReactAgent struct {
 
 // ReactAgentConfig holds configuration for creating a ReactAgent.
 type ReactAgentConfig struct {
-	Transport  llm.Transport
-	ModelName  string
-	ToolSet    []*tools.ToolEntry
-	MaxStep    int
-	SystemMsg  string
+	Transport llm.Transport
+	ModelName string
+	ToolSet   []*tools.ToolEntry
+	MaxStep   int
+	SystemMsg string
 }
 
 // NewReactAgent constructs a ReAct agent using Eino's graph orchestration,

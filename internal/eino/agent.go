@@ -51,16 +51,16 @@ type EinoAgent struct {
 }
 
 type agentConfig struct {
-	transport          llm.Transport
-	modelName          string
-	toolEntries        []*tools.ToolEntry
-	maxIterations      int
-	systemPrompt       string
-	tenantID           string
-	userID             string
-	sessionID          string
-	safetyInterceptor  safety.SafetyInterceptor
-	leakScanner        *secrets.LeakScanner
+	transport         llm.Transport
+	modelName         string
+	toolEntries       []*tools.ToolEntry
+	maxIterations     int
+	systemPrompt      string
+	tenantID          string
+	userID            string
+	sessionID         string
+	safetyInterceptor safety.SafetyInterceptor
+	leakScanner       *secrets.LeakScanner
 }
 
 // NewEinoAgent constructs a production Eino-based agent.
