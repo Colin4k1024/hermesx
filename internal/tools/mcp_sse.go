@@ -61,8 +61,8 @@ func newSSETransportV2(url string, headers map[string]string) *sseTransportV2 {
 	}
 
 	return &sseTransportV2{
-		url:        url,
-		headers:    headers,
+		url:     url,
+		headers: headers,
 		// SSE long-poll requires Timeout: 0 (no deadline on the stream read).
 		// This client is intentionally not backed by SecureTransport: MCP server
 		// addresses are operator-configured at startup, not resolved at tool-call

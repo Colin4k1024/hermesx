@@ -17,14 +17,14 @@ import (
 // AdminHandler provides administrative API endpoints for tenant management,
 // sandbox policy configuration, and API key lifecycle operations.
 type AdminHandler struct {
-	store           store.Store
-	pool            *pgxpool.Pool
-	logger          *slog.Logger
-	pricingCache    *metering.PricingStore
-	egressHandler   *egress.AdminHandler
-	policyStore     safety.PolicyStore
-	canaryDetector  *safety.CanaryDetector
-	leakScanner     *secrets.LeakScanner
+	store          store.Store
+	pool           *pgxpool.Pool
+	logger         *slog.Logger
+	pricingCache   *metering.PricingStore
+	egressHandler  *egress.AdminHandler
+	policyStore    safety.PolicyStore
+	canaryDetector *safety.CanaryDetector
+	leakScanner    *secrets.LeakScanner
 }
 
 // NewAdminHandler creates an AdminHandler with the given store and logger.

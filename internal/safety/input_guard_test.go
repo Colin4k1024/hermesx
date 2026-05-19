@@ -29,8 +29,8 @@ func TestScan_NFKCNormalization_FullwidthChars(t *testing.T) {
 	// U+FF11–U+FF19 are fullwidth digit characters. After NFKC they become
 	// ordinary ASCII digits. We just confirm Scan does not panic and processes
 	// the normalised form (no injection via fullwidth confusion).
-	fullwidthDigits := "１２３" // １２３ → 123
-	_ = ig.Scan(fullwidthDigits, nil)       // must not panic
+	fullwidthDigits := "１２３"          // １２３ → 123
+	_ = ig.Scan(fullwidthDigits, nil) // must not panic
 }
 
 // TestScan_NFKCNormalization_LigaturesExpanded ensures that Unicode ligatures
