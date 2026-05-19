@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	gocron "github.com/go-co-op/gocron/v2"
 	redislock "github.com/go-co-op/gocron-redis-lock/v2"
+	gocron "github.com/go-co-op/gocron/v2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -78,7 +78,7 @@ func New(cfg Config, jobStore store.CronJobStore, pool *pgxpool.Pool, rc redis.U
 	cfg.setDefaults()
 
 	locker, err := redislock.NewRedisLocker(rc,
-		redislock.WithTries(1),           // no retry — competing pods skip
+		redislock.WithTries(1), // no retry — competing pods skip
 		redislock.WithExpiry(cfg.LockTTL),
 	)
 	if err != nil {
