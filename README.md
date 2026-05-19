@@ -26,11 +26,12 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | API Server | net/http · Go 1.25 · Single Binary |
 | Middleware | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
 | Agent Runtime | Soul · Skills · Memory · Tool Loop · Multimodal Router · Context Compress |
+| Eino Agent Runtime | EinoAgent (ReAct Graph) · Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM Resilience | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
 | Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) |
 | Infrastructure | PostgreSQL (RLS) · Redis (Lua) · MinIO (S3) · OTel Collector |
 | Observability | Loki · Jaeger/Tempo · Prometheus · Grafana |
-| Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer |
+| Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer (Prompt Injection · Leak Scan · Stream Redaction) |
 
 ### Project Stats
 

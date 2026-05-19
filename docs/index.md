@@ -20,11 +20,12 @@
 | API Server | net/http · Go 1.25 · 单二进制 |
 | 中间件栈（10层） | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
 | Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
+| Eino Agent 运行时 | EinoAgent（ReAct Graph）· Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
 | 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
 | 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流）· MinIO（S3）· OTel Collector |
 | 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
-| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer |
+| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏）|
 
 ---
 
