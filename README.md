@@ -14,6 +14,24 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 
 > Originally inspired by [hermes-agent](https://github.com/NousResearch/hermes-agent) by Nous Research. HermesX has since evolved into an independent enterprise platform with multi-tenant isolation, RBAC, audit trails, sandbox execution, and SaaS-grade observability — capabilities that go far beyond the original agent framework.
 
+### Architecture
+
+![HermesX Architecture](docs/hermesx-architecture.png)
+
+> Full diagram: [`docs/hermesx-architecture.drawio`](docs/hermesx-architecture.drawio) — open with [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
+
+| Layer | Components |
+|-------|-----------|
+| Clients | API Client · SDK · Web UI |
+| API Server | net/http · Go 1.25 · Single Binary |
+| Middleware | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
+| Agent Runtime | Soul · Skills · Memory · Tool Loop · Multimodal Router · Context Compress |
+| LLM Resilience | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
+| Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) |
+| Infrastructure | PostgreSQL (RLS) · Redis (Lua) · MinIO (S3) · OTel Collector |
+| Observability | Loki · Jaeger/Tempo · Prometheus · Grafana |
+| Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer |
+
 ### Project Stats
 
 | Metric | Value |
@@ -225,6 +243,24 @@ MIT
 面向企业规模的 AI Agent 部署、隔离和治理的生产级平台。使用 Go 构建，单二进制部署、原生并发、零依赖分发。
 
 > 最初受 Nous Research 的 [hermes-agent](https://github.com/NousResearch/hermes-agent) 启发。HermesX 已演进为独立的企业平台，具备多租户隔离、RBAC、审计追踪、沙箱执行和 SaaS 级可观测性 — 远超原始 Agent 框架的能力边界。
+
+### 架构概览
+
+![HermesX 技术架构图](docs/hermesx-architecture.png)
+
+> 完整 draw.io 源文件：[`docs/hermesx-architecture.drawio`](docs/hermesx-architecture.drawio)，可用 [draw.io](https://app.diagrams.net/) 或 VS Code draw.io 插件打开编辑。
+
+| 层级 | 组件 |
+|------|------|
+| 客户端 | API Client · SDK · Web UI |
+| API Server | net/http · Go 1.25 · 单二进制 |
+| 中间件栈 | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
+| Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
+| LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
+| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
+| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流）· MinIO（S3）· OTel Collector |
+| 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
+| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer |
 
 ### 项目数据
 
