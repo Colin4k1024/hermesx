@@ -145,6 +145,10 @@ type CronJobStore interface {
 	Delete(ctx context.Context, tenantID, jobID string) error
 	List(ctx context.Context, tenantID string) ([]*CronJob, error)
 	ListDue(ctx context.Context, now time.Time) ([]*CronJob, error)
+	// ListAllEnabled returns all enabled jobs across all tenants (cross-tenant scheduler query).
+	ListAllEnabled(ctx context.Context) ([]*CronJob, error)
+	// ListRuns returns recent execution history for a job (tenant-scoped).
+	ListRuns(ctx context.Context, tenantID, jobID string, limit int) ([]*CronJobRun, error)
 }
 
 // PricingRuleStore manages per-model pricing configuration.

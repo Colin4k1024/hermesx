@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/acp"
+	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/api"
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/config"
@@ -21,6 +22,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/scheduler"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	_ "github.com/Colin4k1024/hermesx/internal/store/mysql"
@@ -207,15 +209,21 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Inject distributed Redis rate limiter if REDIS_URL is configured.
+	var rc *rediscache.Client
 	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
-		rc, err := rediscache.New(context.Background(), redisURL)
-		if err != nil {
-			slog.Warn("Redis rate limiter unavailable, using local fallback", "error", err)
+		var rcErr error
+		rc, rcErr = rediscache.New(context.Background(), redisURL)
+		if rcErr != nil {
+			slog.Warn("Redis unavailable, using local fallback", "error", rcErr)
+			rc = nil
 		} else {
 			rateLimitCfg.Limiter = rc
 			slog.Info("Distributed Redis rate limiter enabled")
 		}
 	}
+
+	// ── 5b. SaaS Cron Scheduler — initialized after gateway runner (section 10b) ──
+	var cronScheduler *scheduler.SaasScheduler
 
 	// ── 6. Initialize object store client (MinIO / RustFS) for per-tenant skills ──
 	var skillsClient objstore.ObjectStore
@@ -335,6 +343,19 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// ── 10b. SaaS Cron Scheduler (requires Redis + PG pool) ─────────────────────
+	if rc != nil && pool != nil {
+		af := agent.NewAgentFactory(agent.FactoryConfig{Store: dataStore})
+		cronRunner := &schedulerAgentAdapter{factory: af}
+		cronDeliverer := &schedulerPlatformDeliverer{runner: runner}
+		var schedErr error
+		cronScheduler, schedErr = scheduler.New(scheduler.Config{}, dataStore.CronJobs(), pool, rc.UniversalClient(), cronRunner, cronDeliverer)
+		if schedErr != nil {
+			slog.Warn("cron scheduler init failed (non-fatal)", "error", schedErr)
+			cronScheduler = nil
+		}
+	}
+
 	// ── 11. Lifecycle: start all services, signal handling, ordered shutdown ─
 	// Start background services in goroutines.
 	syncCtx, syncCancel := context.WithCancel(context.Background())
@@ -366,6 +387,14 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	if cronScheduler != nil {
+		go func() {
+			if err := cronScheduler.Start(syncCtx); err != nil {
+				slog.Error("cron scheduler start failed", "error", err)
+			}
+		}()
+	}
+
 	// Signal handler with ordered shutdown (LIFO: ingress → processing → storage).
 	done := make(chan struct{})
 	go func() {
@@ -391,6 +420,12 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 		// 4. Cancel background sync.
 		syncCancel()
+		// 4a. Stop cron scheduler.
+		if cronScheduler != nil {
+			if stopErr := cronScheduler.Stop(); stopErr != nil {
+				slog.Warn("cron scheduler stop error", "error", stopErr)
+			}
+		}
 		// 5. Close evolution store (flushes SQLite WAL / MySQL pool) (B3).
 		if evolutionStore != nil {
 			_ = evolutionStore.Close()
@@ -412,6 +447,54 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 	err = saasServer.Start()
 	<-done
+	return err
+}
+
+// schedulerAgentAdapter adapts *agent.AgentFactory to scheduler.AgentRunner.
+type schedulerAgentAdapter struct {
+	factory *agent.AgentFactory
+}
+
+func (a *schedulerAgentAdapter) Run(ctx context.Context, tenantID, sessionID, prompt string) (string, error) {
+	result, err := a.factory.Run(ctx, agent.ChatRequest{
+		TenantID:  tenantID,
+		SessionID: sessionID,
+		Text:      prompt,
+		Platform:  "cron",
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.Response, nil
+}
+
+// schedulerPlatformDeliverer pushes cron results back to the user's source platform.
+type schedulerPlatformDeliverer struct {
+	runner *gateway.Runner
+}
+
+func (d *schedulerPlatformDeliverer) Deliver(ctx context.Context, platform, chatID, jobName, result, errMsg string) error {
+	if d.runner == nil {
+		slog.Debug("scheduler: delivery skipped, no gateway runner", "platform", platform)
+		return nil
+	}
+
+	var text string
+	if errMsg != "" {
+		text = fmt.Sprintf("[Cron] %s failed:\n%s", jobName, errMsg)
+	} else {
+		if runeCount := len([]rune(result)); runeCount > 2000 {
+			result = string([]rune(result)[:2000]) + "..."
+		}
+		text = fmt.Sprintf("[Cron] %s completed:\n%s", jobName, result)
+	}
+
+	adapter := d.runner.GetAdapter(gateway.Platform(platform))
+	if adapter == nil {
+		return fmt.Errorf("no adapter registered for platform %q", platform)
+	}
+
+	_, err := adapter.Send(ctx, chatID, text, map[string]string{"source": "cron_scheduler"})
 	return err
 }
 

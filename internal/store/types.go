@@ -141,19 +141,37 @@ type UserProfile struct {
 
 // CronJob represents a scheduled job.
 type CronJob struct {
-	ID        string     `json:"id" db:"id"`
-	TenantID  string     `json:"tenant_id" db:"tenant_id"`
-	Name      string     `json:"name" db:"name"`
-	Prompt    string     `json:"prompt" db:"prompt"`
-	Schedule  string     `json:"schedule" db:"schedule"`
-	Deliver   string     `json:"deliver,omitempty" db:"deliver"`
-	Enabled   bool       `json:"enabled" db:"enabled"`
-	Model     string     `json:"model,omitempty" db:"model"`
-	NextRunAt *time.Time `json:"next_run_at,omitempty" db:"next_run_at"`
-	LastRunAt *time.Time `json:"last_run_at,omitempty" db:"last_run_at"`
-	RunCount  int        `json:"run_count" db:"run_count"`
-	CreatedAt time.Time  `json:"created_at" db:"created_at"`
-	Metadata  string     `json:"metadata,omitempty" db:"metadata"`
+	ID             string     `json:"id" db:"id"`
+	TenantID       string     `json:"tenant_id" db:"tenant_id"`
+	Name           string     `json:"name" db:"name"`
+	Prompt         string     `json:"prompt" db:"prompt"`
+	Schedule       string     `json:"schedule" db:"schedule"`
+	Deliver        string     `json:"deliver,omitempty" db:"deliver"`
+	Enabled        bool       `json:"enabled" db:"enabled"`
+	Model          string     `json:"model,omitempty" db:"model"`
+	NextRunAt      *time.Time `json:"next_run_at,omitempty" db:"next_run_at"`
+	LastRunAt      *time.Time `json:"last_run_at,omitempty" db:"last_run_at"`
+	RunCount       int        `json:"run_count" db:"run_count"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	Metadata       string     `json:"metadata,omitempty" db:"metadata"`
+	SourcePlatform string     `json:"source_platform,omitempty" db:"source_platform"`
+	SourceChatID   string     `json:"source_chat_id,omitempty" db:"source_chat_id"`
+}
+
+// CronJobRun represents a single execution record.
+type CronJobRun struct {
+	ID          string     `json:"id"`
+	CronJobID   string     `json:"cron_job_id"`
+	TenantID    string     `json:"tenant_id"`
+	Status      string     `json:"status"`
+	ScheduledAt time.Time  `json:"scheduled_at"`
+	StartedAt   time.Time  `json:"started_at"`
+	FinishedAt  *time.Time `json:"finished_at,omitempty"`
+	DurationMs  *int       `json:"duration_ms,omitempty"`
+	Result      string     `json:"result,omitempty"`
+	Error       string     `json:"error,omitempty"`
+	PodID       string     `json:"pod_id,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
 }
 
 // Role represents a named role within a tenant.

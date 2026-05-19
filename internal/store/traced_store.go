@@ -643,6 +643,28 @@ func (c *tracedCronJobs) ListDue(ctx context.Context, now time.Time) ([]*CronJob
 	return v, err
 }
 
+func (c *tracedCronJobs) ListAllEnabled(ctx context.Context) ([]*CronJob, error) {
+	ctx, span := tracer.Start(ctx, "store.CronJobs.ListAllEnabled")
+	defer span.End()
+	v, err := c.inner.ListAllEnabled(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (c *tracedCronJobs) ListRuns(ctx context.Context, tenantID, jobID string, limit int) ([]*CronJobRun, error) {
+	ctx, span := tracer.Start(ctx, "store.CronJobs.ListRuns")
+	defer span.End()
+	v, err := c.inner.ListRuns(ctx, tenantID, jobID, limit)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
 // ── Roles ────────────────────────────────────────────────────────────────────
 
 type tracedRoles struct{ inner RoleStore }

@@ -139,6 +139,12 @@ func (n *noopCronJobStore) List(_ context.Context, _ string) ([]*store.CronJob, 
 func (n *noopCronJobStore) ListDue(_ context.Context, _ time.Time) ([]*store.CronJob, error) {
 	return nil, errSQLiteUnsupported
 }
+func (n *noopCronJobStore) ListAllEnabled(_ context.Context) ([]*store.CronJob, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopCronJobStore) ListRuns(_ context.Context, _, _ string, _ int) ([]*store.CronJobRun, error) {
+	return nil, errSQLiteUnsupported
+}
 
 var _ store.CronJobStore = (*noopCronJobStore)(nil)
 

@@ -37,6 +37,9 @@ func New(ctx context.Context, redisURL string) (*Client, error) {
 // Close closes the Redis connection.
 func (c *Client) Close() error { return c.rdb.Close() }
 
+// UniversalClient returns the underlying Redis client (satisfies redis.UniversalClient).
+func (c *Client) UniversalClient() redis.UniversalClient { return c.rdb }
+
 // --- Session Lock (Distributed) ---
 
 // AcquireSessionLock attempts to acquire a distributed lock for a session.

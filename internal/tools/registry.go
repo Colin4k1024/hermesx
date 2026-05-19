@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Colin4k1024/hermesx/internal/secrets"
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 // ToolHandler is the function signature for tool handlers.
@@ -32,6 +33,9 @@ type ToolContext struct {
 	// should use this client instead of creating their own http.Client instances
 	// so that all outbound traffic passes through the egress policy layer.
 	HTTPClient *http.Client
+	// CronJobStore is non-nil in SaaS mode. Tools should use PG-backed
+	// persistence instead of the local filesystem when this field is set.
+	CronJobStore store.CronJobStore
 }
 
 // ToolEntry holds metadata for a registered tool.

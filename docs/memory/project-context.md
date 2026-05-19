@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-19-eino-adk-poc
-**前任务**: 2026-05-18-v230-security-integration（CLOSED）
-**阶段**: closed（Eino ADK POC PASSED — Adapter Layer + EinoAgent + Safety Pipeline + Workflow Integration 完成，1813/1813 测试通过，5 critical blocker 修复，Phase 2 全量替换准入达成）
-**版本目标**: v2.4.0 — Agent Runtime Migration (Eino ADK Phase 2)
+**当前任务**: 2026-05-19-saas-cron-scheduler
+**前任务**: 2026-05-19-eino-adk-poc（CLOSED）
+**阶段**: released（SaaS Cron Scheduler v2.4.0 — Layer 1 Pull + Layer 2 Push + backlog fixes 全部完成；build/vet/test green；QA review Go）
+**版本目标**: v2.4.0 — SaaS Distributed Cron Scheduler + Eino Phase 2
 
 ## Tech Stack
 
@@ -64,7 +64,21 @@
 - Safety audit 模式上线后需要明确日志消费方和 enforce 升级标准
 - OAuth 工具 redirect 目标域须预先注册到 tenant egress allowlist
 
-## 下一步（v2.4.0 — Eino Phase 2 + 遗留项）
+## 当前阶段产出（2026-05-19 SaaS Cron Scheduler — RELEASED）
+
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/prd.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/arch-design.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/delivery-plan.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/execute-log.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/test-plan.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/launch-acceptance.md` ✅ Go
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/deployment-context.md` ✅
+- `docs/artifacts/2026-05-19-saas-cron-scheduler/release-plan.md` ✅ Go
+
+## 下一步（v2.5.0 — Eino Phase 2 全量替换）
+
+**P0（已完成 — SaaS Cron Scheduler v2.4.0）** ✅ RELEASED
+- Story A-F: 全部完成（scheduler + executor + delivery + migrations + tests + backlog fixes）
 
 **P1（关键路径 — Eino 全量替换）**
 1. 全量 Agent 替换：AIAgent.RunConversation → EinoAgent.RunConversationSafe（所有调用点）

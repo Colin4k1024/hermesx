@@ -570,6 +570,50 @@ var migrations = []migration{
 	{97, `ALTER TABLE workflow_versions FORCE ROW LEVEL SECURITY`},
 	{98, `ALTER TABLE workflow_runs FORCE ROW LEVEL SECURITY`},
 	{99, `ALTER TABLE workflow_step_runs FORCE ROW LEVEL SECURITY`},
+	{100, `CREATE TABLE IF NOT EXISTS cron_job_runs (
+		id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+		cron_job_id    UUID        NOT NULL REFERENCES cron_jobs(id) ON DELETE CASCADE,
+		tenant_id      VARCHAR(64) NOT NULL,
+		status         VARCHAR(16) NOT NULL DEFAULT 'pending',
+		scheduled_at   TIMESTAMPTZ NOT NULL,
+		started_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+		finished_at    TIMESTAMPTZ,
+		duration_ms    INT,
+		result         TEXT,
+		error          TEXT,
+		pod_id         VARCHAR(128),
+		created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+		CONSTRAINT uq_cron_job_runs_job_scheduled UNIQUE (cron_job_id, scheduled_at)
+	);
+	CREATE INDEX IF NOT EXISTS idx_cron_job_runs_job_id ON cron_job_runs(cron_job_id);
+	CREATE INDEX IF NOT EXISTS idx_cron_job_runs_tenant ON cron_job_runs(tenant_id, started_at DESC)`},
+	{101, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cron_jobs' AND column_name='last_run_success') THEN
+			ALTER TABLE cron_jobs ADD COLUMN last_run_success boolean;
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cron_jobs' AND column_name='last_run_error') THEN
+			ALTER TABLE cron_jobs ADD COLUMN last_run_error text;
+		END IF;
+	END $$`},
+	{102, `ALTER TABLE cron_job_runs ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE cron_job_runs FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'cron_job_runs' AND policyname = 'tenant_isolation_cron_runs') THEN
+			CREATE POLICY tenant_isolation_cron_runs ON cron_job_runs
+				USING (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+	END $$`},
+	{103, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cron_jobs' AND column_name='source_platform') THEN
+			ALTER TABLE cron_jobs ADD COLUMN source_platform VARCHAR(64);
+		END IF;
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cron_jobs' AND column_name='source_chat_id') THEN
+			ALTER TABLE cron_jobs ADD COLUMN source_chat_id VARCHAR(255);
+		END IF;
+	END $$`},
+
+	{104, `CREATE INDEX IF NOT EXISTS idx_cron_job_runs_tenant_job_started
+		ON cron_job_runs (tenant_id, cron_job_id, started_at DESC)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

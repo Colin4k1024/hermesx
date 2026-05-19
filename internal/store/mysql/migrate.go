@@ -254,6 +254,38 @@ var migrations = []string{
 		INDEX idx_workflow_steps_run (tenant_id, run_id),
 		INDEX idx_workflow_steps_human (tenant_id, status, assignee_user_id, assignee_role)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v17: cron_job_runs execution history table
+	`CREATE TABLE IF NOT EXISTS cron_job_runs (
+		id           CHAR(36)     NOT NULL PRIMARY KEY,
+		cron_job_id  CHAR(36)     NOT NULL,
+		tenant_id    CHAR(36)     NOT NULL,
+		status       VARCHAR(16)  NOT NULL DEFAULT 'pending',
+		scheduled_at DATETIME(3)  NOT NULL,
+		started_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		finished_at  DATETIME(3)  NULL,
+		duration_ms  INT          NULL,
+		result       MEDIUMTEXT   NULL,
+		error        TEXT         NULL,
+		pod_id       VARCHAR(128) NULL,
+		created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		UNIQUE KEY uk_cron_run_job_sched (cron_job_id, scheduled_at),
+		INDEX idx_cron_run_job (cron_job_id),
+		INDEX idx_cron_run_tenant (tenant_id, started_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v18: extend cron_jobs with last_run_success / last_run_error
+	`ALTER TABLE cron_jobs
+		ADD COLUMN IF NOT EXISTS last_run_success TINYINT(1) NULL,
+		ADD COLUMN IF NOT EXISTS last_run_error   TEXT       NULL`,
+
+	// v19: source tracking for push delivery
+	`ALTER TABLE cron_jobs
+		ADD COLUMN IF NOT EXISTS source_platform VARCHAR(64)  NULL,
+		ADD COLUMN IF NOT EXISTS source_chat_id  VARCHAR(255) NULL`,
+
+	// v20: composite index for ListRuns query performance
+	`CREATE INDEX idx_cron_job_runs_tenant_job_started ON cron_job_runs (tenant_id, cron_job_id, started_at DESC)`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {
