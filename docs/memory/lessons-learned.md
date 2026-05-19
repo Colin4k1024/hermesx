@@ -283,3 +283,18 @@
 1. 任何对外暴露"token/secret 列表"的接口，默认应使用不可逆摘要（如 `sha256[:4]` hex），而非原始值——即便接口有鉴权保护。
 2. 管理接口的设计原则：读出来的东西不应比写进去时的权限要求更低。Canary token 是只写的 secret，列出时应只暴露 handle。
 3. 在新增任何返回 sensitive 列表的 Admin API 时，安全评审应在 design 阶段就审查响应体字段，而不是等 execute 完成后发现。
+
+---
+
+## 2026-05-19 — Eino ADK POC: StreamReader 资源管理与安全管线强制
+
+**场景**: 评估 CloudWeGo Eino 作为下一代 Agent 运行时，实现 Adapter Layer + EinoAgent + Safety Pipeline。
+
+**问题**:
+1. Eino `schema.StreamReader` 是 read-once 资源，`Recv()` 在 EOF 时返回 `io.EOF` 错误。最初将所有错误一律 `break`，导致真实传输错误被静默吞掉，且未调用 `Close()` 导致 goroutine 泄漏。
+2. `RunConversation` 和 `Stream` 最初不含安全检查，Workflow Executor 直接调用不安全方法，安全管线形同虚设。
+
+**建议**:
+1. 任何实现 StreamReader/Iterator 模式的外部库，接入时必须在 adapter 层显式处理：(a) defer Close, (b) 区分 EOF 与真实错误, (c) 错误向上传播而非静默忽略。
+2. 安全管线（输入检查 + 输出检查 + 密钥脱敏）应在架构层作为默认路径强制，不安全的 `RunConversation` 仅供内部测试使用。对外暴露的 Executor 接口必须调用 `*Safe` 变体。
+3. 对 Agent 迭代次数设定硬上限（当前 50），防止 workflow 配置注入导致无限循环消耗 token 预算。

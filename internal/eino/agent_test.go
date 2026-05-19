@@ -1,0 +1,432 @@
+package eino
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/tools"
+)
+
+type mockTransport struct {
+	callCount int
+	responses []llm.ChatResponse
+}
+
+func (m *mockTransport) Name() string { return "mock" }
+
+func (m *mockTransport) Chat(_ context.Context, _ llm.ChatRequest) (*llm.ChatResponse, error) {
+	idx := m.callCount
+	if idx >= len(m.responses) {
+		idx = len(m.responses) - 1
+	}
+	m.callCount++
+	return &m.responses[idx], nil
+}
+
+func (m *mockTransport) ChatStream(_ context.Context, _ llm.ChatRequest) (<-chan llm.StreamDelta, <-chan error) {
+	deltaCh := make(chan llm.StreamDelta, 1)
+	errCh := make(chan error, 1)
+	idx := m.callCount
+	if idx >= len(m.responses) {
+		idx = len(m.responses) - 1
+	}
+	m.callCount++
+	resp := m.responses[idx]
+	go func() {
+		defer close(deltaCh)
+		if resp.Content != "" {
+			deltaCh <- llm.StreamDelta{Content: resp.Content}
+		}
+		deltaCh <- llm.StreamDelta{Done: true}
+	}()
+	return deltaCh, errCh
+}
+
+func TestEinoAgent_SingleToolLoop(t *testing.T) {
+	toolArgs, _ := json.Marshal(map[string]any{"command": "echo hello"})
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls: []llm.ToolCall{
+					{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "terminal", Arguments: string(toolArgs)}},
+				},
+				FinishReason: "tool_calls",
+			},
+			{Content: "Done: hello", FinishReason: "stop"},
+		},
+	}
+
+	entries := []*tools.ToolEntry{
+		{
+			Name:        "terminal",
+			Description: "Execute command",
+			Schema: map[string]any{
+				"name": "terminal", "description": "Execute command",
+				"parameters": map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"command": map[string]any{"type": "string"},
+					},
+					"required": []string{"command"},
+				},
+			},
+			Handler: func(_ context.Context, args map[string]any, _ *tools.ToolContext) string {
+				cmd, _ := args["command"].(string)
+				return "output: " + cmd
+			},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx,
+		WithTransport(transport),
+		WithModel("test-model"),
+		WithTools(entries),
+		WithMaxIterations(10),
+		WithSystemPrompt("You are helpful."),
+		WithSessionID("test-session"),
+	)
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	result, err := agent.RunConversation(ctx, "run echo hello", nil)
+	if err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+
+	if result.FinalResponse != "Done: hello" {
+		t.Errorf("unexpected response: %q", result.FinalResponse)
+	}
+	if !result.Completed {
+		t.Error("expected Completed=true")
+	}
+	if transport.callCount != 2 {
+		t.Errorf("expected 2 LLM calls, got %d", transport.callCount)
+	}
+}
+
+func TestEinoAgent_MultiToolChain(t *testing.T) {
+	args1, _ := json.Marshal(map[string]any{"query": "weather"})
+	args2, _ := json.Marshal(map[string]any{"command": "date"})
+	args3, _ := json.Marshal(map[string]any{"query": "news"})
+
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "search", Arguments: string(args1)}}},
+				FinishReason: "tool_calls",
+			},
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c2", Type: "function", Function: llm.FunctionCall{Name: "terminal", Arguments: string(args2)}}},
+				FinishReason: "tool_calls",
+			},
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c3", Type: "function", Function: llm.FunctionCall{Name: "search", Arguments: string(args3)}}},
+				FinishReason: "tool_calls",
+			},
+			{Content: "Weather is sunny, today is Monday, news: stock up", FinishReason: "stop"},
+		},
+	}
+
+	entries := []*tools.ToolEntry{
+		{
+			Name: "search", Description: "Search",
+			Schema: map[string]any{
+				"name": "search", "description": "Search",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{"query": map[string]any{"type": "string"}}},
+			},
+			Handler: func(_ context.Context, args map[string]any, _ *tools.ToolContext) string {
+				q, _ := args["query"].(string)
+				return "result for: " + q
+			},
+		},
+		{
+			Name: "terminal", Description: "Run command",
+			Schema: map[string]any{
+				"name": "terminal", "description": "Run command",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{"command": map[string]any{"type": "string"}}},
+			},
+			Handler: func(_ context.Context, args map[string]any, _ *tools.ToolContext) string {
+				cmd, _ := args["command"].(string)
+				return "exec: " + cmd
+			},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(entries), WithMaxIterations(10))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	result, err := agent.RunConversation(ctx, "weather, date, news", nil)
+	if err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+
+	if transport.callCount != 4 {
+		t.Errorf("expected 4 LLM calls (3 tool + 1 final), got %d", transport.callCount)
+	}
+	if result.FinalResponse == "" {
+		t.Error("expected non-empty response")
+	}
+}
+
+func TestEinoAgent_NoToolCall(t *testing.T) {
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{Content: "Hi there!", FinishReason: "stop"},
+		},
+	}
+
+	entries := []*tools.ToolEntry{
+		{
+			Name: "search", Description: "Search",
+			Schema: map[string]any{
+				"name": "search", "description": "Search",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{"q": map[string]any{"type": "string"}}},
+			},
+			Handler: func(_ context.Context, _ map[string]any, _ *tools.ToolContext) string { return "" },
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(entries))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	result, err := agent.RunConversation(ctx, "hello", nil)
+	if err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+
+	if result.FinalResponse != "Hi there!" {
+		t.Errorf("unexpected: %q", result.FinalResponse)
+	}
+	if transport.callCount != 1 {
+		t.Errorf("expected 1 call, got %d", transport.callCount)
+	}
+}
+
+func TestEinoAgent_WithHistory(t *testing.T) {
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{Content: "Your name is Alice.", FinishReason: "stop"},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(nil))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	history := []llm.Message{
+		{Role: "user", Content: "My name is Alice"},
+		{Role: "assistant", Content: "Nice to meet you, Alice!"},
+	}
+
+	result, err := agent.RunConversation(ctx, "What is my name?", history)
+	if err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+
+	if result.FinalResponse != "Your name is Alice." {
+		t.Errorf("unexpected: %q", result.FinalResponse)
+	}
+}
+
+func TestEinoAgent_ContextPropagation(t *testing.T) {
+	toolArgs, _ := json.Marshal(map[string]any{})
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "check_ctx", Arguments: string(toolArgs)}}},
+				FinishReason: "tool_calls",
+			},
+			{Content: "ok", FinishReason: "stop"},
+		},
+	}
+
+	var capturedTenantID, capturedSessionID string
+	entries := []*tools.ToolEntry{
+		{
+			Name: "check_ctx", Description: "Check context",
+			Schema: map[string]any{
+				"name": "check_ctx", "description": "Check context",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{}},
+			},
+			Handler: func(_ context.Context, _ map[string]any, tctx *tools.ToolContext) string {
+				capturedTenantID = tctx.TenantID
+				capturedSessionID = tctx.SessionID
+				return "captured"
+			},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx,
+		WithTransport(transport),
+		WithModel("m"),
+		WithTools(entries),
+		WithTenantID("tenant-123"),
+		WithSessionID("session-456"),
+	)
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	_, err = agent.RunConversation(ctx, "check", nil)
+	if err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+
+	if capturedTenantID != "tenant-123" {
+		t.Errorf("expected tenant-123, got %q", capturedTenantID)
+	}
+	if capturedSessionID != "session-456" {
+		t.Errorf("expected session-456, got %q", capturedSessionID)
+	}
+}
+
+func TestEinoAgent_StreamCallbacks(t *testing.T) {
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{Content: "Hello world", FinishReason: "stop"},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(nil))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	var deltas []string
+	agent.SetCallbacks(&StreamCallbacks{
+		OnStreamDelta: func(text string) {
+			deltas = append(deltas, text)
+		},
+	})
+
+	result, err := agent.Stream(ctx, "hi", nil)
+	if err != nil {
+		t.Fatalf("Stream: %v", err)
+	}
+
+	if result.FinalResponse != "Hello world" {
+		t.Errorf("unexpected response: %q", result.FinalResponse)
+	}
+	if len(deltas) == 0 {
+		t.Error("expected at least one delta callback")
+	}
+}
+
+func TestEinoAgent_RunConversationWithCallbacks(t *testing.T) {
+	toolArgs, _ := json.Marshal(map[string]any{"command": "ls"})
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "terminal", Arguments: string(toolArgs)}}},
+				FinishReason: "tool_calls",
+			},
+			{Content: "files listed", FinishReason: "stop"},
+		},
+	}
+
+	entries := []*tools.ToolEntry{
+		{
+			Name: "terminal", Description: "Run command",
+			Schema: map[string]any{
+				"name": "terminal", "description": "Run command",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{"command": map[string]any{"type": "string"}}},
+			},
+			Handler: func(_ context.Context, args map[string]any, _ *tools.ToolContext) string {
+				return "output: " + args["command"].(string)
+			},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(entries), WithTenantID("t1"), WithSessionID("s1"))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	var toolStarted, toolCompleted []string
+	var stepCalled bool
+	var errors []error
+
+	agent.SetCallbacks(&StreamCallbacks{
+		OnToolStart: func(name string) {
+			toolStarted = append(toolStarted, name)
+		},
+		OnToolComplete: func(name string) {
+			toolCompleted = append(toolCompleted, name)
+		},
+		OnStep: func(_ int, _ []string) {
+			stepCalled = true
+		},
+		OnError: func(err error) {
+			errors = append(errors, err)
+		},
+	})
+
+	result, err := agent.RunConversationWithCallbacks(ctx, "list files", nil)
+	if err != nil {
+		t.Fatalf("RunConversationWithCallbacks: %v", err)
+	}
+
+	if result.FinalResponse != "files listed" {
+		t.Errorf("unexpected response: %q", result.FinalResponse)
+	}
+	if !result.Completed {
+		t.Error("expected Completed=true")
+	}
+	if !stepCalled {
+		t.Error("expected OnStep callback to fire")
+	}
+	if len(toolStarted) == 0 {
+		t.Error("expected OnToolStart callback to fire")
+	}
+	if len(toolCompleted) == 0 {
+		t.Error("expected OnToolComplete callback to fire")
+	}
+	if len(errors) != 0 {
+		t.Errorf("unexpected errors: %v", errors)
+	}
+}
+
+func TestEinoAgent_RunConversationWithCallbacks_NilCallbacks(t *testing.T) {
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{Content: "direct response", FinishReason: "stop"},
+		},
+	}
+
+	ctx := context.Background()
+	agent, err := NewEinoAgent(ctx, WithTransport(transport), WithModel("m"), WithTools(nil))
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	result, err := agent.RunConversationWithCallbacks(ctx, "hello", nil)
+	if err != nil {
+		t.Fatalf("RunConversationWithCallbacks: %v", err)
+	}
+
+	if result.FinalResponse != "direct response" {
+		t.Errorf("unexpected: %q", result.FinalResponse)
+	}
+}
+
+func TestEinoAgent_MissingTransport(t *testing.T) {
+	_, err := NewEinoAgent(context.Background(), WithModel("m"))
+	if err == nil {
+		t.Fatal("expected error for missing transport")
+	}
+}

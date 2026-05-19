@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-18-v230-security-integration
-**前任务**: 2026-05-18-security-enhancement-ironclaw（已合并到 main）
-**阶段**: closed（v2.3.0 Security Integration Sprint CLOSED — 9 Story 完成，B-1~B-5 修复，26/26 -race，全链路 artifacts 落盘，6 项 R 类遗留已入 v2.4.0 backlog）
-**版本目标**: v2.3.0 — Security Integration Sprint (safety/egress/secrets 三子系统接入主链路)
+**当前任务**: 2026-05-19-eino-adk-poc
+**前任务**: 2026-05-18-v230-security-integration（CLOSED）
+**阶段**: closed（Eino ADK POC PASSED — Adapter Layer + EinoAgent + Safety Pipeline + Workflow Integration 完成，1813/1813 测试通过，5 critical blocker 修复，Phase 2 全量替换准入达成）
+**版本目标**: v2.4.0 — Agent Runtime Migration (Eino ADK Phase 2)
 
 ## Tech Stack
 
@@ -30,6 +30,7 @@
 - v2.2.0-stabilization CLOSED (2026-05-14 — Bootstrap IP 限流、跨实例原子初始化、PG API key scopes 修复、会话标题 UX、发布/文档口径同步)
 - IronClaw security-enhancement MERGED to main (2026-05-18 — safety/egress/secrets 三包构建完成，5236 行新增，未接入主链路)
 - v2.3.0 security-integration CLOSED (2026-05-18 — 全部 9 Story 完成，5 阻塞项(B-1~B-5) + 6 MEDIUM 项修复，26/26 -race 通过，全链路 9 个 artifacts 落盘，6 项遗留入 v2.4.0 backlog)
+- Eino ADK POC CLOSED (2026-05-19 — CloudWeGo Eino ReAct agent 验证通过；Adapter Layer + EinoAgent + SafetyPipeline + WorkflowExecutor；1813 tests/46 pkgs 全绿；Phase 2 全量替换准入达成)
 
 ## 已完成
 
@@ -63,19 +64,21 @@
 - Safety audit 模式上线后需要明确日志消费方和 enforce 升级标准
 - OAuth 工具 redirect 目标域须预先注册到 tenant egress allowlist
 
-## 下一步（v2.3.0 执行顺序）
+## 下一步（v2.4.0 — Eino Phase 2 + 遗留项）
 
-**P1（关键路径）**
-1. Story A: SafetyInterceptor → agent.go RunConversation（#38，8h，可并行）
-2. Story B: SecureTransport + CheckRedirect 原子 PR（#36+#37，16h，关键路径）
-3. Story E: Canary token TTL 清理（#41，6h，可与 A 并行）
+**P1（关键路径 — Eino 全量替换）**
+1. 全量 Agent 替换：AIAgent.RunConversation → EinoAgent.RunConversationSafe（所有调用点）
+2. 集成层 SafetyInterceptor 注入：HTTP handler / MCP server 初始化时 wire WithSafety
+3. v2.3.0 遗留 R 类项（6 项）按优先级补齐
 
-**P2（Story B 完成后）**
-4. Story C: 高风险 10 工具迁移 SecretResolver（#39，10h）
-5. Story D: Admin API 三 handler 统一注册（#40，10h，可与 C 并行）
+**P2（功能增强）**
+4. 流式 chunk 级脱敏（StreamSafe → per-chunk redaction）
+5. 真实 LLM 延迟基准对比测试
+6. Workflow 引擎其他 node type 切换到 Eino Graph
 
-**P3（条件进入，P1 回归 ≤ 5）**
-6. Story F: #42/#43/#44/#45（17h）
+**P3（远期）**
+7. Phase 3: Workflow DAG → Eino Graph 编排迁移
+8. Phase 4: Multi-Agent（Eino Host/Guest 模式）
 
 **当前阶段产出**：
 - `docs/artifacts/2026-05-18-v230-security-integration/prd.md` ✅
