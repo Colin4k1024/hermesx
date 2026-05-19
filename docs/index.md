@@ -41,6 +41,7 @@
 | [安全模型](SECURITY_MODEL.md) | 威胁模型、RLS、沙箱隔离 |
 | [RBAC 矩阵](RBAC_MATRIX.md) | 5 角色 × 10 资源权限矩阵 |
 | [技能指南](skills-guide.md) | 技能系统使用手册 |
+| [工作流引擎指南](workflow-guide.md) | 固定 SOP 工作流使用手册 |
 
 ---
 
@@ -353,22 +354,51 @@ BatchConfig{
 
 将多个 Agent 任务、HTTP 服务调用和条件分支编排为可持久化、可审计的 DAG 工作流，支持人工介入和断点重试。
 
+> 完整使用指南：[工作流引擎指南](workflow-guide.md)
+
 ### 节点类型
 
 | 类型 | 说明 |
 |------|------|
 | `start` | 流程起点，自动完成 |
-| `agent_task` | 调用完整 Agent 循环，通过 `config.prompt` 传入任务指令，结果写入下游上下文 |
-| `service_task` | HTTP 调用外部服务，支持自定义 Method、Header，响应 JSON 自动合并到步骤输出 |
-| `human_task` | 暂停流程等待人工操作，通过 `/v1/workflow-tasks/{id}/complete` 继续，可携带变量更新 |
+| `agent_task` | 调用完整 Agent 循环（Eino ReAct Graph + 安全管线），通过 `config.prompt` 传入任务指令 |
+| `service_task` | HTTP 调用外部服务，支持自定义 Method/Header/Body，响应 JSON 自动合并到步骤输出 |
+| `human_task` | 暂停流程等待人工操作，通过 `/v1/workflow-tasks/{id}/complete` 继续，可携带 outcome + 变量更新 |
 | `end` | 流程终点，自动完成 |
+
+### Graph JSON 示例
+
+```json
+{
+  "nodes": [
+    {"id":"start","type":"start","name":"开始"},
+    {"id":"ai_check","type":"agent_task","name":"AI 预审",
+     "config":{"prompt":"审核申请合规性：{{input.description}}"}},
+    {"id":"approve","type":"human_task","name":"主管审批",
+     "config":{"assignee":"manager"}},
+    {"id":"notify","type":"service_task","name":"发送通知",
+     "config":{"url":"https://api.example.com/notify","method":"POST"}},
+    {"id":"end_ok","type":"end","name":"通过"},
+    {"id":"end_reject","type":"end","name":"拒绝"}
+  ],
+  "edges": [
+    {"from":"start","to":"ai_check"},
+    {"from":"ai_check","to":"approve"},
+    {"from":"approve","to":"notify","condition":{"outcome":"approved"}},
+    {"from":"approve","to":"end_reject","condition":{"outcome":"rejected"}},
+    {"from":"notify","to":"end_ok"}
+  ]
+}
+```
 
 ### 条件路由
 
 边（Edge）支持两级筛选：
 
 - **Outcome 匹配** — 上游步骤的 `outcome` 字段（如 `approved` / `rejected`）
-- **条件表达式** — 支持 `eq`、`ne`、`gt`、`gte`、`lt`、`lte`、`exists`、`contains`、`startsWith`、`endsWith`，路径语法为 `input.field`、`variables.key`、`steps.{nodeID}.output.field`
+- **条件表达式** — 支持 `eq`、`ne`、`gt`、`gte`、`lt`、`lte`、`exists`、`contains`、`startsWith`、`endsWith`
+
+路径语法：`input.field`、`variables.key`、`steps.{nodeID}.output.field`（支持嵌套点号访问）
 
 ### 实例生命周期
 
@@ -378,10 +408,28 @@ running → waiting（等待人工）→ running → completed
                             → cancelled
 ```
 
+### Graph 校验规则
+
+| 规则 | 说明 |
+|------|------|
+| 恰好 1 个 start | 不允许多入口或无入口 |
+| 至少 1 个 end | 必须有终止点 |
+| 无自环、无环（DAG） | 拓扑排序检测，确保流程可终止 |
+| 全连通 | 从 start 出发必须可达所有节点 |
+
 ### 版本控制
 
-- 定义（Definition）支持 `draft` → `published` → `archived` 状态流转
-- 每次发布快照 GraphJSON，运行中实例永远锁定在启动时的版本，互不影响
+- 定义支持 `draft` → `published` → `archived` 状态流转
+- 每次发布快照 GraphJSON，运行中实例锁定在启动时的版本，互不影响
+
+### Agent 安全执行（EinoAgentExecutor）
+
+`agent_task` 节点通过 `EinoAgentExecutor` 执行，强制安全管线：
+
+- **输入拦截** — Prompt Injection 检测
+- **凭据脱敏** — 20+ 种凭据模式自动遮蔽（AWS Key、GitHub Token 等）
+- **迭代限制** — 硬上限 50 次 tool loop
+- **流式脱敏** — chunk 级缓冲，中间 chunk 不泄漏原始凭据
 
 ### 存储后端
 
@@ -401,9 +449,18 @@ POST /v1/workflow-definitions/{id}/publish
 POST /v1/workflow-runs
 {"definition_id":"{id}","input":{"申请金额":10000}}
 
-# 4. 完成人工任务
+# 4. 查询待处理人工任务
+GET /v1/workflow-tasks
+
+# 5. 完成人工任务
 POST /v1/workflow-tasks/{stepRunID}/complete
 {"outcome":"approved","output":{"comment":"同意"},"variables":{"approved":true}}
+
+# 6. 重试失败步骤
+POST /v1/workflow-runs/{id}/retry
+
+# 7. 取消实例
+POST /v1/workflow-runs/{id}/cancel
 ```
 
 ---

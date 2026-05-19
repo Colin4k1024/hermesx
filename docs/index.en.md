@@ -20,6 +20,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | [Security Model](SECURITY_MODEL.md) | Threat model, RLS, sandbox isolation |
 | [RBAC Matrix](RBAC_MATRIX.md) | 5 roles × 10 resources permission matrix |
 | [Skills Guide](skills-guide.md) | Skill system user guide |
+| [Workflow Engine Guide](workflow-guide.en.md) | Fixed SOP workflow usage guide |
 
 ---
 
@@ -332,22 +333,51 @@ Embedded web management UI providing visual management for sessions, configurati
 
 Orchestrate agent tasks, HTTP service calls, and conditional branches into persistent, auditable DAG workflows with human-in-the-loop support and pause/retry semantics.
 
+> Full usage guide: [Workflow Engine Guide](workflow-guide.en.md)
+
 ### Node Types
 
 | Type | Description |
 |------|-------------|
 | `start` | Flow entry point, completes automatically |
-| `agent_task` | Invokes a full agent loop; task instruction passed via `config.prompt`, result written into downstream context |
-| `service_task` | Calls an external HTTP service with custom Method/Headers; JSON response auto-merged into step output |
-| `human_task` | Pauses the flow awaiting human action; resume via `POST /v1/workflow-tasks/{id}/complete`, can update variables |
+| `agent_task` | Invokes a full agent loop (Eino ReAct Graph + safety pipeline) via `config.prompt` |
+| `service_task` | HTTP call to external services with custom Method/Header/Body; JSON response auto-merged into step output |
+| `human_task` | Pauses the flow awaiting human action; resume via `POST /v1/workflow-tasks/{id}/complete` with outcome + variable updates |
 | `end` | Flow exit point, completes automatically |
+
+### Graph JSON Example
+
+```json
+{
+  "nodes": [
+    {"id":"start","type":"start","name":"Start"},
+    {"id":"ai_check","type":"agent_task","name":"AI Review",
+     "config":{"prompt":"Review compliance: {{input.description}}"}},
+    {"id":"approve","type":"human_task","name":"Manager Approval",
+     "config":{"assignee":"manager"}},
+    {"id":"notify","type":"service_task","name":"Send Notification",
+     "config":{"url":"https://api.example.com/notify","method":"POST"}},
+    {"id":"end_ok","type":"end","name":"Approved"},
+    {"id":"end_reject","type":"end","name":"Rejected"}
+  ],
+  "edges": [
+    {"from":"start","to":"ai_check"},
+    {"from":"ai_check","to":"approve"},
+    {"from":"approve","to":"notify","condition":{"outcome":"approved"}},
+    {"from":"approve","to":"end_reject","condition":{"outcome":"rejected"}},
+    {"from":"notify","to":"end_ok"}
+  ]
+}
+```
 
 ### Conditional Routing
 
 Edges support two-level filtering:
 
 - **Outcome matching** — matches the upstream step's `outcome` field (e.g., `approved` / `rejected`)
-- **Condition expressions** — supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `exists`, `contains`, `startsWith`, `endsWith`; path syntax: `input.field`, `variables.key`, `steps.{nodeID}.output.field`
+- **Condition expressions** — supports `eq`, `ne`, `gt`, `gte`, `lt`, `lte`, `exists`, `contains`, `startsWith`, `endsWith`
+
+Path syntax: `input.field`, `variables.key`, `steps.{nodeID}.output.field` (supports nested dot-notation access)
 
 ### Instance Lifecycle
 
@@ -357,10 +387,28 @@ running → waiting (awaiting human) → running → completed
                                    → cancelled
 ```
 
+### Graph Validation Rules
+
+| Rule | Description |
+|------|-------------|
+| Exactly 1 start | No multiple or missing entry points |
+| At least 1 end | Must have a termination point |
+| No self-loops, acyclic (DAG) | Topological sort detection ensures flow can terminate |
+| Fully connected | All nodes must be reachable from start |
+
 ### Version Control
 
 - Definitions support `draft` → `published` → `archived` state transitions
 - Each publish snapshots GraphJSON; running instances are pinned to the version at launch time and never drift
+
+### Agent Safety Execution (EinoAgentExecutor)
+
+`agent_task` nodes execute through `EinoAgentExecutor` with mandatory safety pipeline:
+
+- **Input interception** — prompt injection detection
+- **Credential redaction** — 20+ credential patterns auto-masked (AWS Key, GitHub Token, etc.)
+- **Iteration limit** — hard cap of 50 tool loop iterations
+- **Stream redaction** — chunk-level buffering, intermediate chunks never leak raw credentials
 
 ### Storage Backends
 
@@ -380,9 +428,18 @@ POST /v1/workflow-definitions/{id}/publish
 POST /v1/workflow-runs
 {"definition_id":"{id}","input":{"amount":10000}}
 
-# 4. Complete human task
+# 4. List pending human tasks
+GET /v1/workflow-tasks
+
+# 5. Complete human task
 POST /v1/workflow-tasks/{stepRunID}/complete
 {"outcome":"approved","output":{"comment":"Approved"},"variables":{"approved":true}}
+
+# 6. Retry failed step
+POST /v1/workflow-runs/{id}/retry
+
+# 7. Cancel instance
+POST /v1/workflow-runs/{id}/cancel
 ```
 
 ---
