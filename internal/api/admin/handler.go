@@ -21,6 +21,7 @@ type AdminHandler struct {
 	pool           *pgxpool.Pool
 	logger         *slog.Logger
 	pricingCache   *metering.PricingStore
+	usageStore     metering.UsageStore
 	egressHandler  *egress.AdminHandler
 	policyStore    safety.PolicyStore
 	canaryDetector *safety.CanaryDetector
@@ -49,6 +50,11 @@ type AdminOption func(*AdminHandler)
 // WithPricingCache enables cache invalidation when pricing rules are modified.
 func WithPricingCache(ps *metering.PricingStore) AdminOption {
 	return func(h *AdminHandler) { h.pricingCache = ps }
+}
+
+// WithUsageStore enables the admin usage aggregation endpoint.
+func WithUsageStore(us metering.UsageStore) AdminOption {
+	return func(h *AdminHandler) { h.usageStore = us }
 }
 
 // WithEgressHandler registers the egress admin handler so its routes are
@@ -98,6 +104,9 @@ func (h *AdminHandler) Handler() http.Handler {
 
 	// Tenant usage aggregation (cross-tenant, bypasses RLS — requires BYPASSRLS role).
 	mux.HandleFunc("GET /admin/v1/usage/tenants", h.listTenantUsage)
+
+	// Per-tenant usage aggregation via metering store.
+	mux.HandleFunc("GET /admin/v1/usage", h.adminUsageAggregation)
 
 	// Secret pattern management endpoints.
 	mux.HandleFunc("GET /admin/v1/secrets/patterns", h.listSecretPatterns)

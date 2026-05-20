@@ -4,6 +4,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -77,7 +79,12 @@ func (h *APIKeyHandler) create(w http.ResponseWriter, r *http.Request) {
 		tenantID = req.TenantID
 	}
 
-	rawKey := generateRawKey()
+	rawKey, err := generateRawKey()
+	if err != nil {
+		slog.Error("failed to generate API key", "error", err)
+		http.Error(w, "failed to generate secure key", http.StatusInternalServerError)
+		return
+	}
 	prefix := rawKey[:8]
 	roles := req.Roles
 	if len(roles) == 0 {
@@ -135,10 +142,10 @@ func (h *APIKeyHandler) revoke(w http.ResponseWriter, r *http.Request, id string
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func generateRawKey() string {
+func generateRawKey() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand failed: " + err.Error())
+		return "", fmt.Errorf("crypto/rand failed: %w", err)
 	}
-	return "hk_" + hex.EncodeToString(b)
+	return "hk_" + hex.EncodeToString(b), nil
 }
