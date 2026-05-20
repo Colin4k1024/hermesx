@@ -193,6 +193,36 @@ API keys required for various tool integrations:
 | `HASS_URL` | - | Home Assistant URL |
 | `HASS_TOKEN` | - | Home Assistant long-lived access token |
 
+## Sandbox Execution Mode
+
+`SANDBOX_MODE` controls the execution backend for the `execute_code` tool:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SANDBOX_MODE` | No | `local` | Code execution backend mode |
+
+Available modes:
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `local` | Execute directly on host (default) | Development, CI/CD |
+| `docker` | Execute via Docker container | Local isolation, requires Docker daemon |
+| `k8s-job` | Execute via Kubernetes Job | Production environments, no DinD or privileged containers needed |
+
+### K8s Job Mode Configuration
+
+When `SANDBOX_MODE=k8s-job`, the following optional variables are available:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `K8S_JOB_NAMESPACE` | `default` | Namespace for Job execution |
+| `K8S_JOB_IMAGE` | `ubuntu:latest` | Container image for the Job |
+| `K8S_JOB_CPU_LIMIT` | `500m` | CPU resource limit |
+| `K8S_JOB_MEMORY_LIMIT` | `256Mi` | Memory resource limit |
+| `K8S_JOB_SERVICE_ACCOUNT` | - (uses default SA) | ServiceAccount for the Job Pod |
+
+> Note: K8s Job mode requires `kubectl` to be configured and able to reach the target cluster. When deployed inside a cluster, this is typically handled automatically via in-cluster config.
+
 ## Terminal and SSH
 
 | Variable | Description |

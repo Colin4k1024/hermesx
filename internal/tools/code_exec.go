@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/tools/environments"
 )
 
 func init() {
@@ -82,13 +83,30 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	}
 	cfg.Timeout = time.Duration(timeout) * time.Second
 
-	switch language {
-	case "python":
-		return executePython(ctx, code, &cfg)
-	case "bash":
-		return executeBash(ctx, code, &cfg)
+	// Check SANDBOX_MODE to determine execution backend.
+	sandboxMode := os.Getenv("SANDBOX_MODE")
+	if sandboxMode == "" {
+		sandboxMode = "local" // default to local for backward compatibility
+	}
+
+	switch sandboxMode {
+	case "local":
+		// Execute directly on the local machine (original behavior).
+		switch language {
+		case "python":
+			return executePython(ctx, code, &cfg)
+		case "bash":
+			return executeBash(ctx, code, &cfg)
+		default:
+			return toJSON(map[string]any{"error": fmt.Sprintf("Unsupported language: %s", language)})
+		}
+
+	case "docker", "k8s-job":
+		// Route execution through the environments package.
+		return executeViaEnvironment(ctx, sandboxMode, language, code, &cfg)
+
 	default:
-		return toJSON(map[string]any{"error": fmt.Sprintf("Unsupported language: %s", language)})
+		return toJSON(map[string]any{"error": fmt.Sprintf("Unknown SANDBOX_MODE: %s (valid: local, docker, k8s-job)", sandboxMode)})
 	}
 }
 
@@ -109,6 +127,66 @@ func executePython(ctx context.Context, code string, cfg *SandboxConfig) string 
 func executeBash(ctx context.Context, code string, cfg *SandboxConfig) string {
 	cwd, _ := os.Getwd()
 	return runSandboxed(ctx, "bash", []string{"-c", code}, cwd, "bash", cfg)
+}
+
+// executeViaEnvironment routes code execution through the environments package,
+// supporting docker and k8s-job backends selected via SANDBOX_MODE.
+func executeViaEnvironment(ctx context.Context, mode, language, code string, cfg *SandboxConfig) string {
+	env, err := environments.GetEnvironment(mode, map[string]string{})
+	if err != nil {
+		return toJSON(map[string]any{"error": fmt.Sprintf("Failed to initialize %s environment: %v", mode, err)})
+	}
+
+	if !env.IsAvailable() {
+		return toJSON(map[string]any{
+			"error": fmt.Sprintf("Environment %q is not available (is the backend accessible?)", mode),
+			"hint":  "Check that the required tooling (docker/kubectl) is installed and the backend is reachable.",
+		})
+	}
+
+	// Build the command string based on language.
+	var command string
+	switch language {
+	case "python":
+		// Pass code via heredoc to avoid quoting issues.
+		command = fmt.Sprintf("python3 -c %q", code)
+	case "bash":
+		command = code
+	default:
+		return toJSON(map[string]any{"error": fmt.Sprintf("Unsupported language: %s", language)})
+	}
+
+	startTime := time.Now()
+	stdout, stderr, exitCode, execErr := env.Execute(command, int(cfg.Timeout.Seconds()))
+	wallTime := time.Since(startTime).Milliseconds()
+
+	metrics := ExecMetrics{
+		WallTimeMs:  wallTime,
+		ExitCode:    exitCode,
+		StdoutBytes: len(stdout),
+		StderrBytes: len(stderr),
+	}
+
+	if execErr != nil {
+		slog.Info("sandbox environment execution error",
+			"mode", mode, "language", language, "error", execErr)
+		return toJSON(map[string]any{
+			"error":     execErr.Error(),
+			"stdout":    stdout,
+			"stderr":    stderr,
+			"exit_code": exitCode,
+			"metrics":   metrics,
+		})
+	}
+
+	return toJSON(map[string]any{
+		"stdout":      stdout,
+		"stderr":      stderr,
+		"exit_code":   exitCode,
+		"language":    language,
+		"duration_ms": wallTime,
+		"metrics":     metrics,
+	})
 }
 
 // runSandboxed executes a command inside the sandbox constraints defined by cfg.

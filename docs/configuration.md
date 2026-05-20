@@ -193,6 +193,36 @@ Hermes 支持多种外部记忆提供商，按需配置：
 | `HASS_URL` | - | Home Assistant 地址 |
 | `HASS_TOKEN` | - | Home Assistant 长期访问令牌 |
 
+## 沙箱执行模式
+
+`SANDBOX_MODE` 控制 `execute_code` 工具的执行后端：
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `SANDBOX_MODE` | 否 | `local` | 代码执行后端模式 |
+
+可选值：
+
+| 模式 | 说明 | 适用场景 |
+|------|------|----------|
+| `local` | 直接在宿主机执行（默认） | 开发环境、CI/CD |
+| `docker` | 通过 Docker 容器执行 | 本地隔离执行，需要 Docker 守护进程 |
+| `k8s-job` | 通过 Kubernetes Job 执行 | 生产环境、无需 DinD 或特权容器 |
+
+### K8s Job 模式配置
+
+当 `SANDBOX_MODE=k8s-job` 时，以下变量可选配置：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `K8S_JOB_NAMESPACE` | `default` | Job 运行的命名空间 |
+| `K8S_JOB_IMAGE` | `ubuntu:latest` | Job 使用的容器镜像 |
+| `K8S_JOB_CPU_LIMIT` | `500m` | CPU 资源限制 |
+| `K8S_JOB_MEMORY_LIMIT` | `256Mi` | 内存资源限制 |
+| `K8S_JOB_SERVICE_ACCOUNT` | -（使用默认 SA） | Job Pod 的 ServiceAccount |
+
+> 注意：K8s Job 模式需要 `kubectl` 已配置且可访问目标集群。在集群内部署时，通常通过 in-cluster config 自动完成。
+
 ## 终端与 SSH
 
 | 变量 | 说明 |

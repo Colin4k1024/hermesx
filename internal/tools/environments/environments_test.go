@@ -435,10 +435,125 @@ func TestAllEnvironmentsRegistered(t *testing.T) {
 		envMap[name] = true
 	}
 
-	expected := []string{"local", "docker", "ssh", "daytona", "modal", "singularity", "persistent_shell"}
+	expected := []string{"local", "docker", "ssh", "daytona", "modal", "singularity", "persistent_shell", "k8s-job"}
 	for _, name := range expected {
 		if !envMap[name] {
 			t.Errorf("Expected environment '%s' to be registered", name)
 		}
+	}
+}
+
+// --- K8sJobEnvironment tests ---
+
+func TestK8sJobEnvironment_Name(t *testing.T) {
+	env := &K8sJobEnvironment{
+		namespace:   "default",
+		image:       "ubuntu:latest",
+		cpuLimit:    "500m",
+		memoryLimit: "256Mi",
+	}
+	if env.Name() != "k8s-job" {
+		t.Errorf("Expected 'k8s-job', got '%s'", env.Name())
+	}
+}
+
+func TestK8sJobEnvironment_IsAvailable(t *testing.T) {
+	env := &K8sJobEnvironment{
+		namespace: "default",
+		image:     "ubuntu:latest",
+	}
+	// Just test it doesn't panic; result depends on whether kubectl is configured.
+	_ = env.IsAvailable()
+}
+
+func TestK8sJobEnvironment_Factory(t *testing.T) {
+	env, err := GetEnvironment("k8s-job", map[string]string{
+		"namespace":    "test-ns",
+		"image":        "alpine:latest",
+		"cpu_limit":    "1000m",
+		"memory_limit": "512Mi",
+	})
+	if err != nil {
+		t.Fatalf("GetEnvironment(k8s-job) failed: %v", err)
+	}
+	k8sEnv, ok := env.(*K8sJobEnvironment)
+	if !ok {
+		t.Fatal("Expected *K8sJobEnvironment")
+	}
+	if k8sEnv.namespace != "test-ns" {
+		t.Errorf("Expected namespace 'test-ns', got '%s'", k8sEnv.namespace)
+	}
+	if k8sEnv.image != "alpine:latest" {
+		t.Errorf("Expected image 'alpine:latest', got '%s'", k8sEnv.image)
+	}
+	if k8sEnv.cpuLimit != "1000m" {
+		t.Errorf("Expected cpuLimit '1000m', got '%s'", k8sEnv.cpuLimit)
+	}
+	if k8sEnv.memoryLimit != "512Mi" {
+		t.Errorf("Expected memoryLimit '512Mi', got '%s'", k8sEnv.memoryLimit)
+	}
+}
+
+func TestK8sJobEnvironment_FactoryDefaults(t *testing.T) {
+	env, err := GetEnvironment("k8s-job", map[string]string{})
+	if err != nil {
+		t.Fatalf("GetEnvironment(k8s-job) failed: %v", err)
+	}
+	k8sEnv := env.(*K8sJobEnvironment)
+	if k8sEnv.namespace != "default" {
+		t.Errorf("Expected default namespace 'default', got '%s'", k8sEnv.namespace)
+	}
+	if k8sEnv.image != "ubuntu:latest" {
+		t.Errorf("Expected default image 'ubuntu:latest', got '%s'", k8sEnv.image)
+	}
+	if k8sEnv.cpuLimit != "500m" {
+		t.Errorf("Expected default cpuLimit '500m', got '%s'", k8sEnv.cpuLimit)
+	}
+	if k8sEnv.memoryLimit != "256Mi" {
+		t.Errorf("Expected default memoryLimit '256Mi', got '%s'", k8sEnv.memoryLimit)
+	}
+}
+
+func TestK8sJobEnvironment_BuildJobManifest(t *testing.T) {
+	env := &K8sJobEnvironment{
+		namespace:      "test-ns",
+		image:          "python:3.11-slim",
+		cpuLimit:       "500m",
+		memoryLimit:    "256Mi",
+		serviceAccount: "hermesx-sa",
+	}
+
+	manifest := env.buildJobManifest("test-job-123", "echo hello", 30)
+	if !strings.Contains(manifest, "name: test-job-123") {
+		t.Error("Expected job name in manifest")
+	}
+	if !strings.Contains(manifest, "namespace: test-ns") {
+		t.Error("Expected namespace in manifest")
+	}
+	if !strings.Contains(manifest, "image: python:3.11-slim") {
+		t.Error("Expected image in manifest")
+	}
+	if !strings.Contains(manifest, "serviceAccountName: hermesx-sa") {
+		t.Error("Expected serviceAccountName in manifest")
+	}
+	if !strings.Contains(manifest, "echo hello") {
+		t.Error("Expected command in manifest")
+	}
+	if !strings.Contains(manifest, "activeDeadlineSeconds: 30") {
+		t.Error("Expected activeDeadlineSeconds in manifest")
+	}
+}
+
+func TestK8sJobEnvironment_BuildJobManifest_NoServiceAccount(t *testing.T) {
+	env := &K8sJobEnvironment{
+		namespace:   "default",
+		image:       "ubuntu:latest",
+		cpuLimit:    "500m",
+		memoryLimit: "256Mi",
+	}
+
+	manifest := env.buildJobManifest("test-job-456", "ls -la", 60)
+	if strings.Contains(manifest, "serviceAccountName") {
+		t.Error("Expected no serviceAccountName when not set")
 	}
 }
