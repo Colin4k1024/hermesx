@@ -85,8 +85,9 @@ Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → 
 Hermes 使用**数据库级租户隔离**：
 
 1. **tenant_id 派生自凭证**：永远不从请求头读取，防止租户伪造
-2. **所有表 FK 到 tenants**：9 张业务表均包含 `tenant_id UUID NOT NULL REFERENCES tenants(id)`
+2. **所有表 FK 到 tenants**：11 张业务表均包含 `tenant_id UUID NOT NULL REFERENCES tenants(id)`
 3. **查询自动过滤**：所有 Store 方法按 tenant_id 过滤数据
+4. **RLS FORCE** — PostgreSQL 行级安全策略（含 INSERT/UPDATE/DELETE 写入策略），调度器写操作通过 `SET LOCAL app.current_tenant` 兼容 RLS
 
 ```
 AuthContext.TenantID（从凭证派生）
@@ -143,7 +144,52 @@ type Store interface {
 | PostgreSQL | SaaS 模式（多租户） | `internal/store/pg/` |
 | SQLite | CLI 模式（单用户） | `internal/store/sqlite/` |
 
-PostgreSQL 后端在启动时自动执行 70+ 个 migration（含 RLS policies、pricing_rules、sandbox_policy 等）。
+PostgreSQL 后端在启动时自动执行 106+ 个 migration（含 RLS policies、pricing_rules、sandbox_policy、cron scheduler 等）。
+
+## 分布式 Cron Scheduler
+
+SaaS 模式下的定时任务调度由 `internal/scheduler/` 包实现，支持多 Pod 分布式执行：
+
+```
+┌──────────────────────────────────────────┐
+│          SaasScheduler                    │
+│                                          │
+│  ┌──────────┐    ┌──────────────────┐   │
+│  │ pollLoop │───▶│  syncOnce (PG)   │   │
+│  │ (30s)    │    │  ListAllEnabled  │   │
+│  └──────────┘    └────────┬─────────┘   │
+│                           │              │
+│                  ┌────────▼─────────┐   │
+│                  │  gocron Scheduler │   │
+│                  │  (CronJob定义)     │   │
+│                  └────────┬─────────┘   │
+│                           │              │
+│                  ┌────────▼─────────┐   │
+│                  │    execute()      │   │
+│                  │  execWithTenant   │   │
+│                  └────────┬─────────┘   │
+│                           │              │
+└───────────────────────────┼──────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                  │
+   ┌──────▼──────┐  ┌──────▼──────┐  ┌───────▼───────┐
+   │ Redis Lock  │  │ AgentRunner │  │ ResultDeliverer│
+   │ (互斥执行)  │  │ (AI 对话)   │  │ (结果投递)     │
+   └─────────────┘  └─────────────┘  └───────────────┘
+```
+
+**关键设计决策：**
+
+| 机制 | 说明 |
+|------|------|
+| PG 轮询同步 | 每 30s 从 `cron_jobs` 表拉取所有启用任务，对比内存状态执行增删改 |
+| Redis 分布式锁 | `redislock.WithTries(1)` 无重试竞争，竞争失败的 Pod 跳过本次执行 |
+| 幂等执行 | `ON CONFLICT (cron_job_id, scheduled_at) DO NOTHING`，PG 唯一约束保证 |
+| 租户隔离 | `execWithTenant()` 在事务内 `SET LOCAL app.current_tenant`，兼容 FORCE RLS |
+| 跨租户清理 | `scheduler_cleanup_stale_runs()` SECURITY DEFINER 函数绕过 RLS |
+| 结果投递 | 执行完成后通过 `ResultDeliverer` 推送结果回用户来源平台 |
+| 生命周期 | Scheduler 持有独立 ctx/cancelFunc，Stop() 先排空 gocron 再取消上下文 |
 
 ## LLM 集成
 

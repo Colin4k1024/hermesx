@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-05-20
+
+SaaS Cron Scheduler — 分布式定时任务执行引擎。
+
+### Added
+
+- **SaaS Cron Scheduler** — 基于 gocron + Redis 分布式锁的多 Pod 定时任务执行引擎
+  - `internal/scheduler/` 包：`SaasScheduler`、`syncOnce`、`execute`、`execWithTenant`
+  - PG 轮询同步：每 30s 从 `cron_jobs` 表读取启用任务，自动注册/更新/移除 gocron 调度
+  - 幂等执行：`ON CONFLICT (cron_job_id, scheduled_at) DO NOTHING` 防止重复执行
+  - Redis 分布式锁：`redislock.WithTries(1)` 无重试竞争，失败 Pod 跳过
+  - 执行结果投递：`ResultDeliverer` 接口将结果推送回用户来源平台（Telegram/Discord/Slack 等）
+  - 生命周期上下文：Scheduler 持有独立 `ctx/cancelFunc`，gocron 任务通过 `baseCtx()` 获取实时上下文
+- **cron_job_runs 表** — 执行记录持久化，含 `status`、`duration_ms`、`result`、`error`、`pod_id`
+- **RLS 写入策略（Migration 105）** — `cron_job_runs` 表的 INSERT/UPDATE/DELETE 策略，通过 `current_setting('app.current_tenant')` 校验
+- **SECURITY DEFINER 函数（Migration 106）** — `scheduler_cleanup_stale_runs()` 跨租户清理超时运行记录
+
+### Fixed
+
+- **Executor RLS 绕过** — 所有 scheduler 写操作通过 `execWithTenant()` 在事务内设置 `SET LOCAL app.current_tenant`，兼容 FORCE RLS
+- **Shutdown 时序** — `cronScheduler.Stop()` 在 `syncCancel()` 之前执行，确保运行中任务先排空再取消上下文
+- **gocron 任务上下文过期** — 使用 `s.baseCtx()` 闭包替代同步时捕获的上下文，防止 fire 时上下文已过期
+- **CronJobStore 错误类型** — `Get`/`Update`/`Delete` 返回统一的 `store.ErrNotFound` 而非 `fmt.Errorf`
+
+### Changed
+
+- `cleanupStaleRuns` 从直接 SQL UPDATE 改为调用 `scheduler_cleanup_stale_runs($1)` SECURITY DEFINER 函数
+
+---
+
 ## [2.2.0] - 2026-05-14
 
 Security hardening, bootstrap stabilization, and supply-chain improvements.

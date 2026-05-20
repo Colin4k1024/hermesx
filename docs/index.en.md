@@ -36,10 +36,10 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | LLM providers | 7 |
 | Bundled skill categories | 39 directories |
 | Test files | 127 |
-| Total tests | 1,597 |
-| RLS-protected tables | 10 |
+| Total tests | 1,828 |
+| RLS-protected tables | 11 |
 | API endpoints | 51+ |
-| Version | v2.2.0 |
+| Version | v2.3.0 |
 
 ---
 
@@ -58,6 +58,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 - **GDPR compliance** — full-chain data export (JSON) + transactional deletion + MinIO object storage cleanup
 - **Sandbox isolation** — per-tenant code execution with Docker network/resource limits, policy manageable via Admin API
 - **Bootstrap protection** — bootstrap endpoint dual IP rate limiting (application layer + Nginx), cross-replica idempotent
+- **Distributed cron scheduling** — gocron + Redis distributed lock for multi-pod scheduled task execution, PG poll-sync, idempotent dedup, SECURITY DEFINER cross-tenant cleanup, automatic result delivery to source platform
 
 ### Admin API
 

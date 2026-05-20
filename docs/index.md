@@ -23,7 +23,8 @@
 | Eino Agent 运行时 | EinoAgent（ReAct Graph）· Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
 | 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
-| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流）· MinIO（S3）· OTel Collector |
+| 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
+| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
 | 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
 | 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏）|
 
@@ -57,10 +58,10 @@
 | LLM 提供商 | 7 个 |
 | 内置技能分类 | 39 个目录 |
 | 测试文件 | 127 个 |
-| 测试总数 | 1,597 个 |
-| RLS 保护表 | 10 个 |
+| 测试总数 | 1,828 个 |
+| RLS 保护表 | 11 个 |
 | API 端点 | 51+ 个 |
-| 版本 | v2.2.0 |
+| 版本 | v2.3.0 |
 
 ---
 
@@ -79,6 +80,7 @@
 - **GDPR 合规** — 全链路数据导出（JSON）+ 事务性删除 + MinIO 对象存储清理
 - **沙箱隔离** — 按租户的代码执行环境，Docker 网络/资源限制，可通过 Admin API 管理策略
 - **引导保护** — Bootstrap 端点双重 IP 限速（应用层 + Nginx），跨副本幂等
+- **分布式定时调度** — gocron + Redis 分布式锁实现多 Pod 定时任务执行，PG 轮询同步、幂等去重、SECURITY DEFINER 跨租户清理、结果自动投递回源平台
 
 ### Admin API
 

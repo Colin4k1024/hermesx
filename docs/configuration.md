@@ -50,7 +50,19 @@
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `REDIS_URL` | 否 | - | Redis 连接字符串，用于分布式速率限制 |
+| `REDIS_URL` | 否 | - | Redis 连接字符串，用于分布式速率限制和 Cron Scheduler 分布式锁 |
+
+### Cron Scheduler
+
+启用分布式定时任务调度需要 `REDIS_URL` 已配置。Scheduler 通过 Redis 分布式锁实现多 Pod 互斥执行。
+
+| 变量 | 必填 | 默认值 | 说明 |
+|------|------|--------|------|
+| `SCHEDULER_POLL_INTERVAL` | 否 | `30s` | 从 PG 同步定时任务的轮询间隔 |
+| `SCHEDULER_EXEC_TIMEOUT` | 否 | `5m` | 单次任务执行超时时间 |
+| `SCHEDULER_LOCK_TTL` | 否 | `12m` | Redis 分布式锁 TTL（应大于最长任务执行时间） |
+
+Scheduler 在 `REDIS_URL` 可用时自动启动。如果 Redis 不可用，scheduler 初始化失败但不阻塞主服务启动（non-fatal）。
 
 ### MinIO / S3
 

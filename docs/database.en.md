@@ -205,6 +205,76 @@ CREATE TABLE cron_jobs (
 - `idx_cron_tenant` — `(tenant_id)`
 - `idx_cron_next` — `(next_run_at) WHERE enabled = true` partial index
 
+### cron_job_runs — Execution Records
+
+```sql
+CREATE TABLE cron_job_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cron_job_id UUID NOT NULL REFERENCES cron_jobs(id),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    status TEXT NOT NULL DEFAULT 'pending',
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    duration_ms BIGINT,
+    result TEXT,
+    error TEXT,
+    pod_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(cron_job_id, scheduled_at)
+);
+```
+
+| Field | Description |
+|-------|-------------|
+| `cron_job_id` | Associated cron job ID |
+| `status` | Execution status: `running` / `success` / `failed` |
+| `scheduled_at` | Scheduled execution time (unique constraint for idempotency) |
+| `duration_ms` | Execution duration in milliseconds |
+| `result` | Execution result (truncated to 4096 chars) |
+| `error` | Error message (truncated to 1024 chars) |
+| `pod_id` | Executing pod identifier |
+
+**Indexes**:
+- `idx_cron_runs_job` — `(tenant_id, cron_job_id)`
+- `UNIQUE(cron_job_id, scheduled_at)` — idempotency constraint preventing duplicate execution for the same job at the same scheduled time
+
+**RLS Policies**:
+
+```sql
+-- Read policy (inherits tenant isolation)
+CREATE POLICY tenant_read_cron_runs ON cron_job_runs
+    FOR SELECT USING (tenant_id::text = current_setting('app.current_tenant', true));
+
+-- Write policies (Migration 105)
+CREATE POLICY tenant_write_cron_runs ON cron_job_runs
+    FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+
+CREATE POLICY tenant_update_cron_runs ON cron_job_runs
+    FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+CREATE POLICY tenant_delete_cron_runs ON cron_job_runs
+    FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+```
+
+**SECURITY DEFINER Function (Migration 106)**:
+
+```sql
+CREATE OR REPLACE FUNCTION scheduler_cleanup_stale_runs(p_lock_ttl_seconds INT)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE cleaned BIGINT;
+BEGIN
+    UPDATE cron_job_runs
+       SET status = 'failed', error = 'stale: pod did not finish within lock TTL', finished_at = now()
+     WHERE status = 'running'
+       AND started_at < now() - (p_lock_ttl_seconds || ' seconds')::interval;
+    GET DIAGNOSTICS cleaned = ROW_COUNT;
+    RETURN cleaned;
+END $$;
+```
+
+Used at scheduler startup for cross-tenant stale run cleanup (bypasses RLS).
+
 ### memories — Memories
 
 ```sql

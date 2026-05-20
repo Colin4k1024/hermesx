@@ -9,6 +9,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.3.0] - 2026-05-20
+
+SaaS Cron Scheduler — distributed scheduled task execution engine.
+
+### Added
+
+- **SaaS Cron Scheduler** — distributed cron job execution engine built on gocron + Redis distributed locks
+  - `internal/scheduler/` package: `SaasScheduler`, `syncOnce`, `execute`, `execWithTenant`
+  - PG poll-sync: every 30s fetches enabled jobs from `cron_jobs` table, auto-registers/updates/removes gocron schedules
+  - Idempotent execution: `ON CONFLICT (cron_job_id, scheduled_at) DO NOTHING` prevents duplicate runs
+  - Redis distributed lock: `redislock.WithTries(1)` no-retry contention, losing pods skip gracefully
+  - Result delivery: `ResultDeliverer` interface pushes execution results back to user's source platform (Telegram/Discord/Slack, etc.)
+  - Lifecycle context: Scheduler holds its own `ctx/cancelFunc`; gocron tasks use `baseCtx()` for live context at fire time
+- **cron_job_runs table** — execution record persistence with `status`, `duration_ms`, `result`, `error`, `pod_id`
+- **RLS write policies (Migration 105)** — INSERT/UPDATE/DELETE policies for `cron_job_runs` via `current_setting('app.current_tenant')`
+- **SECURITY DEFINER function (Migration 106)** — `scheduler_cleanup_stale_runs()` for cross-tenant stale run cleanup
+
+### Fixed
+
+- **Executor RLS bypass** — all scheduler writes go through `execWithTenant()` which sets `SET LOCAL app.current_tenant` within the transaction, compatible with FORCE RLS
+- **Shutdown ordering** — `cronScheduler.Stop()` executes before `syncCancel()`, ensuring running tasks drain before context cancellation
+- **gocron task stale context** — uses `s.baseCtx()` closure instead of sync-time captured context, preventing expired context at fire time
+- **CronJobStore error types** — `Get`/`Update`/`Delete` return unified `store.ErrNotFound` instead of `fmt.Errorf`
+
+### Changed
+
+- `cleanupStaleRuns` refactored from direct SQL UPDATE to calling `scheduler_cleanup_stale_runs($1)` SECURITY DEFINER function
+
+---
+
 ## [2.2.0] - 2026-05-14
 
 Security hardening, bootstrap stabilization, and supply-chain improvements.

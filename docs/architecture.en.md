@@ -85,8 +85,9 @@ Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → 
 Hermes uses **database-level tenant isolation**:
 
 1. **tenant_id derived from credentials**: never read from request headers, preventing tenant spoofing
-2. **All tables FK to tenants**: 9 business tables include `tenant_id UUID NOT NULL REFERENCES tenants(id)`
+2. **All tables FK to tenants**: 11 business tables include `tenant_id UUID NOT NULL REFERENCES tenants(id)`
 3. **Automatic query filtering**: all Store methods filter data by tenant_id
+4. **RLS FORCE** — PostgreSQL Row-Level Security policies (including INSERT/UPDATE/DELETE write policies); scheduler write operations use `SET LOCAL app.current_tenant` for RLS compatibility
 
 ```
 AuthContext.TenantID (derived from credential)
@@ -143,7 +144,52 @@ type Store interface {
 | PostgreSQL | SaaS mode (multi-tenant) | `internal/store/pg/` |
 | SQLite | CLI mode (single user) | `internal/store/sqlite/` |
 
-The PostgreSQL backend automatically runs 70+ migrations on startup (including RLS policies, pricing_rules, sandbox_policy, etc.).
+The PostgreSQL backend automatically runs 106+ migrations on startup (including RLS policies, pricing_rules, sandbox_policy, cron scheduler, etc.).
+
+## Distributed Cron Scheduler
+
+The SaaS mode scheduled task execution is implemented by the `internal/scheduler/` package, supporting multi-pod distributed execution:
+
+```
+┌──────────────────────────────────────────┐
+│          SaasScheduler                    │
+│                                          │
+│  ┌──────────┐    ┌──────────────────┐   │
+│  │ pollLoop │───▶│  syncOnce (PG)   │   │
+│  │ (30s)    │    │  ListAllEnabled  │   │
+│  └──────────┘    └────────┬─────────┘   │
+│                           │              │
+│                  ┌────────▼─────────┐   │
+│                  │  gocron Scheduler │   │
+│                  │  (CronJob defs)   │   │
+│                  └────────┬─────────┘   │
+│                           │              │
+│                  ┌────────▼─────────┐   │
+│                  │    execute()      │   │
+│                  │  execWithTenant   │   │
+│                  └────────┬─────────┘   │
+│                           │              │
+└───────────────────────────┼──────────────┘
+                            │
+          ┌─────────────────┼─────────────────┐
+          │                 │                  │
+   ┌──────▼──────┐  ┌──────▼──────┐  ┌───────▼───────┐
+   │ Redis Lock  │  │ AgentRunner │  │ ResultDeliverer│
+   │ (mutual ex.)│  │ (AI conv.)  │  │ (result push) │
+   └─────────────┘  └─────────────┘  └───────────────┘
+```
+
+**Key Design Decisions:**
+
+| Mechanism | Description |
+|-----------|-------------|
+| PG poll sync | Every 30s pulls all enabled jobs from `cron_jobs` table, diffs against in-memory state for add/remove/update |
+| Redis distributed lock | `redislock.WithTries(1)` no-retry competition; pods that lose the race skip the execution |
+| Idempotent execution | `ON CONFLICT (cron_job_id, scheduled_at) DO NOTHING`; PG unique constraint guarantees at-most-once |
+| Tenant isolation | `execWithTenant()` uses `SET LOCAL app.current_tenant` within a transaction, compatible with FORCE RLS |
+| Cross-tenant cleanup | `scheduler_cleanup_stale_runs()` SECURITY DEFINER function bypasses RLS |
+| Result delivery | After execution completes, `ResultDeliverer` pushes results back to the user's source platform |
+| Lifecycle | Scheduler owns an independent ctx/cancelFunc; Stop() drains gocron first then cancels the context |
 
 ## LLM Integration
 

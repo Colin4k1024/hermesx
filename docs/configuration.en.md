@@ -50,7 +50,19 @@ Environment variables > config.yaml > defaults
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `REDIS_URL` | No | - | Redis connection string, used for distributed rate limiting |
+| `REDIS_URL` | No | - | Redis connection string, used for distributed rate limiting and Cron Scheduler distributed locks |
+
+### Cron Scheduler
+
+Distributed scheduled task execution requires `REDIS_URL` to be configured. The scheduler uses Redis distributed locks for multi-pod mutual exclusion.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SCHEDULER_POLL_INTERVAL` | No | `30s` | Polling interval for syncing cron jobs from PG |
+| `SCHEDULER_EXEC_TIMEOUT` | No | `5m` | Single task execution timeout |
+| `SCHEDULER_LOCK_TTL` | No | `12m` | Redis distributed lock TTL (should exceed longest task duration) |
+
+The scheduler starts automatically when `REDIS_URL` is available. If Redis is unavailable, scheduler initialization fails gracefully without blocking the main service (non-fatal).
 
 ### MinIO / S3
 

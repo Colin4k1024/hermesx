@@ -205,6 +205,76 @@ CREATE TABLE cron_jobs (
 - `idx_cron_tenant` — `(tenant_id)`
 - `idx_cron_next` — `(next_run_at) WHERE enabled = true` 条件索引
 
+### cron_job_runs — 定时任务执行记录
+
+```sql
+CREATE TABLE cron_job_runs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    cron_job_id UUID NOT NULL REFERENCES cron_jobs(id),
+    tenant_id UUID NOT NULL REFERENCES tenants(id),
+    status TEXT NOT NULL DEFAULT 'pending',
+    scheduled_at TIMESTAMPTZ NOT NULL,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    duration_ms BIGINT,
+    result TEXT,
+    error TEXT,
+    pod_id TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE(cron_job_id, scheduled_at)
+);
+```
+
+| 字段 | 说明 |
+|------|------|
+| `cron_job_id` | 关联的定时任务 ID |
+| `status` | 执行状态：`running` / `success` / `failed` |
+| `scheduled_at` | 计划执行时间（唯一约束，幂等防重复） |
+| `duration_ms` | 执行耗时（毫秒） |
+| `result` | 执行结果（截断至 4096 字符） |
+| `error` | 错误信息（截断至 1024 字符） |
+| `pod_id` | 执行 Pod 标识 |
+
+**索引**：
+- `idx_cron_runs_job` — `(tenant_id, cron_job_id)`
+- `UNIQUE(cron_job_id, scheduled_at)` — 幂等约束，防止同一任务在同一调度时间重复执行
+
+**RLS 策略**：
+
+```sql
+-- 读取策略（自动继承租户隔离）
+CREATE POLICY tenant_read_cron_runs ON cron_job_runs
+    FOR SELECT USING (tenant_id::text = current_setting('app.current_tenant', true));
+
+-- 写入策略（Migration 105）
+CREATE POLICY tenant_write_cron_runs ON cron_job_runs
+    FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+
+CREATE POLICY tenant_update_cron_runs ON cron_job_runs
+    FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false));
+
+CREATE POLICY tenant_delete_cron_runs ON cron_job_runs
+    FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+```
+
+**SECURITY DEFINER 函数（Migration 106）**：
+
+```sql
+CREATE OR REPLACE FUNCTION scheduler_cleanup_stale_runs(p_lock_ttl_seconds INT)
+RETURNS BIGINT LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE cleaned BIGINT;
+BEGIN
+    UPDATE cron_job_runs
+       SET status = 'failed', error = 'stale: pod did not finish within lock TTL', finished_at = now()
+     WHERE status = 'running'
+       AND started_at < now() - (p_lock_ttl_seconds || ' seconds')::interval;
+    GET DIAGNOSTICS cleaned = ROW_COUNT;
+    RETURN cleaned;
+END $$;
+```
+
+用于 Scheduler 启动时跨租户清理超时运行记录（绕过 RLS）。
+
 ### memories — 记忆
 
 ```sql
