@@ -449,17 +449,26 @@ Scrape endpoint: `GET /v1/metrics`
 
 ---
 
-## Backup and Restore
+## Backup & Recovery
 
-### Automated Backup
+### RPO/RTO Targets
+
+| Component | RPO (Max Data Loss) | RTO (Max Recovery Time) | Strategy |
+|-----------|---------------------|--------------------------|----------|
+| PostgreSQL | < 5 min | < 1 h | WAL archiving + pg_dump |
+| Redis | < 15 min | < 5 min | BGSAVE + RDB copy |
+| MinIO | < 1 h | < 30 min | mc mirror full sync |
+
+### PostgreSQL Backup
 
 ```bash
+# Automated backup (run inside postgres container or host with pg_dump)
 ./scripts/backup/backup.sh /backup
 # Output: /backup/hermes_YYYYMMDD_HHMMSS.sql.gz
 # BACKUP_RETENTION_DAYS=7 (default 7-day retention)
 ```
 
-### Restore
+### PostgreSQL Restore
 
 ```bash
 ./scripts/backup/restore.sh /backup/hermes_20260507_120000.sql.gz
@@ -469,6 +478,93 @@ Scrape endpoint: `GET /v1/metrics`
 ### PITR
 
 Production environments should enable WAL archiving for < 5 min RPO. Configuration templates are in `deploy/pitr/`.
+
+### Redis Backup
+
+```bash
+# Triggers BGSAVE and copies RDB to backup location
+./scripts/redis-backup.sh
+
+# Environment variables:
+#   REDIS_HOST=localhost      Redis hostname
+#   REDIS_PORT=6379           Redis port
+#   REDIS_PASSWORD=           Redis auth password
+#   BACKUP_DIR=/backup/redis  Local backup directory
+#   S3_BUCKET=                Optional S3 bucket (auto-uploads when set)
+#   REDIS_DATA_DIR=/data      Redis data directory
+#   RETENTION_DAYS=7          Local backup retention in days
+```
+
+### Redis Restore
+
+```bash
+# 1. Stop Redis service
+docker compose stop redis
+
+# 2. Copy backup RDB to Redis data directory
+cp /backup/redis/redis-20260515_120000.rdb /data/dump.rdb
+
+# 3. Start Redis (automatically loads dump.rdb)
+docker compose start redis
+
+# 4. Verify
+redis-cli DBSIZE
+```
+
+### MinIO Backup
+
+```bash
+# Mirror bucket to local directory or remote bucket
+./scripts/minio-backup.sh
+
+# Environment variables:
+#   MINIO_ENDPOINT=http://localhost:9000   MinIO endpoint
+#   MINIO_ACCESS_KEY=                      Access key (required)
+#   MINIO_SECRET_KEY=                      Secret key (required)
+#   SOURCE_BUCKET=hermes-skills            Source bucket name
+#   TARGET=/backup/minio                   Target: local path or s3://bucket-name
+#   RETENTION_DAYS=7                       Local backup retention in days
+```
+
+### MinIO Restore
+
+```bash
+# Restore from local backup to MinIO
+mc alias set hermesx http://localhost:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
+mc mirror /backup/minio/hermes-skills-20260515_120000 hermesx/hermes-skills
+
+# Verify
+mc ls --recursive hermesx/hermes-skills | wc -l
+```
+
+### Disaster Recovery Verification
+
+```bash
+# Run DR test script to verify backups are restorable
+./scripts/dr-test.sh
+
+# This script will:
+#   1. Check Redis backup file existence and integrity
+#   2. Check MinIO backup directory and file counts
+#   3. Verify data consistency against live Redis and MinIO
+#   4. Output PASS/FAIL report
+```
+
+### Cron Schedule Recommendations
+
+```cron
+# PostgreSQL — backup every 4 hours
+0 */4 * * * /opt/hermesx/scripts/backup/backup.sh /backup/postgres >> /var/log/hermesx-backup-pg.log 2>&1
+
+# Redis — backup every 15 minutes
+*/15 * * * * /opt/hermesx/scripts/redis-backup.sh >> /var/log/hermesx-backup-redis.log 2>&1
+
+# MinIO — daily full mirror at 2 AM
+0 2 * * * /opt/hermesx/scripts/minio-backup.sh >> /var/log/hermesx-backup-minio.log 2>&1
+
+# DR verification — weekly on Sunday at 4 AM
+0 4 * * 0 /opt/hermesx/scripts/dr-test.sh >> /var/log/hermesx-dr-test.log 2>&1
+```
 
 ---
 

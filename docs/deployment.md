@@ -451,15 +451,24 @@ Scrape endpoint: `GET /v1/metrics`
 
 ## 备份恢复
 
-### 自动备份
+### RPO/RTO 目标
+
+| 组件 | RPO（最大数据丢失） | RTO（最大恢复时间） | 策略 |
+|------|---------------------|---------------------|------|
+| PostgreSQL | < 5 min | < 1 h | WAL archiving + pg_dump |
+| Redis | < 15 min | < 5 min | BGSAVE + RDB 复制 |
+| MinIO | < 1 h | < 30 min | mc mirror 全量镜像 |
+
+### PostgreSQL 备份
 
 ```bash
+# 自动备份（在 postgres 容器内或有 pg_dump 的主机上执行）
 ./scripts/backup/backup.sh /backup
 # 输出: /backup/hermes_YYYYMMDD_HHMMSS.sql.gz
 # BACKUP_RETENTION_DAYS=7 (默认保留 7 天)
 ```
 
-### 恢复
+### PostgreSQL 恢复
 
 ```bash
 ./scripts/backup/restore.sh /backup/hermes_20260507_120000.sql.gz
@@ -469,6 +478,93 @@ Scrape endpoint: `GET /v1/metrics`
 ### PITR
 
 生产环境建议启用 WAL archiving 实现 < 5 min RPO。配置模板见 `deploy/pitr/`。
+
+### Redis 备份
+
+```bash
+# 触发 BGSAVE 并复制 RDB 到备份目录
+./scripts/redis-backup.sh
+
+# 环境变量：
+#   REDIS_HOST=localhost      Redis 地址
+#   REDIS_PORT=6379           Redis 端口
+#   REDIS_PASSWORD=           Redis 密码
+#   BACKUP_DIR=/backup/redis  本地备份目录
+#   S3_BUCKET=                可选 S3 存储桶（设置后自动上传）
+#   REDIS_DATA_DIR=/data      Redis 数据目录
+#   RETENTION_DAYS=7          本地备份保留天数
+```
+
+### Redis 恢复
+
+```bash
+# 1. 停止 Redis 服务
+docker compose stop redis
+
+# 2. 复制备份 RDB 到 Redis 数据目录
+cp /backup/redis/redis-20260515_120000.rdb /data/dump.rdb
+
+# 3. 启动 Redis（自动加载 dump.rdb）
+docker compose start redis
+
+# 4. 验证
+redis-cli DBSIZE
+```
+
+### MinIO 备份
+
+```bash
+# 镜像 bucket 到本地目录或远程 bucket
+./scripts/minio-backup.sh
+
+# 环境变量：
+#   MINIO_ENDPOINT=http://localhost:9000   MinIO 地址
+#   MINIO_ACCESS_KEY=                      Access Key（必填）
+#   MINIO_SECRET_KEY=                      Secret Key（必填）
+#   SOURCE_BUCKET=hermes-skills            源 bucket
+#   TARGET=/backup/minio                   目标：本地路径或 s3://bucket-name
+#   RETENTION_DAYS=7                       本地备份保留天数
+```
+
+### MinIO 恢复
+
+```bash
+# 从本地备份恢复到 MinIO
+mc alias set hermesx http://localhost:9000 $MINIO_ACCESS_KEY $MINIO_SECRET_KEY
+mc mirror /backup/minio/hermes-skills-20260515_120000 hermesx/hermes-skills
+
+# 验证
+mc ls --recursive hermesx/hermes-skills | wc -l
+```
+
+### 灾难恢复验证
+
+```bash
+# 运行 DR 测试脚本，验证备份可恢复
+./scripts/dr-test.sh
+
+# 该脚本会：
+#   1. 检查 Redis 备份文件存在性和完整性
+#   2. 检查 MinIO 备份目录和文件数量
+#   3. 验证 Redis 和 MinIO 在线数据一致性
+#   4. 输出 PASS/FAIL 报告
+```
+
+### Cron 调度建议
+
+```cron
+# PostgreSQL — 每 4 小时备份一次
+0 */4 * * * /opt/hermesx/scripts/backup/backup.sh /backup/postgres >> /var/log/hermesx-backup-pg.log 2>&1
+
+# Redis — 每 15 分钟备份一次
+*/15 * * * * /opt/hermesx/scripts/redis-backup.sh >> /var/log/hermesx-backup-redis.log 2>&1
+
+# MinIO — 每天凌晨 2 点全量镜像
+0 2 * * * /opt/hermesx/scripts/minio-backup.sh >> /var/log/hermesx-backup-minio.log 2>&1
+
+# DR 验证 — 每周日凌晨 4 点
+0 4 * * 0 /opt/hermesx/scripts/dr-test.sh >> /var/log/hermesx-dr-test.log 2>&1
+```
 
 ---
 
