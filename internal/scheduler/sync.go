@@ -51,7 +51,7 @@ func (s *SaasScheduler) syncOnce(ctx context.Context) error {
 
 // upsertJob registers a new gocron job or replaces an existing one.
 // Must be called with s.mu held.
-func (s *SaasScheduler) upsertJob(ctx context.Context, j *store.CronJob) error {
+func (s *SaasScheduler) upsertJob(_ context.Context, j *store.CronJob) error {
 	existing, exists := s.jobs[j.ID]
 	if exists {
 		if existing.schedule == j.Schedule {
@@ -64,9 +64,15 @@ func (s *SaasScheduler) upsertJob(ctx context.Context, j *store.CronJob) error {
 	}
 
 	jobCopy := *j
+	// Wrap execute in a closure that derives a fresh context from the scheduler's
+	// baseCtx at fire time, preventing stale context from sync-time capture.
+	task := gocron.NewTask(func() {
+		ctx := s.baseCtx()
+		s.execute(ctx, &jobCopy)
+	})
 	handle, err := s.sched.NewJob(
 		gocron.CronJob(j.Schedule, false), // withSeconds=false
-		gocron.NewTask(s.execute, ctx, &jobCopy),
+		task,
 		gocron.WithName(j.ID),
 		gocron.WithSingletonMode(gocron.LimitModeReschedule),
 	)
@@ -79,15 +85,15 @@ func (s *SaasScheduler) upsertJob(ctx context.Context, j *store.CronJob) error {
 }
 
 // cleanupStaleRuns marks running records older than lockTTL as failed.
-// Called once at scheduler startup.
+// Uses a SECURITY DEFINER function to bypass RLS for cross-tenant cleanup.
 func cleanupStaleRuns(ctx context.Context, pool *pgxpool.Pool, lockTTL time.Duration) error {
-	interval := fmt.Sprintf("%d seconds", int(lockTTL.Seconds()))
-	tag, err := pool.Exec(ctx, cleanupStaleRunsSQL, interval)
+	var cleaned int64
+	err := pool.QueryRow(ctx, cleanupStaleRunsSQL, int(lockTTL.Seconds())).Scan(&cleaned)
 	if err != nil {
 		return fmt.Errorf("cleanup stale runs: %w", err)
 	}
-	if tag.RowsAffected() > 0 {
-		slog.Info("scheduler: cleaned up stale runs", "count", tag.RowsAffected())
+	if cleaned > 0 {
+		slog.Info("scheduler: cleaned up stale runs", "count", cleaned)
 	}
 	return nil
 }

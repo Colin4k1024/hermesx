@@ -61,15 +61,17 @@ type registeredJob struct {
 
 // SaasScheduler orchestrates distributed cron job execution for SaaS mode.
 type SaasScheduler struct {
-	cfg       Config
-	sched     gocron.Scheduler
-	store     store.CronJobStore
-	pool      *pgxpool.Pool // direct pool for cron_job_runs writes (bypasses RLS)
-	agent     AgentRunner
-	deliverer ResultDeliverer // optional: pushes results to source platform
-	mu        sync.Mutex
-	jobs      map[string]registeredJob // jobID → handle + schedule
-	started   bool
+	cfg        Config
+	sched      gocron.Scheduler
+	store      store.CronJobStore
+	pool       *pgxpool.Pool // direct pool for cron_job_runs writes
+	agent      AgentRunner
+	deliverer  ResultDeliverer // optional: pushes results to source platform
+	mu         sync.Mutex
+	jobs       map[string]registeredJob // jobID → handle + schedule
+	started    bool
+	ctx        context.Context    // lifecycle context, cancelled on Stop
+	cancelFunc context.CancelFunc // cancels ctx
 }
 
 // New creates a SaasScheduler. Call Start to begin execution.
@@ -103,6 +105,12 @@ func New(cfg Config, jobStore store.CronJobStore, pool *pgxpool.Pool, rc redis.U
 	}, nil
 }
 
+// baseCtx returns the scheduler's lifecycle context. Used by gocron task closures
+// so they always get a live context rather than a stale sync-time capture.
+func (s *SaasScheduler) baseCtx() context.Context {
+	return s.ctx
+}
+
 // Start boots the scheduler: cleans stale runs, syncs jobs, then polls on cfg.PollInterval.
 func (s *SaasScheduler) Start(ctx context.Context) error {
 	s.mu.Lock()
@@ -110,27 +118,33 @@ func (s *SaasScheduler) Start(ctx context.Context) error {
 		s.mu.Unlock()
 		return nil
 	}
+	s.ctx, s.cancelFunc = context.WithCancel(ctx)
 	s.started = true
 	s.mu.Unlock()
 
-	if err := cleanupStaleRuns(ctx, s.pool, s.cfg.LockTTL); err != nil {
+	if err := cleanupStaleRuns(s.ctx, s.pool, s.cfg.LockTTL); err != nil {
 		slog.Warn("scheduler: stale run cleanup failed (non-fatal)", "error", err)
 	}
 
-	if err := s.syncOnce(ctx); err != nil {
+	if err := s.syncOnce(s.ctx); err != nil {
 		slog.Warn("scheduler: initial sync failed (non-fatal)", "error", err)
 	}
 
 	s.sched.Start()
 
-	go s.pollLoop(ctx)
+	go s.pollLoop(s.ctx)
 	slog.Info("scheduler: started", "pod", s.cfg.PodID, "poll_interval", s.cfg.PollInterval)
 	return nil
 }
 
-// Stop gracefully shuts down the scheduler.
+// Stop gracefully shuts down the scheduler. Order: stop gocron first (drains running tasks),
+// then cancel the lifecycle context.
 func (s *SaasScheduler) Stop() error {
-	return s.sched.Shutdown()
+	err := s.sched.Shutdown()
+	if s.cancelFunc != nil {
+		s.cancelFunc()
+	}
+	return err
 }
 
 func (s *SaasScheduler) pollLoop(ctx context.Context) {

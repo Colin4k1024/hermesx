@@ -387,6 +387,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}()
 	}
 
+	// Scheduler gets its own lifecycle context derived from syncCtx.
 	if cronScheduler != nil {
 		go func() {
 			if err := cronScheduler.Start(syncCtx); err != nil {
@@ -418,14 +419,14 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		if acpServer != nil {
 			_ = acpServer.Stop()
 		}
-		// 4. Cancel background sync.
-		syncCancel()
-		// 4a. Stop cron scheduler.
+		// 4. Stop cron scheduler first (drains running tasks before context cancel).
 		if cronScheduler != nil {
 			if stopErr := cronScheduler.Stop(); stopErr != nil {
 				slog.Warn("cron scheduler stop error", "error", stopErr)
 			}
 		}
+		// 4a. Cancel background sync.
+		syncCancel()
 		// 5. Close evolution store (flushes SQLite WAL / MySQL pool) (B3).
 		if evolutionStore != nil {
 			_ = evolutionStore.Close()

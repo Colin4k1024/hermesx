@@ -43,7 +43,7 @@ func (s *pgCronJobStore) Get(ctx context.Context, tenantID, jobID string) (*stor
 		&j.SourcePlatform, &j.SourceChatID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("cron job not found")
+			return nil, store.ErrNotFound
 		}
 		return nil, fmt.Errorf("pg get cron job: %w", err)
 	}
@@ -61,7 +61,7 @@ func (s *pgCronJobStore) Update(ctx context.Context, job *store.CronJob) error {
 			return fmt.Errorf("pg update cron job: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("cron job not found")
+			return store.ErrNotFound
 		}
 		return nil
 	})
@@ -76,7 +76,7 @@ func (s *pgCronJobStore) Delete(ctx context.Context, tenantID, jobID string) err
 			return fmt.Errorf("pg delete cron job: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("cron job not found")
+			return store.ErrNotFound
 		}
 		return nil
 	})

@@ -27,16 +27,8 @@ type CronJobRun struct {
 	PodID       string
 }
 
-// cleanupStaleRunsSQL removes stale running records left by crashed pods.
-// Runs at scheduler startup before job sync.
-const cleanupStaleRunsSQL = `
-UPDATE cron_job_runs
-SET    status = 'failed',
-       error  = 'pod crash or lock TTL exceeded',
-       finished_at = now()
-WHERE  status = 'running'
-  AND  started_at < now() - $1::interval
-`
+// cleanupStaleRunsSQL calls the SECURITY DEFINER function for cross-tenant stale run cleanup.
+const cleanupStaleRunsSQL = `SELECT scheduler_cleanup_stale_runs($1)`
 
 // insertRunSQL inserts a new run record with idempotency protection.
 // ON CONFLICT DO NOTHING means a 0-rows result signals duplicate execution.

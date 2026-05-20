@@ -614,6 +614,41 @@ var migrations = []migration{
 
 	{104, `CREATE INDEX IF NOT EXISTS idx_cron_job_runs_tenant_job_started
 		ON cron_job_runs (tenant_id, cron_job_id, started_at DESC)`},
+
+	// v1.5.1: Write policies for cron_job_runs (required for FORCE RLS + scheduler writes).
+	{105, `DO $$ BEGIN
+		DROP POLICY IF EXISTS tenant_write_cron_runs ON cron_job_runs;
+		CREATE POLICY tenant_write_cron_runs ON cron_job_runs
+			FOR INSERT WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_update_cron_runs ON cron_job_runs;
+		CREATE POLICY tenant_update_cron_runs ON cron_job_runs
+			FOR UPDATE USING (tenant_id::text = current_setting('app.current_tenant', false))
+			WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		DROP POLICY IF EXISTS tenant_delete_cron_runs ON cron_job_runs;
+		CREATE POLICY tenant_delete_cron_runs ON cron_job_runs
+			FOR DELETE USING (tenant_id::text = current_setting('app.current_tenant', false));
+	END $$`},
+
+	// v1.5.1: Scheduler cleanup function — cross-tenant stale run recovery (SECURITY DEFINER).
+	{106, `CREATE OR REPLACE FUNCTION scheduler_cleanup_stale_runs(p_lock_ttl_seconds INT)
+	RETURNS BIGINT
+	LANGUAGE plpgsql
+	SECURITY DEFINER
+	SET search_path = pg_catalog, public
+	AS $$
+	DECLARE
+		cleaned BIGINT;
+	BEGIN
+		UPDATE cron_job_runs
+		SET    status = 'failed',
+		       error  = 'pod crash or lock TTL exceeded',
+		       finished_at = now()
+		WHERE  status = 'running'
+		  AND  started_at < now() - (p_lock_ttl_seconds || ' seconds')::interval;
+		GET DIAGNOSTICS cleaned = ROW_COUNT;
+		RETURN cleaned;
+	END;
+	$$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion
