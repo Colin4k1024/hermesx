@@ -353,3 +353,4 @@ hermesx/
 - [Skills Guide](skills-guide.md) — Skills system
 - [Configuration Guide](configuration.md) — Environment variables
 - [Deployment Guide](deployment.md) — Docker / Helm / Kind
+- [Scheduler Guide](scheduler-guide.en.md) — Distributed scheduler deployment & testing

@@ -43,6 +43,7 @@
 | [RBAC 矩阵](RBAC_MATRIX.md) | 5 角色 × 10 资源权限矩阵 |
 | [技能指南](skills-guide.md) | 技能系统使用手册 |
 | [工作流引擎指南](workflow-guide.md) | 固定 SOP 工作流使用手册 |
+| [调度器指南](scheduler-guide.md) | 分布式调度部署与测试 |
 
 ---
 

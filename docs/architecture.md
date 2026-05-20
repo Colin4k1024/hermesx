@@ -353,3 +353,4 @@ hermesx/
 - [Skills 指南](skills-guide.md) — 技能系统
 - [配置指南](configuration.md) — 环境变量
 - [部署指南](deployment.md) — Docker / Helm / Kind
+- [调度器指南](scheduler-guide.md) — 分布式调度部署与测试

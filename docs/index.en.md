@@ -21,6 +21,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | [RBAC Matrix](RBAC_MATRIX.md) | 5 roles × 10 resources permission matrix |
 | [Skills Guide](skills-guide.md) | Skill system user guide |
 | [Workflow Engine Guide](workflow-guide.en.md) | Fixed SOP workflow usage guide |
+| [Scheduler Guide](scheduler-guide.en.md) | Distributed scheduler deployment & testing |
 
 ---
 
