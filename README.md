@@ -16,22 +16,32 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 
 ### Architecture
 
-![HermesX Architecture](docs/hermesx-architecture.png)
+#### Technical Architecture
+![HermesX Technical Architecture](docs/diagrams/technical-architecture.png)
 
-> Full diagram: [`docs/hermesx-architecture.drawio`](docs/hermesx-architecture.drawio) — open with [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
+#### Product Architecture
+![HermesX Product Architecture](docs/diagrams/product-architecture.png)
+
+#### Application Architecture
+![HermesX Application Architecture](docs/diagrams/application-architecture.png)
+
+#### Data Architecture
+![HermesX Data Architecture](docs/diagrams/data-architecture.png)
+
+> Full draw.io source files: [`docs/diagrams/`](docs/diagrams/) — open with [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
 
 | Layer | Components |
 |-------|-----------|
-| Clients | API Client · SDK · Web UI |
+| Clients | API Client · SDK · Web UI · Telegram · Discord · Slack · MCP |
 | API Server | net/http · Go 1.25 · Single Binary |
 | Middleware | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
 | Agent Runtime | Soul · Skills · Memory · Tool Loop · Multimodal Router · Context Compress |
 | Eino Agent Runtime | EinoAgent (ReAct Graph) · Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM Resilience | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
-| Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) |
+| Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) · K8s Job |
 | Distributed Scheduler | SaasScheduler · gocron · Redis Lock · PG Poll-Sync · ResultDeliverer |
 | Infrastructure | PostgreSQL (RLS) · Redis (Lua + Distributed Lock) · MinIO (S3) · OTel Collector |
-| Observability | Loki · Jaeger/Tempo · Prometheus · Grafana |
+| Observability | Loki · Jaeger/Tempo · Prometheus · Grafana (7 Panels + 5 Alert Rules) |
 | Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer (Prompt Injection · Leak Scan · Stream Redaction) |
 
 ### Project Stats
@@ -249,22 +259,33 @@ MIT
 
 ### 架构概览
 
-![HermesX 技术架构图](docs/hermesx-architecture.png)
+#### 技术架构
+![HermesX 技术架构图](docs/diagrams/technical-architecture.png)
 
-> 完整 draw.io 源文件：[`docs/hermesx-architecture.drawio`](docs/hermesx-architecture.drawio)，可用 [draw.io](https://app.diagrams.net/) 或 VS Code draw.io 插件打开编辑。
+#### 产品架构
+![HermesX 产品架构图](docs/diagrams/product-architecture.png)
+
+#### 应用架构
+![HermesX 应用架构图](docs/diagrams/application-architecture.png)
+
+#### 数据架构
+![HermesX 数据架构图](docs/diagrams/data-architecture.png)
+
+> draw.io 源文件位于 [`docs/diagrams/`](docs/diagrams/) 目录，可用 [draw.io](https://app.diagrams.net/) 或 VS Code draw.io 插件打开编辑。
 
 | 层级 | 组件 |
 |------|------|
-| 客户端 | API Client · SDK · Web UI |
+| 客户端 | API Client · SDK · Web UI · Telegram · Discord · Slack · MCP |
 | API Server | net/http · Go 1.25 · 单二进制 |
 | 中间件栈 | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
 | Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
+| Eino Agent 运行时 | EinoAgent（ReAct Graph）· Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
-| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
+| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）· K8s Job |
 | 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
 | 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
-| 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
-| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer |
+| 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana（7 面板 + 5 告警规则） |
+| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏）|
 
 ### 项目数据
 

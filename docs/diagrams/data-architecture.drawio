@@ -1,0 +1,179 @@
+<mxGraphModel>
+  <root>
+    <mxCell id="0"/>
+    <mxCell id="1" parent="0"/>
+    
+    <!-- Title -->
+    <mxCell id="2" value="HermesX Data Architecture" style="text;html=1;align=center;verticalAlign=middle;fontSize=20;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+      <mxGeometry x="220" y="10" width="360" height="30" as="geometry"/>
+    </mxCell>
+    
+    <!-- Write Path (Left) -->
+    <mxCell id="10" value="Write Path (Application → Storage)" style="text;html=1;align=left;fontSize=12;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+      <mxGeometry x="40" y="45" width="250" height="20" as="geometry"/>
+    </mxCell>
+    
+    <!-- Application Layer -->
+    <mxCell id="20" value="HermesX Application" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontStyle=1;fontSize=12;" vertex="1" parent="1">
+      <mxGeometry x="280" y="45" width="240" height="35" as="geometry"/>
+    </mxCell>
+    
+    <!-- PostgreSQL Detail -->
+    <mxCell id="30" value="PostgreSQL 16 (Primary Data Store)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontStyle=1;fontSize=13;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+      <mxGeometry x="40" y="100" width="360" height="280" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="31" value="Schema: public (RLS Enforced)" style="text;html=1;align=left;fontSize=11;fontStyle=1;fillColor=none;strokeColor=none;" vertex="1" parent="1">
+      <mxGeometry x="55" y="125" width="200" height="18" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="32" value="tenants (id, name, plan, config)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="148" width="165" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="33" value="api_keys (id, tenant_id, hash, scopes)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="230" y="148" width="160" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="34" value="sessions (id, tenant_id, title, model)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="180" width="170" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="35" value="messages (id, session_id, role, content)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="235" y="180" width="155" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="36" value="memories (id, tenant_id, key, content)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="212" width="170" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="37" value="execution_receipts (id, tenant_id, tool, ...)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="235" y="212" width="155" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="38" value="cron_jobs (id, tenant_id, expr, enabled)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="244" width="170" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="39" value="cron_job_runs (id, job_id, status, pod_id)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="235" y="244" width="155" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="39b" value="usage_records (id, tenant_id, tokens, cost)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="276" width="175" height="25" as="geometry"/>
+    </mxCell>
+    <mxCell id="39c" value="bootstrap_state (id, created_at)" style="rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="240" y="276" width="150" height="25" as="geometry"/>
+    </mxCell>
+    
+    <!-- RLS Policy -->
+    <mxCell id="39d" value="RLS: SET LOCAL app.current_tenant = tenant_id" style="rounded=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+      <mxGeometry x="55" y="310" width="335" height="22" as="geometry"/>
+    </mxCell>
+    
+    <!-- Migration info -->
+    <mxCell id="39e" value="106 Migrations · Auto-applied at startup" style="rounded=0;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+      <mxGeometry x="55" y="338" width="335" height="22" as="geometry"/>
+    </mxCell>
+    
+    <!-- Redis Detail -->
+    <mxCell id="40" value="Redis 7 (Ephemeral + Operational)" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontStyle=1;fontSize=13;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+      <mxGeometry x="420" y="100" width="360" height="145" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="41" value="Rate Limit Counters&#10;(IP + tenant bucket)" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="435" y="130" width="155" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="42" value="Distributed Locks&#10;(cron scheduler)" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="605" y="130" width="155" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="43" value="Session Cache&#10;(hot context)" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="435" y="175" width="155" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="44" value="AOF Persistence&#10;+ LRU Eviction" style="rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="605" y="175" width="155" height="35" as="geometry"/>
+    </mxCell>
+    
+    <!-- MinIO Detail -->
+    <mxCell id="50" value="MinIO (Object Storage)" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontStyle=1;fontSize=13;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+      <mxGeometry x="420" y="260" width="360" height="100" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="51" value="File Uploads&#10;(user attachments)" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="435" y="290" width="155" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="52" value="Tool Outputs&#10;(sandbox artifacts)" style="rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="605" y="290" width="155" height="35" as="geometry"/>
+    </mxCell>
+    <mxCell id="53" value="GDPR Cleanup: /v1/gdpr/cleanup-minio" style="rounded=0;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;fontStyle=2;" vertex="1" parent="1">
+      <mxGeometry x="435" y="332" width="325" height="20" as="geometry"/>
+    </mxCell>
+    
+    <!-- Observability Data Flow -->
+    <mxCell id="60" value="Observability Data Pipeline" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontStyle=1;fontSize=12;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+      <mxGeometry x="40" y="395" width="740" height="80" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="61" value="App Metrics&#10;(Prometheus /metrics)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="420" width="130" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="62" value="OTLP Traces&#10;(gRPC export)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="200" y="420" width="110" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="63" value="OTel Collector&#10;(receive + route)" style="rounded=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=10;fontStyle=1;" vertex="1" parent="1">
+      <mxGeometry x="330" y="420" width="120" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="64" value="Prometheus&#10;(TSDB)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="470" y="420" width="100" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="65" value="Jaeger&#10;(Trace Store)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="585" y="420" width="90" height="40" as="geometry"/>
+    </mxCell>
+    <mxCell id="66" value="Grafana&#10;(7 Panels + Alerts)" style="rounded=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="690" y="420" width="80" height="40" as="geometry"/>
+    </mxCell>
+    
+    <!-- Backup & Recovery -->
+    <mxCell id="70" value="Backup &amp; Disaster Recovery" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontStyle=1;fontSize=12;verticalAlign=top;spacingTop=5;" vertex="1" parent="1">
+      <mxGeometry x="40" y="490" width="740" height="100" as="geometry"/>
+    </mxCell>
+    
+    <mxCell id="71" value="PG Backup&#10;scripts/backup/backup.sh&#10;pg_dump + gzip · 7-day retention" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="55" y="518" width="195" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="72" value="Redis Backup&#10;scripts/redis-backup.sh&#10;BGSAVE → S3" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="265" y="518" width="155" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="73" value="MinIO Backup&#10;scripts/minio-backup.sh&#10;mc mirror → secondary" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="435" y="518" width="165" height="45" as="geometry"/>
+    </mxCell>
+    <mxCell id="74" value="DR Verification&#10;scripts/dr-test.sh&#10;automated recovery test" style="rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=10;" vertex="1" parent="1">
+      <mxGeometry x="615" y="518" width="155" height="45" as="geometry"/>
+    </mxCell>
+    
+    <!-- RPO/RTO -->
+    <mxCell id="75" value="RPO: PG ≤ 24h · Redis ≤ 1h · MinIO ≤ 6h  |  RTO: &lt; 30 min (all stores)" style="rounded=0;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=10;fontStyle=3;" vertex="1" parent="1">
+      <mxGeometry x="55" y="570" width="715" height="18" as="geometry"/>
+    </mxCell>
+    
+    <!-- Arrows -->
+    <mxCell id="80" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#6c8ebf;exitX=0.25;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="20" target="30">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="81" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#d6b656;exitX=0.6;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="20" target="40">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="82" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#9673a6;exitX=0.85;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="20" target="50">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    
+    <!-- Observability arrows -->
+    <mxCell id="85" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;endArrow=classic;" edge="1" parent="1" source="61" target="63">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="86" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;endArrow=classic;" edge="1" parent="1" source="62" target="63">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="87" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;endArrow=classic;" edge="1" parent="1" source="63" target="64">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="88" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;endArrow=classic;" edge="1" parent="1" source="63" target="65">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+    <mxCell id="89" style="edgeStyle=orthogonalEdgeStyle;rounded=1;strokeColor=#999999;endArrow=classic;" edge="1" parent="1" source="64" target="66">
+      <mxGeometry relative="1" as="geometry"/>
+    </mxCell>
+  </root>
+</mxGraphModel>

@@ -25,6 +25,28 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 
 ---
 
+## Architecture Overview
+
+### Technical Architecture
+
+![HermesX Technical Architecture](diagrams/technical-architecture.png)
+
+### Product Architecture
+
+![HermesX Product Architecture](diagrams/product-architecture.png)
+
+### Application Architecture
+
+![HermesX Application Architecture](diagrams/application-architecture.png)
+
+### Data Architecture
+
+![HermesX Data Architecture](diagrams/data-architecture.png)
+
+> draw.io source files in [`docs/diagrams/`](diagrams/) — open with [draw.io](https://app.diagrams.net/) or VS Code draw.io extension.
+
+---
+
 ## Project Stats
 
 | Metric | Value |
