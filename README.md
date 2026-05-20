@@ -29,7 +29,8 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | Eino Agent Runtime | EinoAgent (ReAct Graph) · Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM Resilience | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
 | Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) |
-| Infrastructure | PostgreSQL (RLS) · Redis (Lua) · MinIO (S3) · OTel Collector |
+| Distributed Scheduler | SaasScheduler · gocron · Redis Lock · PG Poll-Sync · ResultDeliverer |
+| Infrastructure | PostgreSQL (RLS) · Redis (Lua + Distributed Lock) · MinIO (S3) · OTel Collector |
 | Observability | Loki · Jaeger/Tempo · Prometheus · Grafana |
 | Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer (Prompt Injection · Leak Scan · Stream Redaction) |
 
@@ -44,10 +45,10 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | Terminal backends | 7 |
 | Bundled skills | 126 |
 | Test files | 123 |
-| Total tests | 1,585 |
-| RLS-protected tables | 10 |
+| Total tests | 1,828 |
+| RLS-protected tables | 11 |
 | API endpoints | 22+ |
-| Version | v2.1.1 |
+| Version | v2.3.0 |
 
 ### Core Capabilities
 
@@ -62,6 +63,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 - **Execution receipts**: auditable tool invocation with idempotency dedup and trace correlation
 - **Audit trail**: immutable logs for all state-changing operations
 - **GDPR compliance**: full-chain tenant data export + transactional deletion
+- **Distributed cron scheduling**: gocron + Redis distributed lock for multi-pod execution, PG poll-sync, idempotent dedup, SECURITY DEFINER cross-tenant cleanup, result delivery to source platform
 - **Sandbox isolation**: per-tenant code execution with Docker network/resource limits
 - **Admin API**: tenant management, sandbox policy CRUD, API key lifecycle, pricing rules
 
@@ -166,7 +168,7 @@ hermesx/
 │   ├── middleware/          Rate limit, scope check, tenant injection, tracing
 │   ├── observability/       OTel tracing, Prometheus metrics
 │   ├── skills/              Skill loading, parsing, hub, MinIO sync
-│   ├── store/               PostgreSQL store (RLS, 80+ migrations)
+│   ├── store/               PostgreSQL store (RLS, 106+ migrations)
 │   │   ├── pg/              PG implementations (sessions, memories, keys, etc.)
 │   │   └── rediscache/      Redis (rate limit, sessions, context cache)
 │   ├── tools/               50 tool implementations + sandbox
@@ -259,7 +261,8 @@ MIT
 | Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
 | LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
 | 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
-| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流）· MinIO（S3）· OTel Collector |
+| 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
+| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
 | 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
 | 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer |
 
@@ -274,10 +277,10 @@ MIT
 | 终端后端 | 7 个 |
 | 内置技能 | 126 个 |
 | 测试文件 | 123 个 |
-| 测试总数 | 1,585 个 |
-| RLS 保护表 | 10 个 |
+| 测试总数 | 1,828 个 |
+| RLS 保护表 | 11 个 |
 | API 端点 | 22+ 个 |
-| 版本 | v2.1.1 |
+| 版本 | v2.3.0 |
 
 ### 核心能力
 
@@ -292,6 +295,7 @@ MIT
 - **执行回执**：可审计的工具调用，含幂等去重和链路追踪关联
 - **审计追踪**：所有状态变更操作的不可变日志
 - **GDPR 合规**：全链路数据导出 + 事务性删除
+- **分布式定时调度**：gocron + Redis 分布式锁实现多 Pod 执行，PG 轮询同步、幂等去重、SECURITY DEFINER 跨租户清理、结果自动投递回源平台
 - **沙箱隔离**：按租户的代码执行环境，Docker 网络/资源限制
 - **Admin API**：租户管理、沙箱策略、密钥生命周期、定价规则
 
