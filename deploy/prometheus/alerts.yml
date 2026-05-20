@@ -1,0 +1,71 @@
+groups:
+  - name: hermesx.rules
+    rules:
+      - alert: HermesXHighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: hermesx
+        annotations:
+          summary: "HermesX error rate exceeds 5%"
+          description: "HTTP 5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+          runbook_url: "https://wiki.internal/runbooks/hermesx-high-error-rate"
+
+      - alert: HermesXHighLatency
+        expr: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+          > 10
+        for: 5m
+        labels:
+          severity: critical
+          service: hermesx
+        annotations:
+          summary: "HermesX p99 latency exceeds 10s"
+          description: "The 99th percentile HTTP request latency is {{ $value | humanizeDuration }} over the last 5 minutes."
+          runbook_url: "https://wiki.internal/runbooks/hermesx-high-latency"
+
+      - alert: HermesXCircuitBreakerOpen
+        expr: |
+          circuit_breaker_state{state="open"} == 1
+        for: 60s
+        labels:
+          severity: warning
+          service: hermesx
+        annotations:
+          summary: "Circuit breaker open for model {{ $labels.model }}"
+          description: "The circuit breaker for model '{{ $labels.model }}' has been in open state for more than 60 seconds."
+          runbook_url: "https://wiki.internal/runbooks/hermesx-circuit-breaker"
+
+      - alert: HermesXRateLimitSpike
+        expr: |
+          sum(rate(rate_limit_hits_total[1m])) by (tenant_id) > 100
+        for: 1m
+        labels:
+          severity: warning
+          service: hermesx
+        annotations:
+          summary: "Rate limit spike for tenant {{ $labels.tenant_id }}"
+          description: "Tenant '{{ $labels.tenant_id }}' is hitting rate limits at {{ $value | humanize }}/min."
+          runbook_url: "https://wiki.internal/runbooks/hermesx-rate-limit"
+
+      - alert: HermesXLLMProviderDown
+        expr: |
+          (
+            sum(rate(llm_request_duration_seconds_count{status="error"}[2m])) by (model)
+            /
+            sum(rate(llm_request_duration_seconds_count[2m])) by (model)
+          ) > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          service: hermesx
+        annotations:
+          summary: "LLM provider error rate > 50% for model {{ $labels.model }}"
+          description: "Model '{{ $labels.model }}' has an error rate of {{ $value | humanizePercentage }} over the last 2 minutes."
+          runbook_url: "https://wiki.internal/runbooks/hermesx-llm-provider-down"
