@@ -11,10 +11,10 @@ import (
 
 // usageAggregationItem represents a single time-bucket in the admin usage response.
 type usageAggregationItem struct {
-	Date            string  `json:"date"`
-	InputTokens     int     `json:"input_tokens"`
-	OutputTokens    int     `json:"output_tokens"`
-	TotalTokens     int     `json:"total_tokens"`
+	Date             string  `json:"date"`
+	InputTokens      int     `json:"input_tokens"`
+	OutputTokens     int     `json:"output_tokens"`
+	TotalTokens      int     `json:"total_tokens"`
 	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
 }
 
@@ -79,10 +79,10 @@ func (h *AdminHandler) adminUsageAggregation(w http.ResponseWriter, r *http.Requ
 	items := make([]usageAggregationItem, 0, len(summaries))
 	for _, s := range summaries {
 		items = append(items, usageAggregationItem{
-			Date:            s.Date,
-			InputTokens:     s.InputTokens,
-			OutputTokens:    s.OutputTokens,
-			TotalTokens:     s.InputTokens + s.OutputTokens,
+			Date:             s.Date,
+			InputTokens:      s.InputTokens,
+			OutputTokens:     s.OutputTokens,
+			TotalTokens:      s.InputTokens + s.OutputTokens,
 			EstimatedCostUSD: s.CostUSD,
 		})
 	}
