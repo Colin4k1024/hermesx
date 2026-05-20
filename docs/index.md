@@ -22,7 +22,7 @@
 | Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
 | Eino Agent 运行时 | EinoAgent（ReAct Graph）· Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
 | LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
-| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）|
+| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）· K8s Job |
 | 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
 | 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
 | 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana |
@@ -79,7 +79,7 @@
 - **执行回执** — 可审计的工具调用记录，含幂等去重和 OpenTelemetry 链路追踪关联
 - **审计追踪** — 所有状态变更操作的不可变日志，支持跨租户查询（`super_admin`）
 - **GDPR 合规** — 全链路数据导出（JSON）+ 事务性删除 + MinIO 对象存储清理
-- **沙箱隔离** — 按租户的代码执行环境，Docker 网络/资源限制，可通过 Admin API 管理策略
+- **沙箱隔离** — 按租户的代码执行环境，支持本地进程 / Docker / K8s Job 三种模式（`SANDBOX_MODE` 环境变量切换），Docker 网络/资源限制，可通过 Admin API 管理策略
 - **引导保护** — Bootstrap 端点双重 IP 限速（应用层 + Nginx），跨副本幂等
 - **分布式定时调度** — gocron + Redis 分布式锁实现多 Pod 定时任务执行，PG 轮询同步、幂等去重、SECURITY DEFINER 跨租户清理、结果自动投递回源平台
 
@@ -98,6 +98,7 @@
 | `PUT/DELETE /admin/v1/pricing-rules/{model}` | 更新/删除模型定价 |
 | `GET /admin/v1/audit-logs` | 跨租户审计日志 |
 | `GET /admin/v1/usage/tenants` | 租户用量汇总 |
+| `GET /admin/v1/usage` | 按租户聚合用量（支持 daily/monthly 粒度、时间范围过滤） |
 
 ### Tenant API（v1）
 
@@ -181,7 +182,7 @@ URL 安全检测（`url_safety`），防止 SSRF 和恶意重定向。
 
 **代码执行（1 个）**
 
-`execute_code` — 沙箱隔离执行（Python/Bash），含 Docker 资源限制、环境变量清理、输出截断。
+`execute_code` — 沙箱隔离执行（Python/Bash），支持 `local` / `docker` / `k8s-job` 三种后端（通过 `SANDBOX_MODE` 切换），含资源限制、环境变量清理、输出截断。K8s Job 模式无需特权容器，兼容 GKE Autopilot / EKS Fargate。
 
 **平台消息（3 个）**
 
@@ -251,9 +252,9 @@ URL 安全检测（`url_safety`），防止 SSRF 和恶意重定向。
 - **单二进制** — 零运行时依赖，`CGO_ENABLED=0` 可交叉编译至任意 OS/架构
 - **多副本就绪** — 已验证 3 副本 + Nginx `ip_hash` 负载均衡，Bootstrap 幂等
 - **Kubernetes 就绪** — Helm Chart 含 PDB、HPA、保守缩容策略
-- **备份与恢复** — pgBackRest PITR（RPO < 5min，RTO < 1h）+ 自动 pg_dump 脚本（7 天保留）
+- **备份与恢复** — PostgreSQL pgBackRest PITR（RPO < 5min，RTO < 1h）+ Redis BGSAVE + S3（RPO < 15min）+ MinIO mc mirror（RPO < 1h），含自动化备份脚本和灾难恢复验证（`scripts/dr-test.sh`）
 - **CI/CD** — GitHub Actions（单元 + 集成 + Race 检测 + 覆盖率 + Docker 推送）
-- **可观测性** — Prometheus 11+ 自定义指标、OpenTelemetry 全链路追踪（HTTP→中间件→存储→LLM）、结构化 JSON 日志（slog）
+- **可观测性** — Prometheus 11+ 自定义指标、OpenTelemetry 全链路追踪（HTTP→中间件→存储→LLM）、结构化 JSON 日志（slog）、预置 Grafana Dashboard（HTTP/LLM/熔断器/限流）、Prometheus 告警规则（5 条）、OTel Collector 配置，一键部署 `docker-compose.observability.yml`
 
 ---
 

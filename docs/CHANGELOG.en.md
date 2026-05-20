@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Admin Usage Aggregation API** — `GET /admin/v1/usage?tenant_id=&granularity=daily|monthly&from=&to=` endpoint for per-tenant token usage and cost aggregation
+- **K8s Job Sandbox Mode** — `SANDBOX_MODE=k8s-job` executes tool code via Kubernetes Job API, no privileged containers or DinD required, compatible with GKE Autopilot / EKS Fargate
+- **Pre-built Observability Stack** — Grafana dashboard JSON (7 panels), Prometheus alert rules (5), OTel Collector config, one-click deploy via `docker-compose.observability.yml`
+- **Redis/MinIO Backup Scripts** — `scripts/redis-backup.sh` (BGSAVE + S3), `scripts/minio-backup.sh` (mc mirror), `scripts/dr-test.sh` (disaster recovery verification)
+
+### Fixed
+
+- **API Key Generation Safety** — `generateRawKey()` changed from panic to returning `(string, error)`; `rand.Read` failure now returns HTTP 500 instead of crashing the process
+
 ---
 
 ## [2.3.0] - 2026-05-20

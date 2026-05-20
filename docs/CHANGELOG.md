@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Admin Usage Aggregation API** — `GET /admin/v1/usage?tenant_id=&granularity=daily|monthly&from=&to=` 端点，按租户聚合 Token 用量及成本
+- **K8s Job 沙箱模式** — `SANDBOX_MODE=k8s-job` 通过 Kubernetes Job API 执行工具代码，无需特权容器或 DinD，兼容 GKE Autopilot / EKS Fargate
+- **预置可观测性栈** — Grafana Dashboard JSON（7 面板）、Prometheus 告警规则（5 条）、OTel Collector 配置、`docker-compose.observability.yml` 一键部署
+- **Redis/MinIO 备份脚本** — `scripts/redis-backup.sh`（BGSAVE + S3）、`scripts/minio-backup.sh`（mc mirror）、`scripts/dr-test.sh`（灾难恢复验证）
+
+### Fixed
+
+- **API Key 生成安全性** — `generateRawKey()` 从 panic 改为返回 `(string, error)`，`rand.Read` 失败时返回 HTTP 500 而非进程崩溃
+
 ---
 
 ## [2.3.0] - 2026-05-20

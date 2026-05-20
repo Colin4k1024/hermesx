@@ -57,7 +57,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 - **Execution receipts** — auditable tool call records with idempotent deduplication and OpenTelemetry trace correlation
 - **Audit trail** — immutable logs for all state-changing operations, cross-tenant queries for `super_admin`
 - **GDPR compliance** — full-chain data export (JSON) + transactional deletion + MinIO object storage cleanup
-- **Sandbox isolation** — per-tenant code execution with Docker network/resource limits, policy manageable via Admin API
+- **Sandbox isolation** — per-tenant code execution supporting local / Docker / K8s Job modes (`SANDBOX_MODE` env var), Docker network/resource limits, policy manageable via Admin API
 - **Bootstrap protection** — bootstrap endpoint dual IP rate limiting (application layer + Nginx), cross-replica idempotent
 - **Distributed cron scheduling** — gocron + Redis distributed lock for multi-pod scheduled task execution, PG poll-sync, idempotent dedup, SECURITY DEFINER cross-tenant cleanup, automatic result delivery to source platform
 
@@ -76,6 +76,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | `PUT/DELETE /admin/v1/pricing-rules/{model}` | Update/delete model pricing |
 | `GET /admin/v1/audit-logs` | Cross-tenant audit logs |
 | `GET /admin/v1/usage/tenants` | Tenant usage summary |
+| `GET /admin/v1/usage` | Per-tenant usage aggregation (daily/monthly granularity, time range filter) |
 
 ### Tenant API (v1)
 
@@ -159,7 +160,7 @@ URL safety detection (`url_safety`) prevents SSRF and malicious redirects.
 
 **Code Execution (1)**
 
-`execute_code` — sandboxed execution (Python/Bash) with Docker resource limits, environment variable stripping, and output truncation.
+`execute_code` — sandboxed execution (Python/Bash) supporting `local` / `docker` / `k8s-job` backends (via `SANDBOX_MODE`), with resource limits, environment variable stripping, and output truncation. K8s Job mode requires no privileged containers and is compatible with GKE Autopilot / EKS Fargate.
 
 **Platform Messaging (3)**
 
@@ -229,9 +230,9 @@ Supports reasoning models (Claude 3.7/Sonnet 4/Opus 4, o1/o3/o4, DeepSeek-r1, Qw
 - **Single binary** — zero runtime dependencies, cross-compile to any OS/arch with `CGO_ENABLED=0`
 - **Multi-replica ready** — verified 3-replica + Nginx `ip_hash` load balancer, idempotent bootstrap
 - **Kubernetes ready** — Helm chart with PDB, HPA, conservative scale-down
-- **Backup & recovery** — pgBackRest PITR (RPO < 5min, RTO < 1h) + automated pg_dump scripts (7-day retention)
+- **Backup & recovery** — PostgreSQL pgBackRest PITR (RPO < 5min, RTO < 1h) + Redis BGSAVE + S3 (RPO < 15min) + MinIO mc mirror (RPO < 1h), with automated backup scripts and disaster recovery verification (`scripts/dr-test.sh`)
 - **CI/CD** — GitHub Actions (unit + integration + race detection + coverage + Docker push)
-- **Observability** — Prometheus 11+ custom metrics, OpenTelemetry full-chain tracing (HTTP → middleware → storage → LLM), structured JSON logging (slog)
+- **Observability** — Prometheus 11+ custom metrics, OpenTelemetry full-chain tracing (HTTP → middleware → storage → LLM), structured JSON logging (slog), pre-built Grafana dashboard (HTTP/LLM/circuit breaker/rate limits), Prometheus alert rules (5), OTel Collector config, one-click deploy via `docker-compose.observability.yml`
 
 ---
 
