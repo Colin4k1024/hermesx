@@ -32,6 +32,7 @@ type MySQLStore struct {
 	pricingRules      *myPricingRuleStore
 	executionReceipts *myExecutionReceiptStore
 	workflows         *myWorkflowStore
+	checkpoints       *myAgentCheckpointStore
 }
 
 // New opens a MySQL connection pool, pings to verify, and wires all sub-stores.
@@ -64,6 +65,7 @@ func New(ctx context.Context, dsn string) (*MySQLStore, error) {
 	s.pricingRules = &myPricingRuleStore{db: db}
 	s.executionReceipts = &myExecutionReceiptStore{db: db}
 	s.workflows = &myWorkflowStore{db: db}
+	s.checkpoints = &myAgentCheckpointStore{db: db}
 	return s, nil
 }
 
@@ -80,6 +82,7 @@ func (s *MySQLStore) Roles() store.RoleStore                         { return s.
 func (s *MySQLStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *MySQLStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
 func (s *MySQLStore) Workflows() store.WorkflowStore                 { return s.workflows }
+func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
 
 func (s *MySQLStore) Close() error {
 	return s.db.Close()

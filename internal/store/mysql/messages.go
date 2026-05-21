@@ -17,8 +17,8 @@ func (m *myMessageStore) Append(ctx context.Context, tenantID, sessionID string,
 		msg.Timestamp = time.Now()
 	}
 	res, err := m.db.ExecContext(ctx, `
-		INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason, agentic_blocks)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		tenantID, sessionID, msg.Role, msg.Content,
 		nullStr(msg.ToolCallID),
 		nullStr(msg.ToolCalls),
@@ -26,7 +26,8 @@ func (m *myMessageStore) Append(ctx context.Context, tenantID, sessionID string,
 		nullStr(msg.Reasoning),
 		msg.Timestamp,
 		nullInt(msg.TokenCount),
-		nullStr(msg.FinishReason))
+		nullStr(msg.FinishReason),
+		nullStr(msg.AgenticBlocks))
 	if err != nil {
 		return 0, err
 	}
@@ -40,7 +41,8 @@ func (m *myMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 	rows, err := m.db.QueryContext(ctx, `
 		SELECT id, tenant_id, session_id, role, COALESCE(content,''),
 		       COALESCE(tool_call_id,''), COALESCE(tool_calls,''), COALESCE(tool_name,''),
-		       COALESCE(reasoning,''), timestamp, COALESCE(token_count,0), COALESCE(finish_reason,'')
+		       COALESCE(reasoning,''), timestamp, COALESCE(token_count,0), COALESCE(finish_reason,''),
+		       COALESCE(agentic_blocks,'')
 		FROM messages WHERE tenant_id = ? AND session_id = ?
 		ORDER BY timestamp ASC LIMIT ? OFFSET ?`, tenantID, sessionID, limit, offset)
 	if err != nil {
@@ -53,7 +55,7 @@ func (m *myMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 		msg := &store.Message{}
 		if err := rows.Scan(&msg.ID, &msg.TenantID, &msg.SessionID, &msg.Role, &msg.Content,
 			&msg.ToolCallID, &msg.ToolCalls, &msg.ToolName,
-			&msg.Reasoning, &msg.Timestamp, &msg.TokenCount, &msg.FinishReason); err != nil {
+			&msg.Reasoning, &msg.Timestamp, &msg.TokenCount, &msg.FinishReason, &msg.AgenticBlocks); err != nil {
 			return nil, err
 		}
 		msgs = append(msgs, msg)

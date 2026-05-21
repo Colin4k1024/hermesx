@@ -29,18 +29,28 @@ type Session struct {
 
 // Message represents a conversation message.
 type Message struct {
-	ID           int64     `json:"id" db:"id"`
+	ID            int64     `json:"id" db:"id"`
+	TenantID      string    `json:"tenant_id" db:"tenant_id"`
+	SessionID     string    `json:"session_id" db:"session_id"`
+	Role          string    `json:"role" db:"role"`
+	Content       string    `json:"content,omitempty" db:"content"`
+	ToolCallID    string    `json:"tool_call_id,omitempty" db:"tool_call_id"`
+	ToolCalls     string    `json:"tool_calls,omitempty" db:"tool_calls"` // JSON
+	ToolName      string    `json:"tool_name,omitempty" db:"tool_name"`
+	Reasoning     string    `json:"reasoning,omitempty" db:"reasoning"`
+	Timestamp     time.Time `json:"timestamp" db:"timestamp"`
+	TokenCount    int       `json:"token_count,omitempty" db:"token_count"`
+	FinishReason  string    `json:"finish_reason,omitempty" db:"finish_reason"`
+	AgenticBlocks string    `json:"agentic_blocks,omitempty" db:"agentic_blocks"` // JSON
+}
+
+// AgentCheckpoint stores Eino ADK checkpoint payloads for tenant-scoped sessions.
+type AgentCheckpoint struct {
 	TenantID     string    `json:"tenant_id" db:"tenant_id"`
 	SessionID    string    `json:"session_id" db:"session_id"`
-	Role         string    `json:"role" db:"role"`
-	Content      string    `json:"content,omitempty" db:"content"`
-	ToolCallID   string    `json:"tool_call_id,omitempty" db:"tool_call_id"`
-	ToolCalls    string    `json:"tool_calls,omitempty" db:"tool_calls"` // JSON
-	ToolName     string    `json:"tool_name,omitempty" db:"tool_name"`
-	Reasoning    string    `json:"reasoning,omitempty" db:"reasoning"`
-	Timestamp    time.Time `json:"timestamp" db:"timestamp"`
-	TokenCount   int       `json:"token_count,omitempty" db:"token_count"`
-	FinishReason string    `json:"finish_reason,omitempty" db:"finish_reason"`
+	CheckpointID string    `json:"checkpoint_id" db:"checkpoint_id"`
+	Payload      []byte    `json:"payload" db:"payload"`
+	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // PricingRule defines per-model token pricing stored in the database.

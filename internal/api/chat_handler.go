@@ -9,7 +9,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/eino"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
+	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -20,6 +22,8 @@ type chatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
 }
+
+type agentConversationRunner func(ctx context.Context, userMessage string, history []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error)
 
 // chatHandler holds shared dependencies for agent chat, session, and memory endpoints.
 type chatHandler struct {
@@ -42,6 +46,7 @@ type chatHandler struct {
 
 	// evolutionImprover is the global Oris gene-backed evolution path (optional).
 	evolutionImprover *evolution.Improver
+	runAgent          agentConversationRunner
 }
 
 // SetEvolutionImprover attaches a shared Oris Improver to the handler.
@@ -65,18 +70,20 @@ func getEnvOr(key, fallback string) string {
 
 // chatReq / chatResp match the OpenAI /v1/chat/completions format.
 type chatReq struct {
-	Model    string        `json:"model"`
-	Messages []chatMessage `json:"messages"`
-	Stream   bool          `json:"stream"`
+	Model                string        `json:"model"`
+	Messages             []chatMessage `json:"messages"`
+	Stream               bool          `json:"stream"`
+	IncludeAgenticBlocks bool          `json:"include_agentic_blocks,omitempty"`
 }
 
 type chatResp struct {
-	ID      string       `json:"id"`
-	Object  string       `json:"object"`
-	Created int64        `json:"created"`
-	Model   string       `json:"model"`
-	Choices []chatChoice `json:"choices"`
-	Usage   chatUsage    `json:"usage"`
+	ID            string              `json:"id"`
+	Object        string              `json:"object"`
+	Created       int64               `json:"created"`
+	Model         string              `json:"model"`
+	Choices       []chatChoice        `json:"choices"`
+	Usage         chatUsage           `json:"usage"`
+	AgenticBlocks []eino.AgenticBlock `json:"agentic_blocks,omitempty"`
 }
 
 type chatChoice struct {

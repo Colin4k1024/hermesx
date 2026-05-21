@@ -1,6 +1,8 @@
 package eino
 
 import (
+	"github.com/cloudwego/eino/adk"
+
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
@@ -18,6 +20,31 @@ func WithTransport(t llm.Transport) Option {
 // WithModel sets the model name.
 func WithModel(model string) Option {
 	return func(c *agentConfig) { c.modelName = model }
+}
+
+// WithProvider sets the provider name used for observability and failover defaults.
+func WithProvider(provider string) Option {
+	return func(c *agentConfig) { c.provider = provider }
+}
+
+// WithBaseURL sets the provider base URL used for failover defaults.
+func WithBaseURL(baseURL string) Option {
+	return func(c *agentConfig) { c.baseURL = baseURL }
+}
+
+// WithAPIKey sets the API key used for failover defaults.
+func WithAPIKey(apiKey string) Option {
+	return func(c *agentConfig) { c.apiKey = apiKey }
+}
+
+// WithAPIMode sets the API mode used for failover defaults.
+func WithAPIMode(mode string) Option {
+	return func(c *agentConfig) { c.apiMode = mode }
+}
+
+// WithFallbackModels configures ADK model failover.
+func WithFallbackModels(models []FallbackModel) Option {
+	return func(c *agentConfig) { c.fallbackModels = models }
 }
 
 // WithTools sets the tool entries.
@@ -52,6 +79,21 @@ func WithUserID(id string) Option {
 // WithSessionID sets the session ID.
 func WithSessionID(id string) Option {
 	return func(c *agentConfig) { c.sessionID = id }
+}
+
+// WithPlatform sets the platform identifier exposed to tools.
+func WithPlatform(platform string) Option {
+	return func(c *agentConfig) { c.platform = platform }
+}
+
+// WithMemoryProvider injects a per-user memory provider into tool calls.
+func WithMemoryProvider(provider tools.MemoryProvider) Option {
+	return func(c *agentConfig) { c.memoryProvider = provider }
+}
+
+// WithCheckpointStore enables ADK cancel/interruption checkpoint persistence.
+func WithCheckpointStore(store adk.CheckPointStore) Option {
+	return func(c *agentConfig) { c.checkpointStore = store }
 }
 
 // WithSafetyInterceptor sets the safety interceptor for input/output validation.

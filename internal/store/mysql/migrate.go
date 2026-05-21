@@ -286,6 +286,21 @@ var migrations = []string{
 
 	// v20: composite index for ListRuns query performance
 	`CREATE INDEX idx_cron_job_runs_tenant_job_started ON cron_job_runs (tenant_id, cron_job_id, started_at DESC)`,
+
+	// v21: Eino v0.9 agentic blocks and ADK checkpoints
+	`ALTER TABLE messages
+		ADD COLUMN IF NOT EXISTS agentic_blocks MEDIUMTEXT NULL`,
+
+	// v22: tenant-scoped ADK checkpoint store
+	`CREATE TABLE IF NOT EXISTS agent_checkpoints (
+		tenant_id     CHAR(36)    NOT NULL,
+		session_id    VARCHAR(64) NOT NULL,
+		checkpoint_id VARCHAR(255) NOT NULL,
+		payload       LONGBLOB    NOT NULL,
+		updated_at    DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		PRIMARY KEY (tenant_id, session_id, checkpoint_id),
+		INDEX idx_agent_checkpoints_tenant_updated (tenant_id, updated_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

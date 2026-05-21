@@ -649,6 +649,30 @@ var migrations = []migration{
 		RETURN cleaned;
 	END;
 	$$`},
+
+	{107, `DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='messages' AND column_name='agentic_blocks') THEN
+			ALTER TABLE messages ADD COLUMN agentic_blocks JSONB;
+		END IF;
+	END $$;
+	CREATE TABLE IF NOT EXISTS agent_checkpoints (
+		tenant_id     UUID        NOT NULL,
+		session_id    VARCHAR(64) NOT NULL,
+		checkpoint_id TEXT        NOT NULL,
+		payload       BYTEA       NOT NULL,
+		updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+		PRIMARY KEY (tenant_id, session_id, checkpoint_id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_agent_checkpoints_tenant_updated
+		ON agent_checkpoints (tenant_id, updated_at DESC);
+	ALTER TABLE agent_checkpoints ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE agent_checkpoints FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'agent_checkpoints' AND policyname = 'tenant_isolation_agent_checkpoints') THEN
+			CREATE POLICY tenant_isolation_agent_checkpoints ON agent_checkpoints
+				USING (tenant_id::text = current_setting('app.current_tenant', true));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

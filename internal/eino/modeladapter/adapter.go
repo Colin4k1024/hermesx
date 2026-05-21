@@ -60,6 +60,11 @@ func (m *WrappedModel) Stream(ctx context.Context, input []*schema.Message, opts
 					return
 				}
 				if delta.Done {
+					if len(delta.ToolCalls) > 0 || delta.Reasoning != "" || delta.Content != "" {
+						if writer.Send(convertDelta(&delta), nil) {
+							return
+						}
+					}
 					return
 				}
 				msg := convertDelta(&delta)
@@ -170,6 +175,20 @@ func convertResponse(resp *llm.ChatResponse) *schema.Message {
 		Role:             schema.Assistant,
 		Content:          resp.Content,
 		ReasoningContent: resp.Reasoning,
+		ResponseMeta: &schema.ResponseMeta{
+			FinishReason: resp.FinishReason,
+			Usage: &schema.TokenUsage{
+				PromptTokens:     resp.Usage.PromptTokens,
+				CompletionTokens: resp.Usage.CompletionTokens,
+				TotalTokens:      resp.Usage.TotalTokens,
+				PromptTokenDetails: schema.PromptTokenDetails{
+					CachedTokens: resp.Usage.CacheReadTokens,
+				},
+				CompletionTokensDetails: schema.CompletionTokensDetails{
+					ReasoningTokens: resp.Usage.ReasoningTokens,
+				},
+			},
+		},
 	}
 	if len(resp.ToolCalls) > 0 {
 		msg.ToolCalls = make([]schema.ToolCall, len(resp.ToolCalls))

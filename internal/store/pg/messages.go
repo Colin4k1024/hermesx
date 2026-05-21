@@ -19,11 +19,15 @@ func (m *pgMessageStore) Append(ctx context.Context, tenantID, sessionID string,
 	if msg.ToolCalls != "" {
 		toolCalls = []byte(msg.ToolCalls)
 	}
+	var agenticBlocks any = nil
+	if msg.AgenticBlocks != "" {
+		agenticBlocks = []byte(msg.AgenticBlocks)
+	}
 	var id int64
 	err := withTenantTx(ctx, m.pool, tenantID, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `
-			INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			INSERT INTO messages (tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name, reasoning, timestamp, token_count, finish_reason, agentic_blocks)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 			RETURNING id`,
 			tenantID, sessionID, msg.Role, msg.Content,
 			nullStr(msg.ToolCallID),
@@ -32,7 +36,8 @@ func (m *pgMessageStore) Append(ctx context.Context, tenantID, sessionID string,
 			nullStr(msg.Reasoning),
 			msg.Timestamp,
 			nullInt(msg.TokenCount),
-			nullStr(msg.FinishReason)).Scan(&id)
+			nullStr(msg.FinishReason),
+			agenticBlocks).Scan(&id)
 	})
 	return id, err
 }
@@ -60,7 +65,7 @@ func (m *pgMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 	err := withTenantTx(ctx, m.pool, tenantID, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, `
 			SELECT id, tenant_id, session_id, role, content, tool_call_id, tool_calls, tool_name,
-			       reasoning, timestamp, token_count, finish_reason
+			       reasoning, timestamp, token_count, finish_reason, agentic_blocks
 			FROM messages WHERE tenant_id = $1 AND session_id = $2
 			ORDER BY timestamp ASC LIMIT $3 OFFSET $4`, tenantID, sessionID, limit, offset)
 		if err != nil {
@@ -70,10 +75,10 @@ func (m *pgMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 
 		for rows.Next() {
 			msg := &store.Message{}
-			var toolCallID, toolCalls, toolName, reasoning, tokenCount, finishReason any
+			var toolCallID, toolCalls, toolName, reasoning, tokenCount, finishReason, agenticBlocks any
 			rows.Scan(&msg.ID, &msg.TenantID, &msg.SessionID, &msg.Role, &msg.Content,
 				&toolCallID, &toolCalls, &toolName, &reasoning,
-				&msg.Timestamp, &tokenCount, &finishReason)
+				&msg.Timestamp, &tokenCount, &finishReason, &agenticBlocks)
 			if toolCallID != nil {
 				if v, ok := toolCallID.(string); ok {
 					msg.ToolCallID = v
@@ -107,6 +112,14 @@ func (m *pgMessageStore) List(ctx context.Context, tenantID, sessionID string, l
 			if finishReason != nil {
 				if v, ok := finishReason.(string); ok {
 					msg.FinishReason = v
+				}
+			}
+			if agenticBlocks != nil {
+				switch v := agenticBlocks.(type) {
+				case string:
+					msg.AgenticBlocks = v
+				case []byte:
+					msg.AgenticBlocks = string(v)
 				}
 			}
 			msgs = append(msgs, msg)

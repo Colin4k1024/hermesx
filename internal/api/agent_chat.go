@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	crypto_rand "crypto/rand"
 	"encoding/json"
 	"fmt"
@@ -11,10 +12,12 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/eino"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/Colin4k1024/hermesx/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/toolsets"
 )
 
 // ServeAgentHTTP handles POST /v1/agent/chat using the full AIAgent (tool loop, soul, skills, memory).
@@ -107,7 +110,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		if m.Role == "system" {
 			continue
 		}
-		history = append(history, llm.Message{Role: m.Role, Content: m.Content})
+		history = append(history, storeMessageToLLM(m))
 	}
 	// Drop the last entry — it's the user message we just added (agent appends it itself).
 	if len(history) > 0 && history[len(history)-1].Role == "user" {
@@ -132,47 +135,59 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Build skill loader for this tenant+user (composite: user-scoped first, tenant fallback).
-	var skillLoader skills.SkillLoader
-	if h.skillsClient != nil {
-		tenantLoader := skills.NewMinIOSkillLoader(h.skillsClient, tenantID)
-		if userID != "" {
-			userLoader := skills.NewMinIOUserSkillLoader(h.skillsClient, tenantID, userID)
-			skillLoader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+	runAgent := h.runAgent
+	if runAgent == nil {
+		// Build skill loader for this tenant+user (composite: user-scoped first, tenant fallback).
+		var skillLoader skills.SkillLoader
+		if h.skillsClient != nil {
+			tenantLoader := skills.NewMinIOSkillLoader(h.skillsClient, tenantID)
+			if userID != "" {
+				userLoader := skills.NewMinIOUserSkillLoader(h.skillsClient, tenantID, userID)
+				skillLoader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+			} else {
+				skillLoader = tenantLoader
+			}
+		}
+
+		// Build store-backed memory provider (works with MySQL, PostgreSQL, SQLite).
+		var memProvider tools.MemoryProvider
+		if h.store != nil {
+			memProvider = agent.NewStoreMemoryProviderAsToolsProvider(h.store, tenantID, userID)
+		}
+
+		systemPrompt := h.buildAgenticSystemPrompt(ctx, soulContent, skillLoader, memProvider)
+
+		var llmClient *llm.Client
+		if h.apiMode != "" {
+			llmClient, err = llm.NewClientWithMode(h.llmModel, h.llmURL, h.llmAPIKey, "", llm.APIMode(h.apiMode))
 		} else {
-			skillLoader = tenantLoader
+			llmClient, err = llm.NewClientWithParams(h.llmModel, h.llmURL, h.llmAPIKey, "")
+		}
+		if err != nil || llmClient == nil {
+			slog.Error("llm_client_create_failed", "tenant", tenantID, "error", err)
+			http.Error(w, fmt.Sprintf("LLM client creation failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+		agentOpts := []eino.Option{
+			eino.WithTransport(llmClient.GetTransport()),
+			eino.WithModel(llmClient.Model()),
+			eino.WithProvider(llmClient.Provider()),
+			eino.WithBaseURL(llmClient.BaseURL()),
+			eino.WithAPIKey(h.llmAPIKey),
+			eino.WithAPIMode(string(llmClient.APIMode())),
+			eino.WithTenantID(tenantID),
+			eino.WithUserID(userID),
+			eino.WithSessionID(sessionID),
+			eino.WithPlatform("api"),
+			eino.WithSystemPrompt(systemPrompt),
+			eino.WithTools(h.agenticToolEntries()),
+			eino.WithMemoryProvider(memProvider),
+			eino.WithCheckpointStore(storeCheckpointAdapter(h.store)),
+		}
+		runAgent = func(ctx context.Context, userMessage string, history []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error) {
+			return eino.RunConversationTurnLoopSafe(ctx, userMessage, history, callbacks, agentOpts...)
 		}
 	}
-
-	// Build store-backed memory provider (works with MySQL, PostgreSQL, SQLite).
-	var memProvider tools.MemoryProvider
-	if h.store != nil {
-		memProvider = agent.NewStoreMemoryProviderAsToolsProvider(h.store, tenantID, userID)
-	}
-
-	// Build the agent with all SaaS-mode options.
-	a, err := agent.New(
-		agent.WithBaseURL(h.llmURL),
-		agent.WithAPIKey(h.llmAPIKey),
-		agent.WithModel(h.llmModel),
-		agent.WithAPIMode(h.apiMode),
-		agent.WithTenantID(tenantID),
-		agent.WithUserID(userID),
-		agent.WithSessionID(sessionID),
-		agent.WithPlatform("api"),
-		agent.WithSkipContextFiles(true), // no local filesystem; soul comes from MinIO
-		agent.WithPersistSession(false),  // we persist to PG ourselves
-		agent.WithSoulContent(soulContent),
-		agent.WithSkillLoader(skillLoader),
-		agent.WithMemoryProvider(memProvider),
-		agent.WithEvolution(h.evolutionImprover),
-	)
-	if err != nil {
-		slog.Error("agent_create_failed", "tenant", tenantID, "error", err)
-		http.Error(w, fmt.Sprintf("agent creation failed: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer a.Close()
 
 	// Real SSE streaming: set up headers and callbacks BEFORE running agent.
 	if req.Stream {
@@ -207,13 +222,23 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		writeSSE(roleChunk)
 
 		// Wire real-time streaming callbacks.
-		a.SetCallbacks(&agent.StreamCallbacks{
+		callbacks := &eino.StreamCallbacks{
 			OnStreamDelta: func(text string) {
 				chunk, _ := json.Marshal(sseChunkResp{
 					ID: chunkID, Object: "chat.completion.chunk", Created: created, Model: h.llmModel,
 					Choices: []sseChunkDelta{{Index: 0, Delta: sseChunkContent{Content: text}}},
 				})
 				writeSSE(chunk)
+			},
+			OnAgenticBlock: func(block eino.AgenticBlock) {
+				if !req.IncludeAgenticBlocks {
+					return
+				}
+				evt, _ := json.Marshal(block)
+				writeMu.Lock()
+				fmt.Fprintf(w, "event: agentic_block\ndata: %s\n\n", evt)
+				rc.Flush()
+				writeMu.Unlock()
 			},
 			OnToolStart: func(toolName string) {
 				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "started"})
@@ -229,7 +254,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 				rc.Flush()
 				writeMu.Unlock()
 			},
-		})
+		}
 
 		// Heartbeat in background.
 		heartDone := make(chan struct{})
@@ -252,7 +277,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		}()
 
 		// Run agent (deltas fire callbacks above in real-time).
-		result, err := a.RunConversation(userMessage, history)
+		result, err := runAgent(ctx, userMessage, history, callbacks)
 		close(heartDone)
 
 		if err != nil {
@@ -261,7 +286,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			rc.Flush()
 		} else {
 			// Persist and update tokens.
-			h.sendMsg(ctx, tenantID, sessionID, "assistant", result.FinalResponse)
+			h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", result.FinalResponse, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
 			h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
 				Input: result.InputTokens, Output: result.OutputTokens,
 			})
@@ -280,7 +305,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Non-streaming path.
-	result, err := a.RunConversation(userMessage, history)
+	result, err := runAgent(ctx, userMessage, history, nil)
 	if err != nil {
 		slog.Error("agent_run_failed", "tenant", tenantID, "session", sessionID, "error", err)
 		http.Error(w, fmt.Sprintf("agent error: %v", err), http.StatusBadGateway)
@@ -290,7 +315,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	reply := result.FinalResponse
 
 	// Persist assistant reply to PG.
-	msgID := h.sendMsg(ctx, tenantID, sessionID, "assistant", reply)
+	msgID := h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", reply, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
 
 	// Run rule-based memory extractor on the user message.
 	if h.store != nil {
@@ -316,7 +341,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(chatResp{
+	resp := chatResp{
 		ID:      sessionID,
 		Object:  "chat.completion",
 		Created: time.Now().Unix(),
@@ -331,7 +356,48 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			CompletionTokens: result.OutputTokens,
 			TotalTokens:      result.TotalTokens,
 		},
-	})
+	}
+	if req.IncludeAgenticBlocks {
+		resp.AgenticBlocks = result.AgenticBlocks
+	}
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *chatHandler) agenticToolEntries() []*tools.ToolEntry {
+	names := toolsets.ResolveToolset("hermesx-cli")
+	entries := make([]*tools.ToolEntry, 0, len(names))
+	for _, name := range names {
+		entry := tools.Registry().Lookup(name)
+		if entry == nil {
+			continue
+		}
+		if entry.CheckFn != nil && !entry.CheckFn() {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func storeMessageToLLM(m *store.Message) llm.Message {
+	if m == nil {
+		return llm.Message{}
+	}
+	out := llm.Message{
+		Role:         m.Role,
+		Content:      m.Content,
+		ToolCallID:   m.ToolCallID,
+		ToolName:     m.ToolName,
+		Reasoning:    m.Reasoning,
+		FinishReason: m.FinishReason,
+	}
+	if m.ToolCalls != "" {
+		var calls []llm.ToolCall
+		if err := json.Unmarshal([]byte(m.ToolCalls), &calls); err == nil {
+			out.ToolCalls = calls
+		}
+	}
+	return out
 }
 
 // SSE chunk types matching OpenAI chat.completion.chunk format.

@@ -48,6 +48,13 @@ type MessageStore interface {
 	CountBySession(ctx context.Context, tenantID, sessionID string) (int, error)
 }
 
+// AgentCheckpointStore manages Eino ADK checkpoint payloads.
+type AgentCheckpointStore interface {
+	Get(ctx context.Context, tenantID, sessionID, checkpointID string) (*AgentCheckpoint, error)
+	Set(ctx context.Context, checkpoint *AgentCheckpoint) error
+	Delete(ctx context.Context, tenantID, sessionID, checkpointID string) error
+}
+
 // UserStore manages user accounts and permissions.
 type UserStore interface {
 	GetOrCreate(ctx context.Context, tenantID, externalID, username string) (*User, error)

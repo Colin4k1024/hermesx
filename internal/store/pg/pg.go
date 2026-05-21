@@ -32,6 +32,7 @@ type PGStore struct {
 	pricingRules      *pgPricingRuleStore
 	executionReceipts *pgExecutionReceiptStore
 	workflows         *pgWorkflowStore
+	checkpoints       *pgAgentCheckpointStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -71,6 +72,7 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.pricingRules = &pgPricingRuleStore{pool: pool}
 	s.executionReceipts = &pgExecutionReceiptStore{pool: pool}
 	s.workflows = &pgWorkflowStore{pool: pool}
+	s.checkpoints = &pgAgentCheckpointStore{pool: pool}
 	return s, nil
 }
 
@@ -87,6 +89,7 @@ func (s *PGStore) Roles() store.RoleStore                         { return s.rol
 func (s *PGStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *PGStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
 func (s *PGStore) Workflows() store.WorkflowStore                 { return s.workflows }
+func (s *PGStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

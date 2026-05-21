@@ -667,6 +667,18 @@ func schemas() map[string]any {
 				"model":    map[string]any{"type": "string", "description": "Model identifier"},
 				"messages": map[string]any{"type": "array", "items": map[string]any{"$ref": "#/components/schemas/Message"}},
 				"stream":   map[string]any{"type": "boolean", "default": true},
+				"include_agentic_blocks": map[string]any{
+					"type":        "boolean",
+					"default":     false,
+					"description": "When true, include sanitized Eino AgenticMessage content blocks in JSON responses and SSE agentic_block events.",
+				},
+			},
+		},
+		"AgenticBlock": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"type": map[string]any{"type": "string"},
+				"data": map[string]any{"type": "object", "additionalProperties": true},
 			},
 		},
 		"Message": map[string]any{

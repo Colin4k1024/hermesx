@@ -3,8 +3,13 @@ package eino
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
+
+	"github.com/Colin4k1024/hermesx/internal/eino/modeladapter"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 )
@@ -12,6 +17,11 @@ import (
 type mockTransport struct {
 	callCount int
 	responses []llm.ChatResponse
+}
+
+type stubAgenticModel struct {
+	message *schema.AgenticMessage
+	err     error
 }
 
 func (m *mockTransport) Name() string { return "mock" }
@@ -42,6 +52,88 @@ func (m *mockTransport) ChatStream(_ context.Context, _ llm.ChatRequest) (<-chan
 		deltaCh <- llm.StreamDelta{Done: true}
 	}()
 	return deltaCh, errCh
+}
+
+func (s *stubAgenticModel) Generate(_ context.Context, _ []*schema.AgenticMessage, _ ...model.Option) (*schema.AgenticMessage, error) {
+	if s.err != nil {
+		return nil, s.err
+	}
+	return s.message, nil
+}
+
+func (s *stubAgenticModel) Stream(_ context.Context, _ []*schema.AgenticMessage, _ ...model.Option) (*schema.StreamReader[*schema.AgenticMessage], error) {
+	reader, writer := schema.Pipe[*schema.AgenticMessage](1)
+	go func() {
+		defer writer.Close()
+		if s.err != nil {
+			writer.Send(nil, s.err)
+			return
+		}
+		if s.message != nil {
+			writer.Send(s.message, nil)
+		}
+	}()
+	return reader, nil
+}
+
+func TestBuildChatModel_PrefersAgenticProviderModel(t *testing.T) {
+	oldFactory := agenticProviderModelFactory
+	defer func() { agenticProviderModelFactory = oldFactory }()
+
+	agenticProviderModelFactory = func(context.Context, AgenticProviderConfig) (model.AgenticModel, error) {
+		return &stubAgenticModel{}, nil
+	}
+
+	got := buildChatModelWithConfig(context.Background(), &mockTransport{}, "gpt-5", "openai", "https://example.com", "test-key", "responses", NewCapture())
+	if _, ok := got.(*modeladapter.AgenticBridge); !ok {
+		t.Fatalf("expected native agentic bridge, got %T", got)
+	}
+}
+
+func TestBuildChatModel_FallsBackToTransportWhenAgenticUnavailable(t *testing.T) {
+	oldFactory := agenticProviderModelFactory
+	defer func() { agenticProviderModelFactory = oldFactory }()
+
+	agenticProviderModelFactory = func(context.Context, AgenticProviderConfig) (model.AgenticModel, error) {
+		return nil, errors.New("boom")
+	}
+
+	got := buildChatModelWithConfig(context.Background(), &mockTransport{}, "gpt-5", "openai", "https://example.com", "test-key", "responses", NewCapture())
+	if _, ok := got.(*modeladapter.WrappedModel); !ok {
+		t.Fatalf("expected legacy transport wrapper, got %T", got)
+	}
+}
+
+func TestAgenticBridge_CapturesNativeOnlyBlocks(t *testing.T) {
+	capture := NewCapture()
+	bridge := modeladapter.WrapAgentic(&stubAgenticModel{
+		message: &schema.AgenticMessage{
+			Role: schema.AgenticRoleTypeAssistant,
+			ContentBlocks: []*schema.ContentBlock{
+				schema.NewContentBlock(&schema.AssistantGenText{Text: "hello"}),
+				schema.NewContentBlock(&schema.ServerToolCall{Name: "web_search", CallID: "srv_1", Arguments: map[string]any{"query": "weather"}}),
+			},
+		},
+	}, capture)
+
+	out, err := bridge.Generate(context.Background(), []*schema.Message{schema.UserMessage("hi")})
+	if err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if out.Content != "hello" {
+		t.Fatalf("expected assistant text to remain in converted message, got %q", out.Content)
+	}
+	blocks := capture.Blocks()
+	if len(blocks) != 1 {
+		t.Fatalf("expected exactly one native-only block, got %d", len(blocks))
+	}
+	if blocks[0].Type != string(schema.ContentBlockTypeServerToolCall) {
+		t.Fatalf("expected server tool call block, got %q", blocks[0].Type)
+	}
+	serverToolCall, _ := blocks[0].Data["server_tool_call"].(map[string]any)
+	if name, _ := serverToolCall["name"].(string); name != "web_search" {
+		t.Fatalf("expected native block payload to be preserved, got %#v", blocks[0].Data)
+	}
 }
 
 func TestEinoAgent_SingleToolLoop(t *testing.T) {
