@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
 	"github.com/eino-contrib/jsonschema"
@@ -79,9 +82,39 @@ func (w *WrappedTool) InvokableRun(ctx context.Context, argumentsInJSON string, 
 	if tctx == nil {
 		tctx = &tools.ToolContext{}
 	}
+	tctx = enrichToolContext(tctx, w.entry)
 
 	result := w.entry.Handler(ctx, args, tctx)
 	return result, nil
+}
+
+func enrichToolContext(base *tools.ToolContext, entry *tools.ToolEntry) *tools.ToolContext {
+	if base == nil {
+		base = &tools.ToolContext{}
+	}
+	cloned := *base
+	if cloned.HTTPClient == nil {
+		if transport, ok := cloned.Extra["egress_transport"].(*http.Transport); ok && transport != nil {
+			maxRedirects := 0
+			if entry != nil {
+				maxRedirects = entry.MaxRedirects
+			}
+			cloned.HTTPClient = &http.Client{
+				Transport: transport,
+				Timeout:   30 * time.Second,
+				CheckRedirect: func(req *http.Request, via []*http.Request) error {
+					if maxRedirects == 0 {
+						return http.ErrUseLastResponse
+					}
+					if len(via) >= maxRedirects {
+						return egress.ErrNotAllowed
+					}
+					return nil
+				},
+			}
+		}
+	}
+	return &cloned
 }
 
 // extractParamsSchema converts the "parameters" field from the OpenAI function

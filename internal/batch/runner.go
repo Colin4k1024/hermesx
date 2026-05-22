@@ -3,6 +3,7 @@
 package batch
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/agentruntime"
 )
 
 // BatchConfig describes the parameters for a batch run.
@@ -103,30 +105,20 @@ func runSinglePrompt(prompt string, cfg BatchConfig) BatchResult {
 		Prompt: prompt,
 	}
 
-	// Build agent options.
-	opts := []agent.AgentOption{
-		agent.WithPlatform("batch"),
-		agent.WithQuietMode(true),
-		agent.WithPersistSession(false),
-		agent.WithMaxIterations(cfg.MaxIterations),
-	}
-
-	if cfg.Model != "" {
-		opts = append(opts, agent.WithModel(cfg.Model))
-	}
-	if len(cfg.ToolSets) > 0 {
-		opts = append(opts, agent.WithEnabledToolsets(cfg.ToolSets))
-	}
-
-	ag, err := agent.New(opts...)
+	runtime, err := agentruntime.NewEino(context.Background(), agentruntime.Options{
+		Platform:        "batch",
+		Model:           cfg.Model,
+		MaxIterations:   cfg.MaxIterations,
+		EnabledToolsets: cfg.ToolSets,
+	})
 	if err != nil {
-		result.Error = fmt.Sprintf("create agent: %v", err)
+		result.Error = fmt.Sprintf("create eino runtime: %v", err)
 		result.Duration = time.Since(start)
 		return result
 	}
-	defer ag.Close()
+	defer runtime.Close()
 
-	convResult, err := ag.RunConversation(prompt, nil)
+	convResult, err := runtime.RunConversation(context.Background(), prompt, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("conversation: %v", err)
 		result.Duration = time.Since(start)
@@ -143,7 +135,7 @@ func runSinglePrompt(prompt string, cfg BatchConfig) BatchResult {
 	}
 
 	// Save trajectory.
-	traj := agent.NewTrajectoryFromResult(convResult, ag.SessionID(), result.Duration)
+	traj := agent.NewTrajectoryFromResult(convResult, runtime.SessionID(), result.Duration)
 	if err := agent.SaveTrajectory(traj, cfg.OutputDir); err != nil {
 		slog.Warn("Failed to save trajectory", "error", err, "prompt", truncatePrompt(prompt))
 	}

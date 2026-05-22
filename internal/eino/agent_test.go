@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"testing"
 
 	"github.com/cloudwego/eino/components/model"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/eino/modeladapter"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
@@ -23,6 +25,14 @@ type stubAgenticModel struct {
 	message *schema.AgenticMessage
 	err     error
 }
+
+type einoTestMemoryProvider struct{}
+
+func (einoTestMemoryProvider) ReadMemory() (string, error)      { return "", nil }
+func (einoTestMemoryProvider) SaveMemory(string, string) error  { return nil }
+func (einoTestMemoryProvider) DeleteMemory(string) error        { return nil }
+func (einoTestMemoryProvider) ReadUserProfile() (string, error) { return "", nil }
+func (einoTestMemoryProvider) SaveUserProfile(string) error     { return nil }
 
 func (m *mockTransport) Name() string { return "mock" }
 
@@ -382,6 +392,79 @@ func TestEinoAgent_ContextPropagation(t *testing.T) {
 	}
 	if capturedSessionID != "session-456" {
 		t.Errorf("expected session-456, got %q", capturedSessionID)
+	}
+}
+
+func TestEinoAgent_ToolContextParity(t *testing.T) {
+	toolArgs, _ := json.Marshal(map[string]any{})
+	transport := &mockTransport{
+		responses: []llm.ChatResponse{
+			{
+				ToolCalls:    []llm.ToolCall{{ID: "c1", Type: "function", Function: llm.FunctionCall{Name: "check_parity", Arguments: string(toolArgs)}}},
+				FinishReason: "tool_calls",
+			},
+			{Content: "ok", FinishReason: "stop"},
+		},
+	}
+	resolver := secrets.NewEnvSecretResolver(secrets.NewEnvSecretStore("HERMES_TEST_"))
+
+	var captured *tools.ToolContext
+	entries := []*tools.ToolEntry{
+		{
+			Name:         "check_parity",
+			Description:  "Check context parity",
+			MaxRedirects: 1,
+			Schema: map[string]any{
+				"name": "check_parity", "description": "Check context parity",
+				"parameters": map[string]any{"type": "object", "properties": map[string]any{}},
+			},
+			Handler: func(_ context.Context, _ map[string]any, tctx *tools.ToolContext) string {
+				copied := *tctx
+				captured = &copied
+				return "captured"
+			},
+		},
+	}
+
+	agent, err := NewEinoAgent(context.Background(),
+		WithTransport(transport),
+		WithModel("m"),
+		WithTools(entries),
+		WithTenantID("tenant-123"),
+		WithUserID("user-456"),
+		WithSessionID("session-789"),
+		WithPlatform("gateway"),
+		WithMemoryProvider(einoTestMemoryProvider{}),
+		WithSecretResolver(resolver),
+	)
+	if err != nil {
+		t.Fatalf("NewEinoAgent: %v", err)
+	}
+
+	if _, err := agent.RunConversation(context.Background(), "check", nil); err != nil {
+		t.Fatalf("RunConversation: %v", err)
+	}
+	if captured == nil {
+		t.Fatal("tool context was not captured")
+	}
+	if captured.TenantID != "tenant-123" || captured.UserID != "user-456" || captured.SessionID != "session-789" || captured.Platform != "gateway" {
+		t.Fatalf("unexpected context identity: %#v", captured)
+	}
+	if captured.MemoryProvider == nil {
+		t.Fatal("expected memory provider")
+	}
+	if captured.SecretResolver != resolver {
+		t.Fatal("expected secret resolver to be propagated")
+	}
+	if captured.HTTPClient == nil {
+		t.Fatal("expected egress-aware HTTP client")
+	}
+	if captured.HTTPClient.CheckRedirect == nil {
+		t.Fatal("expected per-tool redirect policy")
+	}
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	if err := captured.HTTPClient.CheckRedirect(req, []*http.Request{req}); err == nil {
+		t.Fatal("expected redirect limit error")
 	}
 }
 

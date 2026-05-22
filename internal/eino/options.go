@@ -1,6 +1,8 @@
 package eino
 
 import (
+	"net/http"
+
 	"github.com/cloudwego/eino/adk"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
@@ -104,4 +106,14 @@ func WithSafetyInterceptor(interceptor safety.SafetyInterceptor) Option {
 // WithLeakScanner sets the secret leak scanner for tool output redaction.
 func WithLeakScanner(scanner *secrets.LeakScanner) Option {
 	return func(c *agentConfig) { c.leakScanner = scanner }
+}
+
+// WithSecretResolver injects just-in-time secret resolution into tool calls.
+func WithSecretResolver(resolver secrets.SecretResolver) Option {
+	return func(c *agentConfig) { c.secretResolver = resolver }
+}
+
+// WithHTTPTransport injects the shared egress-aware transport used by tool calls.
+func WithHTTPTransport(transport *http.Transport) Option {
+	return func(c *agentConfig) { c.httpTransport = transport }
 }

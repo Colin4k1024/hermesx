@@ -8,7 +8,7 @@ import (
 
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
 
-	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/agentruntime"
 )
 
 func TestRunner_WithLifecycleHooks_EmitsConnectDisconnect(t *testing.T) {
@@ -33,7 +33,7 @@ func TestRunner_WithLifecycleHooks_EmitsConnectDisconnect(t *testing.T) {
 		status:        NewRuntimeStatus(),
 		sessions:      NewSessionStore(&GatewayConfig{}),
 		mediaCache:    NewMediaCache(),
-		agentCache:    lru.NewLRU[string, *agent.AIAgent](10, nil, 5*time.Minute),
+		agentCache:    lru.NewLRU[string, agentruntime.SkillRuntime](10, nil, 5*time.Minute),
 		adapterErrors: make(map[Platform]int),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -79,7 +79,7 @@ func TestRunner_WithLifecycleHooks_NilSafe(t *testing.T) {
 		status:        NewRuntimeStatus(),
 		sessions:      NewSessionStore(&GatewayConfig{}),
 		mediaCache:    NewMediaCache(),
-		agentCache:    lru.NewLRU[string, *agent.AIAgent](10, nil, 5*time.Minute),
+		agentCache:    lru.NewLRU[string, agentruntime.SkillRuntime](10, nil, 5*time.Minute),
 		adapterErrors: make(map[Platform]int),
 		ctx:           ctx,
 		cancel:        cancel,

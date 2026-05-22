@@ -11,6 +11,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/skills"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
 const defaultAgentIdentity = `You are Hermes, a helpful AI assistant built by Nous Research.
@@ -79,18 +80,32 @@ var platformHints = map[string]string{
 	"slack":    `You are running as a Slack bot. Use Slack mrkdwn formatting. Keep responses focused and well-structured.`,
 }
 
-func (a *AIAgent) buildSystemPrompt() string {
-	if a.ephemeralSystemPrompt != "" {
-		if a.skillLoader != nil {
-			loaded, err := a.skillLoader.LoadAll(context.Background())
+// SystemPromptOptions describes the reusable prompt inputs shared by the
+// legacy AIAgent and the Eino runtime adapter.
+type SystemPromptOptions struct {
+	Platform              string
+	EphemeralSystemPrompt string
+	SkillLoader           skills.SkillLoader
+	SkipContextFiles      bool
+	SkipMemory            bool
+	SoulContent           string
+	MemoryProvider        tools.MemoryProvider
+}
+
+// BuildSystemPrompt constructs the Hermes system prompt without binding callers
+// to AIAgent. New runtimes should use this helper for prompt parity.
+func BuildSystemPrompt(opts SystemPromptOptions) string {
+	if opts.EphemeralSystemPrompt != "" {
+		if opts.SkillLoader != nil {
+			loaded, err := opts.SkillLoader.LoadAll(context.Background())
 			if err != nil {
 				slog.Debug("Failed to load skills from SkillLoader", "error", err)
 			} else if len(loaded) > 0 {
 				skillsText := skills.BuildSkillsPrompt(loaded)
-				return a.ephemeralSystemPrompt + "\n\n## Available Skills\n" + skillsText
+				return opts.EphemeralSystemPrompt + "\n\n## Available Skills\n" + skillsText
 			}
 		}
-		return a.ephemeralSystemPrompt
+		return opts.EphemeralSystemPrompt
 	}
 
 	var sb strings.Builder
@@ -99,19 +114,19 @@ func (a *AIAgent) buildSystemPrompt() string {
 	cwd, _ := os.Getwd()
 	sb.WriteString(fmt.Sprintf(defaultAgentIdentity,
 		time.Now().Format("2006-01-02"),
-		a.platform,
+		opts.Platform,
 		cwd,
 	))
 
 	// Platform hints
-	if hint, ok := platformHints[a.platform]; ok {
+	if hint, ok := platformHints[opts.Platform]; ok {
 		sb.WriteString("\n\n")
 		sb.WriteString(hint)
 	}
 
 	// Memory guidance — SaaS mode uses PG-backed storage, CLI mode uses local files
-	if !a.skipMemory {
-		if a.skipContextFiles {
+	if !opts.SkipMemory {
+		if opts.SkipContextFiles {
 			sb.WriteString(saasMemoryGuidance)
 		} else {
 			sb.WriteString(memoryGuidance)
@@ -122,7 +137,7 @@ func (a *AIAgent) buildSystemPrompt() string {
 	sb.WriteString(sessionSearchGuidance)
 
 	// Context files
-	if !a.skipContextFiles {
+	if !opts.SkipContextFiles {
 		contextFiles := loadContextFiles()
 		if contextFiles != "" {
 			sb.WriteString("\n\n## Project Context\n")
@@ -131,14 +146,14 @@ func (a *AIAgent) buildSystemPrompt() string {
 	}
 
 	// Soul content (per-tenant, loaded from MinIO in SaaS mode)
-	if a.soulContent != "" {
+	if opts.SoulContent != "" {
 		sb.WriteString("\n\n## Persona\n")
-		sb.WriteString(a.soulContent)
+		sb.WriteString(opts.SoulContent)
 	}
 
 	// Memory context (from PG memory provider via SystemPromptProvider)
-	if a.memoryProvider != nil {
-		if sp, ok := a.memoryProvider.(SystemPromptProvider); ok {
+	if opts.MemoryProvider != nil {
+		if sp, ok := opts.MemoryProvider.(SystemPromptProvider); ok {
 			if block := sp.SystemPromptBlock(); block != "" {
 				sb.WriteString("\n\n")
 				sb.WriteString(block)
@@ -148,8 +163,8 @@ func (a *AIAgent) buildSystemPrompt() string {
 
 	// Skills guidance — use SkillLoader when available, fallback to local filesystem
 	var skillsPrompt string
-	if a.skillLoader != nil {
-		loaded, err := a.skillLoader.LoadAll(context.Background())
+	if opts.SkillLoader != nil {
+		loaded, err := opts.SkillLoader.LoadAll(context.Background())
 		if err != nil {
 			slog.Debug("Failed to load skills from SkillLoader", "error", err)
 		} else {
@@ -164,6 +179,18 @@ func (a *AIAgent) buildSystemPrompt() string {
 	}
 
 	return sb.String()
+}
+
+func (a *AIAgent) buildSystemPrompt() string {
+	return BuildSystemPrompt(SystemPromptOptions{
+		Platform:              a.platform,
+		EphemeralSystemPrompt: a.ephemeralSystemPrompt,
+		SkillLoader:           a.skillLoader,
+		SkipContextFiles:      a.skipContextFiles,
+		SkipMemory:            a.skipMemory,
+		SoulContent:           a.soulContent,
+		MemoryProvider:        a.memoryProvider,
+	})
 }
 
 func loadContextFiles() string {

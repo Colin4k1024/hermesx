@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/agentruntime"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
@@ -56,7 +57,7 @@ type Runner struct {
 	mediaCache MediaCacher
 
 	// Agent cache to reuse agents per session (LRU with TTL, preserves prompt cache).
-	agentCache *lru.LRU[string, *agent.AIAgent]
+	agentCache *lru.LRU[string, agentruntime.SkillRuntime]
 
 	// Per-adapter error tracking for auto-disable.
 	adapterErrors   map[Platform]int
@@ -127,7 +128,7 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool, storeBackend store.St
 		minioClient:   mc,
 		provisioner:   prov,
 		mediaCache:    NewMediaCache(),
-		agentCache:    lru.NewLRU[string, *agent.AIAgent](200, nil, 5*time.Minute),
+		agentCache:    lru.NewLRU[string, agentruntime.SkillRuntime](200, nil, 5*time.Minute),
 		adapterErrors: make(map[Platform]int),
 		ctx:           ctx,
 		cancel:        cancel,
@@ -517,14 +518,14 @@ func (r *Runner) processWithAgent(ctx context.Context, event *MessageEvent, sess
 	// Run conversation with history if available.
 	var result string
 	if len(event.History) > 0 {
-		convResult, convErr := ag.RunConversation(event.Text, event.History)
+		convResult, convErr := ag.RunConversation(ctx, event.Text, event.History)
 		if convErr != nil {
 			err = convErr
 		} else {
 			result = convResult.FinalResponse
 		}
 	} else {
-		result, err = ag.Chat(event.Text)
+		result, err = ag.Chat(ctx, event.Text)
 	}
 	if err != nil {
 		observability.ContextLogger(ctx).Error("agent_error", "error", err, "session", session.SessionID)
@@ -563,19 +564,9 @@ func (r *Runner) processWithAgent(ctx context.Context, event *MessageEvent, sess
 }
 
 // getOrCreateAgent returns a cached agent or creates a new one.
-func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*agent.AIAgent, error) {
+func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (agentruntime.SkillRuntime, error) {
 	if ag, ok := r.agentCache.Get(session.SessionKey); ok {
 		return ag, nil
-	}
-
-	// Create a new agent.
-	opts := []agent.AgentOption{
-		agent.WithPlatform(string(event.Source.Platform)),
-		agent.WithSessionID(session.SessionID),
-		agent.WithQuietMode(true),
-	}
-	if event.SystemPrompt != "" {
-		opts = append(opts, agent.WithSystemPrompt(event.SystemPrompt))
 	}
 
 	// Per-tenant isolation: tenant ID and user ID.
@@ -584,19 +575,14 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 	if userID == "" {
 		userID = "default"
 	}
-	opts = append(opts,
-		agent.WithTenantID(tenantID),
-		agent.WithUserID(userID),
-	)
 
 	// Per-tenant memory provider: prefer store-backed (works with any backend),
 	// fall back to direct PG pool if no store backend configured.
+	var memProvider tools.MemoryProvider
 	if r.storeBackend != nil {
-		mp := agent.NewStoreMemoryProviderAsToolsProvider(r.storeBackend, tenantID, userID)
-		opts = append(opts, agent.WithMemoryProvider(mp))
+		memProvider = agent.NewStoreMemoryProviderAsToolsProvider(r.storeBackend, tenantID, userID)
 	} else if r.pgPool != nil {
-		mp := agent.NewPGMemoryProviderAsToolsProvider(r.pgPool, tenantID, userID)
-		opts = append(opts, agent.WithMemoryProvider(mp))
+		memProvider = agent.NewPGMemoryProviderAsToolsProvider(r.pgPool, tenantID, userID)
 	}
 
 	// Trigger per-user skill provisioning on first encounter (async, idempotent).
@@ -614,28 +600,39 @@ func (r *Runner) getOrCreateAgent(event *MessageEvent, session *SessionEntry) (*
 	}
 
 	// Per-tenant skill loader from MinIO (composite: user-scoped first, tenant fallback).
+	var skillLoader skills.SkillLoader
+	var soulContent string
+	skipContextFiles := false
 	if r.minioClient != nil {
 		tenantLoader := skills.NewMinIOSkillLoader(r.minioClient, tenantID)
-		var loader skills.SkillLoader
 		if userID != "" && userID != "default" {
 			userLoader := skills.NewMinIOUserSkillLoader(r.minioClient, tenantID, userID)
-			loader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+			skillLoader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
 		} else {
-			loader = tenantLoader
+			skillLoader = tenantLoader
 		}
-		opts = append(opts, agent.WithSkillLoader(loader))
 
 		// Per-tenant soul/persona from MinIO (capped at 64KB).
 		soulKey := tenantID + "/SOUL.md"
 		if soulData, err := r.minioClient.GetObject(context.Background(), soulKey); err == nil && len(soulData) > 0 && len(soulData) <= 64*1024 {
-			opts = append(opts, agent.WithSoulContent(string(soulData)))
+			soulContent = string(soulData)
 		}
 
 		// SaaS mode with MinIO: skip local filesystem context files.
-		opts = append(opts, agent.WithSkipContextFiles(true))
+		skipContextFiles = true
 	}
 
-	ag, err := agent.New(opts...)
+	ag, err := agentruntime.NewEino(r.ctx, agentruntime.Options{
+		Platform:         string(event.Source.Platform),
+		SessionID:        session.SessionID,
+		SystemPrompt:     event.SystemPrompt,
+		SkillLoader:      skillLoader,
+		SkipContextFiles: skipContextFiles,
+		TenantID:         tenantID,
+		UserID:           userID,
+		MemoryProvider:   memProvider,
+		SoulContent:      soulContent,
+	})
 	if err != nil {
 		return nil, err
 	}

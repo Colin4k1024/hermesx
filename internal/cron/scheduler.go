@@ -1,6 +1,7 @@
 package cron
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -8,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/agentruntime"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	robfigcron "github.com/robfig/cron/v3"
 )
@@ -240,30 +241,25 @@ func (s *Scheduler) runJob(job *Job) (success bool, output, response, errMsg str
 	// Build the prompt (with optional skill loading).
 	prompt := s.buildJobPrompt(job)
 
-	// Create a one-shot agent.
+	// Create a one-shot Eino runtime.
 	sessionID := fmt.Sprintf("cron_%s_%s", job.ID, time.Now().Format("20060102_150405"))
 
-	ag, err := agent.New(
-		agent.WithPlatform("cron"),
-		agent.WithSessionID(sessionID),
-		agent.WithQuietMode(true),
-		agent.WithSkipMemory(true),
-		agent.WithDisabledToolsets([]string{"cronjob", "messaging", "clarify"}),
-	)
+	runtime, err := agentruntime.NewEino(context.Background(), agentruntime.Options{
+		Platform:         "cron",
+		SessionID:        sessionID,
+		Model:            job.Model,
+		SkipMemory:       true,
+		DisabledToolsets: []string{"cronjob", "messaging", "clarify"},
+	})
 	if err != nil {
-		errMsg = fmt.Sprintf("failed to create agent: %v", err)
+		errMsg = fmt.Sprintf("failed to create eino runtime: %v", err)
 		output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
 		return false, output, "", errMsg
 	}
-	defer ag.Close()
-
-	// Set model if specified.
-	if job.Model != "" {
-		// Model is set via agent options, handled during creation.
-	}
+	defer runtime.Close()
 
 	// Run the agent.
-	result, err := ag.Chat(prompt)
+	result, err := runtime.Chat(context.Background(), prompt)
 	if err != nil {
 		errMsg = fmt.Sprintf("agent error: %v", err)
 		output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)

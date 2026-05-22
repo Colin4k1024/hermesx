@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	"github.com/cloudwego/eino/compose"
 	"github.com/cloudwego/eino/schema"
 
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/eino/ctxkeys"
 	"github.com/Colin4k1024/hermesx/internal/eino/modeladapter"
 	"github.com/Colin4k1024/hermesx/internal/eino/tooladapter"
@@ -96,6 +98,8 @@ type agentConfig struct {
 	checkpointStore   adk.CheckPointStore
 	safetyInterceptor safety.SafetyInterceptor
 	leakScanner       *secrets.LeakScanner
+	secretResolver    secrets.SecretResolver
+	httpTransport     *http.Transport
 }
 
 var agenticProviderModelFactory = NewAgenticProviderModel
@@ -112,6 +116,9 @@ func NewEinoAgent(ctx context.Context, opts ...Option) (*EinoAgent, error) {
 
 	if cfg.transport == nil {
 		return nil, fmt.Errorf("eino agent: transport is required")
+	}
+	if cfg.httpTransport == nil {
+		cfg.httpTransport = egress.NewSecureTransport(egress.NewAllowAllPolicy())
 	}
 
 	capture := NewCapture()
@@ -250,7 +257,12 @@ func (e *EinoAgent) run(ctx context.Context, runner *adk.Runner, userMessage str
 		UserID:         e.config.userID,
 		Platform:       e.config.platform,
 		MemoryProvider: e.config.memoryProvider,
+		SecretResolver: e.config.secretResolver,
+		Extra: map[string]any{
+			"egress_transport": e.config.httpTransport,
+		},
 	}
+	ctx = egress.WithTenant(ctx, e.config.tenantID)
 	ctx = ctxkeys.WithToolContext(ctx, tctx)
 	ctx = llm.WithTenantID(ctx, e.config.tenantID)
 
