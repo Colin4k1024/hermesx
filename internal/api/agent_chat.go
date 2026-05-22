@@ -87,34 +87,33 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "forbidden: session belongs to another user", http.StatusForbidden)
 		return
 	}
+	unlockSession := h.lockAgentSession(tenantID, sessionID)
+	defer unlockSession()
+
 	if !isNewSession && sess.Title == "" {
 		title := agent.GenerateSessionTitle([]llm.Message{{Role: "user", Content: userMessage}})
 		if title != "Untitled session" {
 			_ = h.store.Sessions().SetTitle(ctx, tenantID, sessionID, title)
 		}
 	}
+	w.Header().Set("X-Hermes-Session-Id", sessionID)
 
-	// Persist the user message to PG.
-	h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
-
-	// Load full conversation history from PG (includes the just-persisted message).
+	// Load existing conversation history from PG. The current user turn is kept
+	// out of persistence until the agent completes, so failed or interrupted
+	// requests do not leave half-written turns or duplicate resume history.
 	historyMsgs, err := h.store.Messages().List(ctx, tenantID, sessionID, 200, 0)
 	if err != nil {
 		historyMsgs = nil
 	}
 
-	// Build []llm.Message history for the agent — everything except the last user message
-	// (RunConversation takes userMessage separately and appends it internally).
+	// Build []llm.Message history for the agent; RunConversation takes
+	// userMessage separately and appends it internally.
 	history := make([]llm.Message, 0, len(historyMsgs))
 	for _, m := range historyMsgs {
 		if m.Role == "system" {
 			continue
 		}
 		history = append(history, storeMessageToLLM(m))
-	}
-	// Drop the last entry — it's the user message we just added (agent appends it itself).
-	if len(history) > 0 && history[len(history)-1].Role == "user" {
-		history = history[:len(history)-1]
 	}
 
 	// Load per-tenant soul from MinIO.
@@ -284,13 +283,17 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			errEvt, _ := json.Marshal(map[string]string{"error": err.Error()})
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errEvt)
 			rc.Flush()
-		} else {
-			// Persist and update tokens.
-			h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", result.FinalResponse, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
-			h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
-				Input: result.InputTokens, Output: result.OutputTokens,
-			})
+			fmt.Fprintf(w, "data: [DONE]\n\n")
+			rc.Flush()
+			return
 		}
+
+		// Persist and update tokens.
+		h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
+		h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", result.FinalResponse, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
+		h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
+			Input: result.InputTokens, Output: result.OutputTokens,
+		})
 
 		// Finish + DONE.
 		stop := "stop"
@@ -314,7 +317,8 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 
 	reply := result.FinalResponse
 
-	// Persist assistant reply to PG.
+	// Persist the completed user/assistant turn to PG.
+	h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
 	msgID := h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", reply, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
 
 	// Run rule-based memory extractor on the user message.
@@ -398,6 +402,14 @@ func storeMessageToLLM(m *store.Message) llm.Message {
 		}
 	}
 	return out
+}
+
+func (h *chatHandler) lockAgentSession(tenantID, sessionID string) func() {
+	key := tenantID + "/" + sessionID
+	actual, _ := h.sessionLocks.LoadOrStore(key, &sync.Mutex{})
+	mu := actual.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 // SSE chunk types matching OpenAI chat.completion.chunk format.

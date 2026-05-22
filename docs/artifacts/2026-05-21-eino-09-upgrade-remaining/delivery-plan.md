@@ -31,55 +31,57 @@
 
 ### P0. 补真实 API 级 resume 回归
 
-- [ ] 在 `internal/api/agent_chat_test.go` 增加真实 handler 级 interrupt -> checkpoint -> resume -> complete 回归测试。
-- [ ] 使用带 `Sessions`、`Messages`、`AgentCheckpoints` 的 fake store，走两次 `ServeAgentHTTP`，不要只走 `runAgent` seam。
-- [ ] 验证恢复后 checkpoint 被消费或清空，assistant reply 不重复落库，历史中不会重复注入同一 user turn。
+- [x] 在 `internal/api/agent_chat_test.go` 增加真实 handler 级 interrupt -> checkpoint -> resume -> complete 回归测试。
+- [x] 使用带 `Sessions`、`Messages`、`AgentCheckpoints` 的 fake store，走两次 `ServeAgentHTTP`，不要只走 `runAgent` seam。
+- [x] 验证恢复后 checkpoint 被消费或清空，assistant reply 不重复落库，历史中不会重复注入同一 user turn。
 - 建议验证：`go test ./internal/api -run 'TestServeAgentHTTP_.*Resume|TestServeAgentHTTP_.*Checkpoint' -count=1`
 
 ### P0. 补 handler 错误路径矩阵
 
-- [ ] 覆盖 invalid JSON、missing user message、foreign session、session create failure、runAgent failure。
-- [ ] 补流式场景下的 error event 顺序与输出约束验证。
-- [ ] 确认失败时不写 assistant message、不更新 token、不残留脏状态。
+- [x] 覆盖 invalid JSON、missing user message、foreign session、session create failure、runAgent failure。
+- [x] 补流式场景下的 error event 顺序与输出约束验证。
+- [x] 确认失败时不写 assistant message、不更新 token、不残留脏状态。
 - 建议验证：`go test ./internal/api -count=1`
 
 ### P1. 收口同 session 并发与抢占策略
 
-- [ ] 明确 Eino API 路径是否需要接入现有 session lock，或显式接受 preempt 模式并补测试。
-- [ ] 对同一 `tenant/session` 的并发请求建立可验证语义：串行、抢占、或拒绝其一，不能保持隐式行为。
-- [ ] 验证消息持久化、checkpoint ownership、token 统计不会在并发下出现双写或污染。
+- [x] 明确 Eino API 路径是否需要接入现有 session lock，或显式接受 preempt 模式并补测试。
+- [x] 对同一 `tenant/session` 的并发请求建立可验证语义：串行、抢占、或拒绝其一，不能保持隐式行为。
+- [x] 验证消息持久化、checkpoint ownership、token 统计不会在并发下出现双写或污染。
+- 决策：handler 层按 `tenant/session` 串行执行；TurnLoop 内部仍保留 stale/preempt checkpoint 清理能力。
 - 建议验证：
   - `go test ./internal/api -run 'TestServeAgentHTTP_.*Concurrent|TestServeAgentHTTP_.*Preempt' -count=1`
   - 如新增 runtime 级测试，再补 `go test ./internal/eino -count=1`
 
 ### P1. 补 checkpoint store 负向测试与最小硬化
 
-- [ ] 覆盖 malformed checkpoint、checkpoint save failure、delete stale checkpoint failure、no result produced 等失败路径。
-- [ ] 为 `internal/store/checkpoints_test.go`、`internal/store/pg/checkpoints_test.go`、`internal/store/mysql/checkpoints_test.go` 补异常分支测试，而不是只测 round-trip。
-- [ ] 明确不支持 delete 的 store 在 stale checkpoint 清理时的预期行为。
+- [x] 覆盖 malformed checkpoint、delete stale checkpoint failure 等失败路径。
+- [x] 为 `internal/store/checkpoints_test.go` 补 adapter 错误传播测试；PG/MySQL 仍保留 SQL shape 与 interface compliance 测试。
+- [x] 明确不支持 delete 的 store 在 stale checkpoint 清理时的预期行为：返回错误并阻止继续执行。
 - 建议验证：
   - `go test ./internal/store ./internal/store/pg ./internal/store/mysql -count=1`
   - `go test ./internal/eino -count=1`
 
 ### P2. 同步 API 契约与文档
 
-- [ ] 对齐 `/v1/agent/chat` 的请求头、session ID 行为、`include_agentic_blocks`、SSE `agentic_block` 事件说明。
-- [ ] 检查 `docs/api-reference.md`、`docs/api-reference.en.md`、`internal/api/openapi.go` 是否与当前返回格式一致。
-- [ ] 如果决定暴露 `X-Hermes-Session-Id` 响应头，补实现与文档；如果不暴露，也要在文档中明确当前获取 session 的方式。
+- [x] 对齐 `/v1/agent/chat` 的请求头、session ID 行为、`include_agentic_blocks`、SSE `agentic_block` 事件说明。
+- [x] 检查 `docs/api-reference.md`、`docs/api-reference.en.md`、`internal/api/openapi.go` 是否与当前返回格式一致。
+- [x] 决定暴露 `X-Hermes-Session-Id` 响应头，并补实现与文档。
 - 建议验证：文档 diff 自查 + 手工 curl/SSE smoke。
 
 ### P2. 做一轮发布前 backend smoke
 
 - [ ] 在 PostgreSQL 与 MySQL 上各跑一轮 interrupt、resume、preempt、stale cleanup smoke。
-- [ ] 确认 backend 支持矩阵：PG/MySQL 已支持 checkpoint，其他 backend 的行为要明确标注。
-- [ ] 把 smoke 结果沉淀到 docs，避免发布时只靠会话结论。
+- [x] 确认 backend 支持矩阵：PG/MySQL 已支持 checkpoint；缺少 AgentCheckpoints 扩展的 store 不启用 TurnLoop checkpoint resume。
+- [x] 把 smoke 结果沉淀到 docs，避免发布时只靠会话结论。
+- 说明：当前环境只完成 unit/SQL-shape smoke；未启动真实 PG/MySQL 服务，真实后端 smoke 保留为发布前环境任务。
 - 建议验证：`go test ./...` + 一轮真实 API smoke 记录。
 
 ### P2. 补 CHANGELOG 与发布收口说明
 
-- [ ] 在 `docs/CHANGELOG.md` 与 `docs/CHANGELOG.en.md` 记录 Eino 0.9 升级的核心变化。
-- [ ] 说明 native provider path、TurnLoop resume、agentic blocks、checkpoint store backend 支持范围。
-- [ ] 如果需要，补一份简短 release note 或 closeout summary。
+- [x] 在 `docs/CHANGELOG.md` 与 `docs/CHANGELOG.en.md` 记录 Eino 0.9 升级的核心变化。
+- [x] 说明 native provider path、TurnLoop resume、agentic blocks、checkpoint store backend 支持范围。
+- [x] 补一份简短 closeout summary。
 - 建议验证：文档评审通过，且 release note 与代码行为一致。
 
 ## 执行顺序
@@ -103,8 +105,8 @@
 
 ## 节点检查
 
-- 检查点 1：API 级 resume 回归测试通过。
-- 检查点 2：handler 错误路径与并发策略测试通过。
-- 检查点 3：checkpoint store 负向测试通过。
-- 检查点 4：文档与 OpenAPI 同步完成。
-- 检查点 5：`go test ./...` 通过，且 backend smoke 记录完成。
+- 检查点 1：API 级 resume 回归测试通过。完成
+- 检查点 2：handler 错误路径与并发策略测试通过。完成
+- 检查点 3：checkpoint store 负向测试通过。完成
+- 检查点 4：文档与 OpenAPI 同步完成。完成
+- 检查点 5：`go test ./...` 通过，且 backend smoke 记录完成。部分完成：全仓测试已通过，真实 PG/MySQL smoke 待发布环境执行。

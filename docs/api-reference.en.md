@@ -422,7 +422,7 @@ Supported request headers:
 
 | Header | Description |
 |--------|-------------|
-| `X-Hermes-Session-Id` | Specify a session ID to maintain multi-turn conversations |
+| `X-Hermes-Session-Id` | Optional. Specify a session ID to maintain multi-turn conversations; when omitted, the server creates a new session and returns the actual ID in the response header |
 | `X-Hermes-User-Id` | Specify a user ID for memory and profile isolation (defaults to API Key identity if not provided) |
 
 Chat requests automatically inject the following context (requires MinIO and PostgreSQL to be configured):
@@ -433,7 +433,7 @@ Chat requests automatically inject the following context (requires MinIO and Pos
 
 ### POST /v1/agent/chat — Agent Chat Interface (Alias)
 
-Same functionality as `/v1/chat/completions`, providing the Agent tool call loop.
+Same functionality as `/v1/chat/completions`, providing the Agent tool call loop. Responses include `X-Hermes-Session-Id`; clients should save that value and send it back as the same request header on later turns.
 
 ```bash
 curl -X POST http://localhost:8080/v1/agent/chat \
@@ -441,9 +441,21 @@ curl -X POST http://localhost:8080/v1/agent/chat \
   -H "Content-Type: application/json" \
   -d '{
     "model": "mock",
-    "messages": [{"role": "user", "content": "Hello!"}]
+    "messages": [{"role": "user", "content": "Hello!"}],
+    "include_agentic_blocks": true
   }'
 ```
+
+`include_agentic_blocks` defaults to `false`. When set to `true`:
+
+- JSON responses include `agentic_blocks` for debugging sanitized Eino AgenticMessage content blocks.
+- SSE streaming responses emit additional `event: agentic_block` events whose `data` payload is one block JSON object.
+
+Failure semantics:
+
+- Agent runtime failures return `502` and do not persist user/assistant messages or update token counters.
+- Streaming runtime failures emit `event: error`, then `data: [DONE]`, without fabricating `finish_reason: "stop"`.
+- Concurrent requests for the same `tenant/session` are serialized by the handler to avoid duplicate message, checkpoint, and token writes.
 
 ### GET /v1/me — Current Identity Information
 

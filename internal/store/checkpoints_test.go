@@ -2,15 +2,22 @@ package store
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 )
 
 type fakeAgentCheckpointStore struct {
 	entries map[string]*AgentCheckpoint
+	getErr  error
+	setErr  error
+	delErr  error
 }
 
 func (f *fakeAgentCheckpointStore) Get(_ context.Context, tenantID, sessionID, checkpointID string) (*AgentCheckpoint, error) {
+	if f.getErr != nil {
+		return nil, f.getErr
+	}
 	cp, ok := f.entries[tenantID+"/"+sessionID+"/"+checkpointID]
 	if !ok {
 		return nil, ErrNotFound
@@ -20,6 +27,9 @@ func (f *fakeAgentCheckpointStore) Get(_ context.Context, tenantID, sessionID, c
 }
 
 func (f *fakeAgentCheckpointStore) Set(_ context.Context, checkpoint *AgentCheckpoint) error {
+	if f.setErr != nil {
+		return f.setErr
+	}
 	if f.entries == nil {
 		f.entries = map[string]*AgentCheckpoint{}
 	}
@@ -29,6 +39,9 @@ func (f *fakeAgentCheckpointStore) Set(_ context.Context, checkpoint *AgentCheck
 }
 
 func (f *fakeAgentCheckpointStore) Delete(_ context.Context, tenantID, sessionID, checkpointID string) error {
+	if f.delErr != nil {
+		return f.delErr
+	}
 	delete(f.entries, tenantID+"/"+sessionID+"/"+checkpointID)
 	return nil
 }
@@ -96,4 +109,33 @@ func TestSplitCheckpointID(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestEinoCheckPointStore_ErrorPropagation(t *testing.T) {
+	ctx := context.Background()
+	wantErr := errors.New("backend unavailable")
+
+	t.Run("get error", func(t *testing.T) {
+		store := NewEinoCheckPointStore(&fakeAgentCheckpointStore{getErr: wantErr})
+		_, _, err := store.Get(ctx, "tenant-a/session-b")
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("Get err = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("set error", func(t *testing.T) {
+		store := NewEinoCheckPointStore(&fakeAgentCheckpointStore{setErr: wantErr})
+		err := store.Set(ctx, "tenant-a/session-b", []byte("payload"))
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("Set err = %v, want %v", err, wantErr)
+		}
+	})
+
+	t.Run("delete error", func(t *testing.T) {
+		store := NewEinoCheckPointStore(&fakeAgentCheckpointStore{delErr: wantErr})
+		err := store.Delete(ctx, "tenant-a/session-b")
+		if !errors.Is(err, wantErr) {
+			t.Fatalf("Delete err = %v, want %v", err, wantErr)
+		}
+	})
 }

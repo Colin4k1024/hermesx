@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **K8s Job 沙箱模式** — `SANDBOX_MODE=k8s-job` 通过 Kubernetes Job API 执行工具代码，无需特权容器或 DinD，兼容 GKE Autopilot / EKS Fargate
 - **预置可观测性栈** — Grafana Dashboard JSON（7 面板）、Prometheus 告警规则（5 条）、OTel Collector 配置、`docker-compose.observability.yml` 一键部署
 - **Redis/MinIO 备份脚本** — `scripts/redis-backup.sh`（BGSAVE + S3）、`scripts/minio-backup.sh`（mc mirror）、`scripts/dr-test.sh`（灾难恢复验证）
+- **Eino 0.9 Agent 主链** — 接入 native provider model、AgenticMessage blocks、TurnLoop checkpoint resume、PG/MySQL checkpoint store；`/v1/agent/chat` 支持 `include_agentic_blocks` 调试输出
 
 ### Fixed
 
 - **API Key 生成安全性** — `generateRawKey()` 从 panic 改为返回 `(string, error)`，`rand.Read` 失败时返回 HTTP 500 而非进程崩溃
+- **Agent Chat 失败持久化** — `/v1/agent/chat` 仅在 agent 成功后写入 user/assistant turn；运行失败或流式错误不会留下半写消息、重复 resume user turn 或 token 统计脏状态
+- **Agent Chat 同 session 并发** — 同一 `tenant/session` 的请求在 handler 层串行执行，避免消息、checkpoint 和 token 统计双写
+- **Workflow Agent 默认路径** — `agent_task` 默认 executor 从旧 AIAgent 切到 `EinoAgentExecutor`，与 API 共用 `RunConversationTurnLoopSafe` 主链
 
 ---
 

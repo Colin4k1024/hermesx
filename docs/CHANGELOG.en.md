@@ -13,10 +13,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **K8s Job Sandbox Mode** — `SANDBOX_MODE=k8s-job` executes tool code via Kubernetes Job API, no privileged containers or DinD required, compatible with GKE Autopilot / EKS Fargate
 - **Pre-built Observability Stack** — Grafana dashboard JSON (7 panels), Prometheus alert rules (5), OTel Collector config, one-click deploy via `docker-compose.observability.yml`
 - **Redis/MinIO Backup Scripts** — `scripts/redis-backup.sh` (BGSAVE + S3), `scripts/minio-backup.sh` (mc mirror), `scripts/dr-test.sh` (disaster recovery verification)
+- **Eino 0.9 Agent Main Path** — native provider model, AgenticMessage blocks, TurnLoop checkpoint resume, and PG/MySQL checkpoint stores; `/v1/agent/chat` supports `include_agentic_blocks` debug output
 
 ### Fixed
 
 - **API Key Generation Safety** — `generateRawKey()` changed from panic to returning `(string, error)`; `rand.Read` failure now returns HTTP 500 instead of crashing the process
+- **Agent Chat Failure Persistence** — `/v1/agent/chat` now persists user/assistant turns only after a successful agent run; runtime and streaming failures no longer leave half-written messages, duplicate resume user turns, or dirty token counters
+- **Agent Chat Same-Session Concurrency** — requests for the same `tenant/session` are serialized at the handler layer to avoid duplicate message, checkpoint, and token writes
+- **Workflow Agent Default Path** — `agent_task` default executor now uses `EinoAgentExecutor` instead of the legacy AIAgent path, sharing the `RunConversationTurnLoopSafe` main path with the API
 
 ---
 

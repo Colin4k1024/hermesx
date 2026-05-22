@@ -478,6 +478,7 @@ executor := workflow.NewEinoAgentExecutor(
 - **凭据脱敏** — 自动识别并遮蔽 AWS Key、GitHub Token 等 20+ 种凭据模式
 - **迭代限制** — 硬上限 50 次 tool loop，防止无限循环
 - **流式脱敏** — chunk 级缓冲脱敏，中间 chunk 不泄漏原始凭据
+- **TurnLoop 主链** — workflow `agent_task` 与 `/v1/agent/chat` 共用 Eino TurnLoop 执行语义；workflow 通过 step retry 持久化失败恢复，API 会话通过 checkpoint store 恢复中断请求
 
 ### 审计
 
@@ -538,6 +539,7 @@ PostgreSQL（推荐）和 MySQL 双实现，表结构自动迁移：
 - **完整 tool loop** — 多轮工具调用直到任务完成
 - **安全管线** — 输入拦截 → Agent 执行 → 输出脱敏，全链路保护
 - **上下文传递** — 工作流变量通过 context 注入 Agent，Agent 输出回写工作流
+- **统一主链** — 与 `/v1/agent/chat` 共享 `RunConversationTurnLoopSafe`，减少 API 与 workflow 两套运行路径的行为漂移
 
 架构层次：
 

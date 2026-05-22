@@ -402,6 +402,15 @@ func agentChatPath() map[string]any {
 		"post": map[string]any{
 			"tags":    []string{"Chat"},
 			"summary": "Agent chat (alias for /v1/chat/completions with session persistence)",
+			"parameters": []map[string]any{
+				{
+					"name":        "X-Hermes-Session-Id",
+					"in":          "header",
+					"required":    false,
+					"description": "Optional session ID for multi-turn continuity. If omitted, the server creates a session and returns its ID in the same response header.",
+					"schema":      map[string]any{"type": "string"},
+				},
+			},
 			"requestBody": map[string]any{
 				"required": true,
 				"content": map[string]any{
@@ -411,10 +420,19 @@ func agentChatPath() map[string]any {
 				},
 			},
 			"responses": map[string]any{
-				"200": map[string]any{"description": "Chat response (streaming or JSON)"},
+				"200": map[string]any{
+					"description": "Chat response (streaming or JSON). Streaming responses may emit event: agentic_block when include_agentic_blocks is true.",
+					"headers": map[string]any{
+						"X-Hermes-Session-Id": map[string]any{
+							"description": "Session ID used for this turn.",
+							"schema":      map[string]any{"type": "string"},
+						},
+					},
+				},
 				"400": map[string]any{"description": "No user message in request"},
 				"401": map[string]any{"description": "Unauthorized"},
 				"403": map[string]any{"description": "Session belongs to another user"},
+				"502": map[string]any{"description": "Agent runtime or model provider failed"},
 			},
 		},
 	}

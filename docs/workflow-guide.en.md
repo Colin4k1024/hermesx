@@ -478,6 +478,7 @@ Safety guarantees:
 - **Credential redaction** — auto-identifies and masks AWS Keys, GitHub Tokens, and 20+ credential patterns
 - **Iteration limit** — hard cap of 50 tool loop iterations, prevents infinite loops
 - **Stream redaction** — chunk-level buffered redaction, intermediate chunks never leak raw credentials
+- **TurnLoop main path** — workflow `agent_task` and `/v1/agent/chat` share Eino TurnLoop execution semantics; workflow recovery is persisted through step retry, while API conversations resume interrupted requests through the checkpoint store
 
 ### Audit
 
@@ -538,6 +539,7 @@ The workflow engine's `agent_task` nodes execute by default through `EinoAgentEx
 - **Full tool loop** — multi-round tool calls until task completion
 - **Safety pipeline** — input interception → agent execution → output redaction, full-chain protection
 - **Context passing** — workflow variables injected into agent via context, agent output written back to workflow
+- **Unified main path** — shares `RunConversationTurnLoopSafe` with `/v1/agent/chat`, reducing behavior drift between API and workflow execution
 
 Architecture layers:
 

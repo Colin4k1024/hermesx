@@ -12,8 +12,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Colin4k1024/hermesx/internal/agent"
+	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/tools"
+	"github.com/Colin4k1024/hermesx/internal/toolsets"
 )
 
 // AgentExecutor keeps agent-task execution swappable for tests and future
@@ -47,35 +51,44 @@ func NewEngine(s store.WorkflowStore, httpClient HTTPExecutor, agentExecutor Age
 type defaultAgentExecutor struct{}
 
 func (defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
-	prompt, _ := node.Config["prompt"].(string)
-	if strings.TrimSpace(prompt) == "" {
-		return nil, errors.New("agent task requires config.prompt")
-	}
-	serialized, _ := json.Marshal(payload)
 	model, _ := node.Config["model"].(string)
-	opts := []agent.AgentOption{
-		agent.WithTenantID(tenantID),
-		agent.WithUserID(userID),
-		agent.WithPlatform("workflow"),
-		agent.WithPersistSession(false),
-		agent.WithSkipContextFiles(true),
-		agent.WithBaseURL(os.Getenv("LLM_API_URL")),
-		agent.WithAPIKey(os.Getenv("LLM_API_KEY")),
-		agent.WithAPIMode(os.Getenv("HERMES_API_MODE")),
+	if model == "" {
+		model = os.Getenv("LLM_MODEL")
 	}
-	if model != "" {
-		opts = append(opts, agent.WithModel(model))
+	apiMode := os.Getenv("HERMES_API_MODE")
+	baseURL := os.Getenv("LLM_API_URL")
+	apiKey := os.Getenv("LLM_API_KEY")
+
+	var client *llm.Client
+	var err error
+	if apiMode != "" {
+		client, err = llm.NewClientWithMode(model, baseURL, apiKey, "", llm.APIMode(apiMode))
+	} else {
+		client, err = llm.NewClientWithParams(model, baseURL, apiKey, "")
 	}
-	ag, err := agent.New(opts...)
 	if err != nil {
-		return nil, fmt.Errorf("create workflow agent: %w", err)
+		return nil, fmt.Errorf("create workflow eino client: %w", err)
 	}
-	defer ag.Close()
-	result, err := ag.RunConversation(prompt+"\n\nWorkflow context JSON:\n"+string(serialized), nil)
-	if err != nil {
-		return nil, err
+
+	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(), safety.NewInterceptorChain(safety.NewInMemoryPolicyStore()), secrets.NewLeakScanner())
+	executor.apiKey = apiKey
+	return executor.Execute(ctx, tenantID, userID, node, payload)
+}
+
+func defaultWorkflowToolEntries() []*tools.ToolEntry {
+	names := toolsets.ResolveToolset("hermesx-cli")
+	entries := make([]*tools.ToolEntry, 0, len(names))
+	for _, name := range names {
+		entry := tools.Registry().Lookup(name)
+		if entry == nil {
+			continue
+		}
+		if entry.CheckFn != nil && !entry.CheckFn() {
+			continue
+		}
+		entries = append(entries, entry)
 	}
-	return map[string]any{"response": result.FinalResponse}, nil
+	return entries
 }
 
 // StartRun starts a workflow instance on the latest published version.

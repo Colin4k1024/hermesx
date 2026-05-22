@@ -47,6 +47,7 @@ type chatHandler struct {
 	// evolutionImprover is the global Oris gene-backed evolution path (optional).
 	evolutionImprover *evolution.Improver
 	runAgent          agentConversationRunner
+	sessionLocks      sync.Map
 }
 
 // SetEvolutionImprover attaches a shared Oris Improver to the handler.

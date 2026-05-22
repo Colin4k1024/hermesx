@@ -23,6 +23,11 @@ var _ AgentExecutor = (*EinoAgentExecutor)(nil)
 type EinoAgentExecutor struct {
 	transport         llm.Transport
 	tools             []*tools.ToolEntry
+	model             string
+	provider          string
+	baseURL           string
+	apiKey            string
+	apiMode           string
 	safetyInterceptor safety.SafetyInterceptor
 	leakScanner       *secrets.LeakScanner
 }
@@ -38,6 +43,18 @@ func NewEinoAgentExecutor(transport llm.Transport, toolEntries []*tools.ToolEntr
 	}
 }
 
+func newEinoAgentExecutorFromClient(client *llm.Client, toolEntries []*tools.ToolEntry, interceptor safety.SafetyInterceptor, scanner *secrets.LeakScanner) *EinoAgentExecutor {
+	if client == nil {
+		return NewEinoAgentExecutor(nil, toolEntries, interceptor, scanner)
+	}
+	executor := NewEinoAgentExecutor(client.GetTransport(), toolEntries, interceptor, scanner)
+	executor.model = client.Model()
+	executor.provider = client.Provider()
+	executor.baseURL = client.BaseURL()
+	executor.apiMode = string(client.APIMode())
+	return executor
+}
+
 func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
 	prompt, _ := node.Config["prompt"].(string)
 	if strings.TrimSpace(prompt) == "" {
@@ -48,6 +65,9 @@ func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 	fullPrompt := prompt + "\n\nWorkflow context JSON:\n" + string(serialized)
 
 	model, _ := node.Config["model"].(string)
+	if model == "" {
+		model = e.model
+	}
 	if model == "" {
 		model = os.Getenv("LLM_MODEL")
 	}
@@ -82,22 +102,31 @@ func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 		return nil, fmt.Errorf("eino executor: transport is required")
 	}
 
-	agent, err := eino.NewEinoAgent(ctx,
+	runID, _ := payload["run_id"].(string)
+	sessionID := fmt.Sprintf("workflow-%s", node.ID)
+	if strings.TrimSpace(runID) != "" {
+		sessionID = fmt.Sprintf("workflow-%s-%s", runID, node.ID)
+	}
+
+	result, err := eino.RunConversationTurnLoopSafe(ctx,
+		fullPrompt,
+		nil,
+		nil,
 		eino.WithTransport(transport),
 		eino.WithModel(model),
+		eino.WithProvider(e.provider),
+		eino.WithBaseURL(e.baseURL),
+		eino.WithAPIKey(e.apiKey),
+		eino.WithAPIMode(e.apiMode),
 		eino.WithTools(toolEntries),
 		eino.WithMaxIterations(maxIter),
 		eino.WithTenantID(tenantID),
 		eino.WithUserID(userID),
-		eino.WithSessionID(fmt.Sprintf("workflow-%s", node.ID)),
+		eino.WithSessionID(sessionID),
+		eino.WithPlatform("workflow"),
 		eino.WithSafetyInterceptor(e.safetyInterceptor),
 		eino.WithLeakScanner(e.leakScanner),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("eino executor: create agent: %w", err)
-	}
-
-	result, err := agent.RunConversationSafe(ctx, fullPrompt, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -59,6 +60,18 @@ func (s *inMemoryTurnLoopCheckpointStore) Snapshot(checkPointID string) ([]byte,
 }
 
 var _ adk.CheckPointStore = (*inMemoryTurnLoopCheckpointStore)(nil)
+
+type noDeleteTurnLoopCheckpointStore struct {
+	data []byte
+}
+
+func (s *noDeleteTurnLoopCheckpointStore) Get(context.Context, string) ([]byte, bool, error) {
+	return append([]byte(nil), s.data...), true, nil
+}
+
+func (s *noDeleteTurnLoopCheckpointStore) Set(context.Context, string, []byte) error {
+	return nil
+}
 
 type cancelOnFirstCallTransport struct {
 	mu          sync.Mutex
@@ -167,6 +180,45 @@ func TestPrepareTurnLoopCheckpoint_ClearsStaleOrPreemptedState(t *testing.T) {
 				t.Fatalf("expected checkpoint keep=%t, got keep=%t", tc.wantKeep, ok)
 			}
 		})
+	}
+}
+
+func TestPrepareTurnLoopCheckpoint_MalformedCheckpointIsDeleted(t *testing.T) {
+	store := newInMemoryTurnLoopCheckpointStore()
+	checkpointID := "tenant-a/session-a"
+	if err := store.Set(context.Background(), checkpointID, []byte("not-gob")); err != nil {
+		t.Fatalf("seed checkpoint: %v", err)
+	}
+
+	cfg := &agentConfig{
+		tenantID:        "tenant-a",
+		sessionID:       "session-a",
+		checkpointStore: store,
+	}
+	if err := prepareTurnLoopCheckpoint(context.Background(), cfg, turnLoopItem{UserMessage: "fresh request"}); err != nil {
+		t.Fatalf("prepareTurnLoopCheckpoint: %v", err)
+	}
+	if _, ok := store.Snapshot(checkpointID); ok {
+		t.Fatal("expected malformed checkpoint to be deleted")
+	}
+}
+
+func TestPrepareTurnLoopCheckpoint_ReturnsErrorWhenStaleCheckpointCannotBeDeleted(t *testing.T) {
+	store := &noDeleteTurnLoopCheckpointStore{data: encodeTurnLoopCheckpointEnvelope(t, turnLoopCheckpointEnvelope{
+		UnhandledItems: []turnLoopItem{{UserMessage: "stale request"}},
+	})}
+	cfg := &agentConfig{
+		tenantID:        "tenant-a",
+		sessionID:       "session-a",
+		checkpointStore: store,
+	}
+
+	err := prepareTurnLoopCheckpoint(context.Background(), cfg, turnLoopItem{UserMessage: "fresh request"})
+	if err == nil {
+		t.Fatal("expected delete capability error")
+	}
+	if !strings.Contains(err.Error(), "checkpoint store cannot delete stale checkpoint") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
