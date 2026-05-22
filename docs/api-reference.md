@@ -393,10 +393,21 @@ curl http://localhost:8080/v1/me \
 
 ### GET /v1/usage — 使用量统计
 
-返回当前租户的会话和消息使用统计。
+返回当前租户的使用统计。配置了 `UsageStore` 时，接口返回 `usage_records` 的按日/月聚合；未配置时保留旧版会话 token 汇总。
 
 ```bash
 curl http://localhost:8080/v1/usage \
+  -H "Authorization: Bearer hk_your_api_key"
+```
+
+常用查询参数：`from`、`to`、`granularity=day|month`。
+
+### GET /v1/usage/details — 会话用量明细
+
+配置 `UsageStore` 后可用，按当前租户和会话 ID 返回 usage records。
+
+```bash
+curl "http://localhost:8080/v1/usage/details?session_id=sess-..." \
   -H "Authorization: Bearer hk_your_api_key"
 ```
 
@@ -615,12 +626,26 @@ curl http://localhost:8080/v1/openapi
 
 ## Admin 子路由 /admin/*
 
-Admin 面板专用路由，需要 `admin` 角色。提供高级管理功能的 RESTful 接口（定价规则、平台配置等）。
+Admin 面板专用路由现在按治理域授权：`billing:*`、`audit:read`、`security:*`、`ops:*`、`tenant:*`、`key:*`、`sharing:*`。旧 `admin` scope 只作为显式 break-glass 兼容授权。
 
 ```bash
 curl http://localhost:8080/admin/v1/pricing-rules \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+### Evolution 共享治理
+
+| 方法 | 路径 | Scope | 说明 |
+|------|------|-------|------|
+| `GET` | `/admin/v1/evolution/sharing-policy` | `sharing:read` 或 `security:read` | 查询全局共享级别 |
+| `GET` | `/admin/v1/evolution/sharing-policy/history` | `sharing:read` 或 `security:read` | 分页查询全局共享策略历史版本 |
+| `PUT` | `/admin/v1/evolution/sharing-policy` | `sharing:write` 或 `security:write` | 设置 `disabled` / `anonymous` / `trusted` |
+| `POST` | `/admin/v1/evolution/sharing-policy/rollback` | `sharing:write` 或 `security:write` | 将全局共享策略回滚到指定历史版本，并生成新版本 |
+| `GET` | `/admin/v1/evolution/tenants/{id}/sharing-policy` | `sharing:read` 或 `tenant:read` | 查询租户有效共享策略 |
+| `GET` | `/admin/v1/evolution/tenants/{id}/sharing-policy/history` | `sharing:read` 或 `tenant:read` | 分页查询租户共享策略历史版本 |
+| `PUT` | `/admin/v1/evolution/tenants/{id}/sharing-policy` | `sharing:write` 或 `tenant:write` | 设置租户消费/贡献策略 |
+| `POST` | `/admin/v1/evolution/tenants/{id}/sharing-policy/rollback` | `sharing:write` 或 `tenant:write` | 将租户共享策略回滚到指定历史版本，并生成新版本 |
+| `POST` | `/admin/v1/evolution/shared-knowledge/revoke` | `sharing:write` 或 `security:write` | 按租户、任务类型、来源或时间窗撤回共享知识 |
 
 ## 静态页面
 

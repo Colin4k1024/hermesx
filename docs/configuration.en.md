@@ -12,7 +12,7 @@ Environment variables > config.yaml > defaults
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes | - | PostgreSQL connection string, format: `postgres://user:pass@host:5432/dbname?sslmode=disable` |
+| `DATABASE_URL` | Yes | - | Database connection string. PostgreSQL uses `postgres://...`; MySQL uses `user:pass@tcp(host:3306)/dbname?parseTime=true&charset=utf8mb4&loc=UTC` |
 | `HERMES_ACP_TOKEN` | Yes | - | Static admin Bearer Token for authenticating admin endpoints |
 | `HERMES_BOOTSTRAP_RATE_LIMIT_RPM` | No | `5` | Per-IP attempts per minute for `POST /admin/v1/bootstrap` |
 | `SAAS_API_PORT` | No | `8080` | SaaS API server port |
@@ -39,12 +39,12 @@ Environment variables > config.yaml > defaults
 
 ## Storage Configuration
 
-### PostgreSQL
+### Database
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `DATABASE_URL` | Yes (SaaS mode) | - | PostgreSQL connection string |
-| `DATABASE_DRIVER` | No | `postgres` | Database driver type |
+| `DATABASE_URL` | Yes (SaaS mode) | - | PostgreSQL or MySQL connection string |
+| `DATABASE_DRIVER` | No | `postgres` | Database driver type: `postgres` or `mysql` |
 
 ### Redis
 
@@ -286,6 +286,17 @@ fallback:
   models:
     - "gpt-4o"
     - "claude-sonnet-4-20250514"
+
+# Evolution shared learning governance
+evolution:
+  enabled: false
+  storage_mode: "sqlite"     # sqlite or mysql
+  db_path: ""                # empty = ~/.hermes/evolution.db
+  mysql_dsn: ""              # required when storage_mode=mysql
+  min_confidence: 0.5
+  replay_threshold: 0.75
+  max_genes_prompt: 3
+  sharing_mode: "disabled"   # disabled / anonymous / trusted
 ```
 
 ## Docker Compose Configuration Example

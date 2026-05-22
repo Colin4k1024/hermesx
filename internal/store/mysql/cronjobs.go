@@ -92,6 +92,7 @@ func (s *myCronJobStore) List(ctx context.Context, tenantID string) ([]*store.Cr
 }
 
 // ListAllEnabled returns all enabled jobs across tenants for scheduler sync.
+// tenant_sql_check:skip — intentional cross-tenant query.
 func (s *myCronJobStore) ListAllEnabled(ctx context.Context) ([]*store.CronJob, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, tenant_id, name, prompt, schedule, COALESCE(deliver,''), enabled,
@@ -117,6 +118,7 @@ func (s *myCronJobStore) ListAllEnabled(ctx context.Context) ([]*store.CronJob, 
 }
 
 // ListDue is a cross-tenant scheduler query (intentional, no tenant filter).
+// tenant_sql_check:skip — intentional cross-tenant query for scheduler dispatch.
 func (s *myCronJobStore) ListDue(ctx context.Context, now time.Time) ([]*store.CronJob, error) {
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, tenant_id, name, prompt, schedule, COALESCE(deliver,''), enabled,

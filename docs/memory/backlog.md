@@ -1,8 +1,20 @@
 # Backlog Snapshot
 
-**来源任务**: 2026-05-18-security-enhancement-ironclaw
-**更新时间**: 2026-05-18
-**更新角色**: devops-engineer
+**来源任务**: 2026-05-22-platform-governance-remediation
+**更新时间**: 2026-05-22
+**更新角色**: tech-lead
+
+---
+
+## 2026-05-22 Platform Governance Remediation 残余项
+
+| # | 事项 | 优先级 | 触发条件 | Owner | 状态 |
+|---|------|--------|----------|-------|------|
+| 1 | 多实例 evolution sharing policy 主动刷新 / watcher | P1 | 多副本部署或跨实例治理回滚上线前 | backend-engineer | 待定 |
+| 2 | 平台治理中心 Web UI（policy history / rollback / revoke 控制面） | P1 | 内部平台治理进入运营阶段 | frontend-engineer | 待定 |
+| 3 | OIDC / API key / RoleStore 统一权限 evaluator 收敛 | P1 | 下一轮权限治理整改启动时 | backend-engineer | 待定 |
+| 4 | 企业 release gate 与恢复演练 artifact 补齐 | P2 | 发布演练或 release-ready 评审前 | devops-engineer | 待定 |
+| 5 | delivery-plan.md 历史 markdown lint 清理 | P3 | 文档治理窗口开启时 | writer | 待定 |
 
 ---
 

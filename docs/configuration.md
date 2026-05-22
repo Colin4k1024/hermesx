@@ -12,7 +12,7 @@
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `DATABASE_URL` | 是 | - | PostgreSQL 连接字符串，格式：`postgres://user:pass@host:5432/dbname?sslmode=disable` |
+| `DATABASE_URL` | 是 | - | 数据库连接字符串。PostgreSQL 使用 `postgres://...`；MySQL 使用 `user:pass@tcp(host:3306)/dbname?parseTime=true&charset=utf8mb4&loc=UTC` |
 | `HERMES_ACP_TOKEN` | 是 | - | 静态管理员 Bearer Token，用于 admin 端点认证 |
 | `HERMES_BOOTSTRAP_RATE_LIMIT_RPM` | 否 | `5` | `POST /admin/v1/bootstrap` 按来源 IP 的每分钟尝试次数 |
 | `SAAS_API_PORT` | 否 | `8080` | SaaS API 服务端口 |
@@ -39,12 +39,12 @@
 
 ## 存储配置
 
-### PostgreSQL
+### 数据库
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `DATABASE_URL` | 是（SaaS 模式） | - | PostgreSQL 连接字符串 |
-| `DATABASE_DRIVER` | 否 | `postgres` | 数据库驱动类型 |
+| `DATABASE_URL` | 是（SaaS 模式） | - | PostgreSQL 或 MySQL 连接字符串 |
+| `DATABASE_DRIVER` | 否 | `postgres` | 数据库驱动类型：`postgres` 或 `mysql` |
 
 ### Redis
 
@@ -286,6 +286,17 @@ fallback:
   models:
     - "gpt-4o"
     - "claude-sonnet-4-20250514"
+
+# Evolution 共享学习治理
+evolution:
+  enabled: false
+  storage_mode: "sqlite"     # sqlite 或 mysql
+  db_path: ""                # 空 = ~/.hermes/evolution.db
+  mysql_dsn: ""              # storage_mode=mysql 时必填
+  min_confidence: 0.5
+  replay_threshold: 0.75
+  max_genes_prompt: 3
+  sharing_mode: "disabled"   # disabled / anonymous / trusted
 ```
 
 ## Docker Compose 配置示例

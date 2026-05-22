@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/metering"
 )
 
 // TenantUsageSummary holds aggregated token and cost metrics for one tenant.
@@ -17,24 +19,6 @@ type TenantUsageSummary struct {
 	EstimatedCostUSD float64 `json:"estimated_cost_usd"`
 }
 
-// tenantUsageQuery aggregates session-level token and cost metrics per tenant.
-// It runs inside a transaction with row_security = off so it reads across all
-// tenants regardless of the RLS policies on the sessions table.
-// The application DB user must be SUPERUSER or hold BYPASSRLS to enable this.
-const tenantUsageQuery = `
-SELECT
-    tenant_id::text,
-    COUNT(*)                                AS session_count,
-    COALESCE(SUM(input_tokens),  0)::bigint AS input_tokens,
-    COALESCE(SUM(output_tokens), 0)::bigint AS output_tokens,
-    COALESCE(SUM(estimated_cost_usd), 0)    AS estimated_cost_usd
-FROM sessions
-WHERE ($1::timestamptz IS NULL OR started_at >= $1)
-  AND ($2::timestamptz IS NULL OR started_at <  $2)
-GROUP BY tenant_id
-ORDER BY estimated_cost_usd DESC
-LIMIT $3 OFFSET $4`
-
 // listTenantUsage serves GET /admin/v1/usage/tenants.
 //
 // Query params:
@@ -44,8 +28,9 @@ LIMIT $3 OFFSET $4`
 //	limit  max rows (default 100, max 500)
 //	offset pagination offset (default 0)
 func (h *AdminHandler) listTenantUsage(w http.ResponseWriter, r *http.Request) {
-	if h.pool == nil {
-		http.Error(w, "database pool not available", http.StatusServiceUnavailable)
+	aggregator, ok := h.usageStore.(metering.TenantUsageAggregator)
+	if h.usageStore == nil || !ok {
+		http.Error(w, "tenant usage aggregator not configured", http.StatusServiceUnavailable)
 		return
 	}
 
@@ -75,53 +60,29 @@ func (h *AdminHandler) listTenantUsage(w http.ResponseWriter, r *http.Request) {
 		to = &t
 	}
 
-	ctx := r.Context()
-	tx, err := h.pool.Begin(ctx)
-	if err != nil {
-		h.logger.Error("admin tenant-usage: begin tx", "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback(ctx) //nolint:errcheck
-
-	// Bypass RLS so the aggregate spans all tenants.
-	// Requires the application DB role to hold BYPASSRLS or SUPERUSER.
-	if _, err := tx.Exec(ctx, "SET LOCAL row_security = off"); err != nil {
-		h.logger.Error("admin tenant-usage: set row_security", "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	rows, err := tx.Query(ctx, tenantUsageQuery, from, to, limit, offset)
+	rows, err := aggregator.QueryTenants(r.Context(), metering.TenantUsageQuery{
+		From:   from,
+		To:     to,
+		Limit:  limit,
+		Offset: offset,
+	})
 	if err != nil {
 		h.logger.Error("admin tenant-usage: query", "error", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
 	summaries := make([]TenantUsageSummary, 0)
-	for rows.Next() {
-		var s TenantUsageSummary
-		if err := rows.Scan(
-			&s.TenantID, &s.SessionCount,
-			&s.InputTokens, &s.OutputTokens,
-			&s.EstimatedCostUSD,
-		); err != nil {
-			h.logger.Error("admin tenant-usage: scan", "error", err)
-			continue
-		}
-		s.TotalTokens = s.InputTokens + s.OutputTokens
-		summaries = append(summaries, s)
+	for _, row := range rows {
+		summaries = append(summaries, TenantUsageSummary{
+			TenantID:         row.TenantID,
+			SessionCount:     row.SessionCount,
+			InputTokens:      row.InputTokens,
+			OutputTokens:     row.OutputTokens,
+			TotalTokens:      row.InputTokens + row.OutputTokens,
+			EstimatedCostUSD: row.CostUSD,
+		})
 	}
-	if err := rows.Err(); err != nil {
-		h.logger.Error("admin tenant-usage: rows error", "error", err)
-		http.Error(w, "internal error", http.StatusInternalServerError)
-		return
-	}
-
-	// Commit is a no-op for a read-only tx but needed to release the connection cleanly.
-	_ = tx.Commit(ctx)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{

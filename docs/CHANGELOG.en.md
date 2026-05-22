@@ -92,7 +92,7 @@ Major release: complete rebrand from Hermes to HermesX, combined with enterprise
 ### Added
 
 - **ExecutionReceipt API**: auditable tool invocation records with idempotency deduplication and trace correlation
-  - `POST /v1/execution-receipts` — create receipt via `DispatchWithReceipt()`
+  - execution receipts are created by the internal tool execution path via `DispatchWithReceipt()`
   - `GET /v1/execution-receipts` — list with pagination and filters (auditor role)
   - `GET /v1/execution-receipts/{id}` — get by ID (auditor role)
 - **Prometheus business metrics**: 11+ custom metrics covering HTTP requests, LLM completions, tool executions, rate limiting, and store operations

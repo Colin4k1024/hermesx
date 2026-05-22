@@ -49,9 +49,10 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/workflow-tasks":                    workflowTasksPath(),
 			"/v1/workflow-tasks/{id}/complete":      workflowTaskCompletePath(),
 
-			"/v1/usage":   pathItem("get", "Usage summary for billing (input/output/cache tokens)", "200"),
-			"/v1/me":      pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
-			"/v1/openapi": pathItem("get", "This OpenAPI specification", "200"),
+			"/v1/usage":         pathItem("get", "Usage summary for billing (usage_records-backed when configured)", "200"),
+			"/v1/usage/details": pathItem("get", "Usage records for one tenant-scoped session", "200"),
+			"/v1/me":            pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
+			"/v1/openapi":       pathItem("get", "This OpenAPI specification", "200"),
 
 			"/v1/gdpr/export":        pathItem("get", "GDPR data export for current tenant", "200"),
 			"/v1/gdpr/data":          pathItem("delete", "GDPR data deletion for current tenant", "200"),
@@ -65,14 +66,22 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/bootstrap/status": bootstrapStatusPath(),
 
 			// Admin API (admin scope required).
-			"/admin/v1/tenants/{id}/sandbox-policy":        sandboxPolicyPath(),
-			"/admin/v1/tenants/{id}/api-keys":              adminAPIKeysPath(),
-			"/admin/v1/tenants/{id}/api-keys/{kid}":        adminAPIKeyByIDPath(),
-			"/admin/v1/tenants/{id}/api-keys/{kid}/rotate": adminAPIKeyRotatePath(),
-			"/admin/v1/pricing-rules":                      pricingRulesPath(),
-			"/admin/v1/pricing-rules/{model}":              pricingRuleByModelPath(),
-			"/admin/v1/audit-logs":                         adminAuditLogsPath(),
-			"/admin/v1/usage/tenants":                      adminTenantUsagePath(),
+			"/admin/v1/tenants/{id}/sandbox-policy":           sandboxPolicyPath(),
+			"/admin/v1/tenants/{id}/api-keys":                 adminAPIKeysPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}":           adminAPIKeyByIDPath(),
+			"/admin/v1/tenants/{id}/api-keys/{kid}/rotate":    adminAPIKeyRotatePath(),
+			"/admin/v1/pricing-rules":                         pricingRulesPath(),
+			"/admin/v1/pricing-rules/{model}":                 pricingRuleByModelPath(),
+			"/admin/v1/audit-logs":                            adminAuditLogsPath(),
+			"/admin/v1/usage":                                 adminUsageAggregationPath(),
+			"/admin/v1/usage/tenants":                         adminTenantUsagePath(),
+			"/admin/v1/evolution/sharing-policy":              adminEvolutionSharingPolicyPath(),
+			"/admin/v1/evolution/sharing-policy/history":      adminEvolutionSharingPolicyHistoryPath(),
+			"/admin/v1/evolution/sharing-policy/rollback":     adminEvolutionSharingPolicyRollbackPath(),
+			"/admin/v1/evolution/tenants/{id}/sharing-policy": adminEvolutionTenantSharingPolicyPath(),
+			"/admin/v1/evolution/tenants/{id}/sharing-policy/history":  adminEvolutionTenantSharingPolicyHistoryPath(),
+			"/admin/v1/evolution/tenants/{id}/sharing-policy/rollback": adminEvolutionTenantSharingPolicyRollbackPath(),
+			"/admin/v1/evolution/shared-knowledge/revoke":     adminEvolutionSharedKnowledgeRevokePath(),
 		},
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
@@ -94,10 +103,11 @@ func OpenAPISpec() http.HandlerFunc {
 			{"name": "Sessions", "description": "Conversation session management"},
 			{"name": "Memory", "description": "Per-user key-value memory"},
 			{"name": "Bootstrap", "description": "One-time platform admin key creation"},
-			{"name": "Admin", "description": "Tenant, API key, and pricing management (admin scope required)"},
-			{"name": "Audit", "description": "Audit logs and execution receipts (auditor role required)"},
+			{"name": "Admin", "description": "Tenant, API key, usage, security, and pricing management (domain scope or explicit admin scope required)"},
+			{"name": "Audit", "description": "Audit logs and execution receipts (audit scope required)"},
 			{"name": "Workflows", "description": "Fixed SOP workflow definitions, runs, and human tasks"},
 			{"name": "GDPR", "description": "Data export and deletion"},
+			{"name": "Evolution", "description": "Governed shared learning controls"},
 		},
 	}
 
@@ -609,7 +619,7 @@ func adminAuditLogsPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
 			"tags":    []string{"Audit"},
-			"summary": "List audit logs across all tenants (admin scope required)",
+			"summary": "List audit logs across all tenants (audit:read or admin scope required)",
 			"parameters": []map[string]any{
 				{"name": "tenant_id", "in": "query", "schema": map[string]any{"type": "string"}},
 				{"name": "action", "in": "query", "schema": map[string]any{"type": "string"}},
@@ -620,7 +630,7 @@ func adminAuditLogsPath() map[string]any {
 			},
 			"responses": map[string]any{
 				"200": map[string]any{"description": "Audit log entries with pagination"},
-				"403": map[string]any{"description": "Forbidden — admin scope required"},
+				"403": map[string]any{"description": "Forbidden — audit:read or admin scope required"},
 			},
 		},
 	}
@@ -630,13 +640,13 @@ func adminTenantUsagePath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
 			"tags":    []string{"Admin", "Usage"},
-			"summary": "Aggregate token and cost usage per tenant (admin scope required)",
-			"description": "Returns session-level input/output token counts and estimated USD cost " +
-				"grouped by tenant. Results are ordered by cost descending. " +
-				"Requires the application DB user to hold the BYPASSRLS privilege.",
+			"summary": "Aggregate token and cost usage per tenant (billing:read, usage:read:all, or admin scope required)",
+			"description": "Returns aggregate-only input/output token counts and estimated USD cost " +
+				"grouped by tenant from the metering store. Results are ordered by cost descending. " +
+				"The handler does not disable row security or require a BYPASSRLS database role.",
 			"parameters": []map[string]any{
-				{"name": "from", "in": "query", "description": "Lower bound on session start time (RFC3339, inclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
-				{"name": "to", "in": "query", "description": "Upper bound on session start time (RFC3339, exclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "from", "in": "query", "description": "Lower bound on usage record creation time (RFC3339, inclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
+				{"name": "to", "in": "query", "description": "Upper bound on usage record creation time (RFC3339, exclusive)", "schema": map[string]any{"type": "string", "format": "date-time"}},
 				{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer", "default": 100, "maximum": 500}},
 				{"name": "offset", "in": "query", "schema": map[string]any{"type": "integer", "default": 0}},
 			},
@@ -669,8 +679,195 @@ func adminTenantUsagePath() map[string]any {
 						},
 					},
 				},
-				"403": map[string]any{"description": "Forbidden — admin scope required"},
-				"503": map[string]any{"description": "Database pool unavailable"},
+				"403": map[string]any{"description": "Forbidden — billing:read, usage:read:all, or admin scope required"},
+				"503": map[string]any{"description": "Tenant usage aggregator unavailable"},
+			},
+		},
+	}
+}
+
+func adminUsageAggregationPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Usage"},
+			"summary": "Aggregate usage for one tenant (billing:read, usage:read, or admin scope required)",
+			"parameters": []map[string]any{
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "granularity", "in": "query", "schema": map[string]any{"type": "string", "enum": []string{"daily", "monthly", "day", "month"}, "default": "daily"}},
+				{"name": "from", "in": "query", "description": "RFC3339 or YYYY-MM-DD", "schema": map[string]any{"type": "string"}},
+				{"name": "to", "in": "query", "description": "RFC3339 or YYYY-MM-DD", "schema": map[string]any{"type": "string"}},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Tenant usage buckets"},
+				"400": map[string]any{"description": "Invalid query"},
+				"403": map[string]any{"description": "Forbidden — billing:read, usage:read, or admin scope required"},
+				"503": map[string]any{"description": "Usage store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionSharingPolicyPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Get evolution sharing policy (sharing:read, security:read, or admin scope required)",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Current sharing policy"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+		"put": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Update evolution sharing policy (sharing:write, security:write, or admin scope required)",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/EvolutionSharingPolicyUpdate"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Policy updated and audited"},
+				"400": map[string]any{"description": "Invalid sharing mode"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionSharingPolicyHistoryPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "List evolution sharing policy history",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Sharing policy history entries"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionSharingPolicyRollbackPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Rollback evolution sharing policy to a prior version",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"version": map[string]any{"type": "integer", "minimum": 1},
+								"reason":  map[string]any{"type": "string"},
+							},
+							"required": []string{"version"},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Policy rolled back and audited"},
+				"400": map[string]any{"description": "Invalid rollback version"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionTenantSharingPolicyPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Get one tenant's effective evolution sharing policy",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Effective tenant sharing policy"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+		"put": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Update one tenant's evolution sharing policy",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/EvolutionTenantSharingPolicyUpdate"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Tenant policy updated and audited"},
+				"400": map[string]any{"description": "Invalid tenant policy"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionTenantSharingPolicyHistoryPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "List one tenant's evolution sharing policy history",
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Tenant sharing policy history entries"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionTenantSharingPolicyRollbackPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Rollback one tenant's evolution sharing policy to a prior version",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"version": map[string]any{"type": "integer", "minimum": 1},
+								"reason":  map[string]any{"type": "string"},
+							},
+							"required": []string{"version"},
+						},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Tenant policy rolled back and audited"},
+				"400": map[string]any{"description": "Invalid rollback version"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
+			},
+		},
+	}
+}
+
+func adminEvolutionSharedKnowledgeRevokePath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Admin", "Evolution"},
+			"summary": "Revoke shared evolution knowledge by source, class, or time window",
+			"requestBody": map[string]any{
+				"required": true,
+				"content": map[string]any{
+					"application/json": map[string]any{
+						"schema": map[string]any{"$ref": "#/components/schemas/EvolutionSharedKnowledgeRevoke"},
+					},
+				},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Matching shared genes deleted and action audited"},
+				"400": map[string]any{"description": "Invalid or unbounded revoke request"},
+				"503": map[string]any{"description": "Evolution store unavailable"},
 			},
 		},
 	}
@@ -723,6 +920,36 @@ func schemas() map[string]any {
 			"properties": map[string]any{
 				"name":      map[string]any{"type": "string", "description": "Display name for the bootstrap admin key"},
 				"tenant_id": map[string]any{"type": "string", "format": "uuid", "description": "Platform root tenant ID"},
+			},
+		},
+		"EvolutionSharingPolicyUpdate": map[string]any{
+			"type":     "object",
+			"required": []string{"mode"},
+			"properties": map[string]any{
+				"mode":   map[string]any{"type": "string", "enum": []string{"disabled", "anonymous", "trusted"}},
+				"reason": map[string]any{"type": "string"},
+			},
+		},
+		"EvolutionTenantSharingPolicyUpdate": map[string]any{
+			"type":     "object",
+			"required": []string{"consume_shared", "contribution_mode"},
+			"properties": map[string]any{
+				"consume_shared":    map[string]any{"type": "boolean", "description": "Whether this tenant can consume shared genes"},
+				"contribution_mode": map[string]any{"type": "string", "enum": []string{"disabled", "anonymous", "trusted"}},
+				"labels":            map[string]any{"type": "array", "items": map[string]any{"type": "string"}, "description": "Governance labels used for operator review and audit context"},
+				"reason":            map[string]any{"type": "string"},
+			},
+		},
+		"EvolutionSharedKnowledgeRevoke": map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"task_class":    map[string]any{"type": "string"},
+				"source_tenant": map[string]any{"type": "string", "description": "Only available for trusted shared genes that preserve contributor attribution"},
+				"source":        map[string]any{"type": "string", "description": "Example: shared.anonymous or shared.trusted"},
+				"from":          map[string]any{"type": "string", "format": "date-time"},
+				"to":            map[string]any{"type": "string", "format": "date-time"},
+				"confirm_all":   map[string]any{"type": "boolean", "description": "Required when revoking all shared genes without filters"},
+				"reason":        map[string]any{"type": "string"},
 			},
 		},
 		"ExecutionReceipt": map[string]any{

@@ -99,6 +99,13 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | `GET /admin/v1/audit-logs` | Cross-tenant audit logs |
 | `GET /admin/v1/usage/tenants` | Tenant usage summary |
 | `GET /admin/v1/usage` | Per-tenant usage aggregation (daily/monthly granularity, time range filter) |
+| `GET/PUT /admin/v1/evolution/sharing-policy` | Global shared learning policy |
+| `GET /admin/v1/evolution/sharing-policy/history` | Global shared learning policy history |
+| `POST /admin/v1/evolution/sharing-policy/rollback` | Global shared learning policy rollback |
+| `GET/PUT /admin/v1/evolution/tenants/{id}/sharing-policy` | Tenant shared learning policy |
+| `GET /admin/v1/evolution/tenants/{id}/sharing-policy/history` | Tenant shared learning policy history |
+| `POST /admin/v1/evolution/tenants/{id}/sharing-policy/rollback` | Tenant shared learning policy rollback |
+| `POST /admin/v1/evolution/shared-knowledge/revoke` | Shared knowledge rollback |
 
 ### Tenant API (v1)
 
@@ -279,9 +286,12 @@ Behavioral gene (Gene) learning and replay mechanism, providing an independent e
 # ~/.hermes/config.yaml
 evolution:
   enabled: true
-  store_dsn: ""          # empty = SQLite default path
-  min_confidence: 0.7    # genes below this threshold are not replayed
-  max_genes_per_turn: 3  # max strategies injected per turn
+  storage_mode: "sqlite"     # sqlite or mysql
+  db_path: ""                # empty = SQLite default path
+  mysql_dsn: ""              # required when storage_mode=mysql
+  min_confidence: 0.7        # genes below this threshold are not replayed
+  max_genes_prompt: 3        # max strategies injected per turn
+  sharing_mode: "disabled"   # disabled / anonymous / trusted
 ```
 
 ---

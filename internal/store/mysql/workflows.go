@@ -228,6 +228,7 @@ func (s *myWorkflowStore) ListRuns(ctx context.Context, tenantID string, opts st
 		return nil, 0, fmt.Errorf("mysql count workflow runs: %w", err)
 	}
 	queryArgs := append(append([]any{}, args...), limit, opts.Offset)
+	// tenant_sql_check:skip — whereSQL is constructed above with tenant_id=? as the first predicate.
 	rows, err := s.db.QueryContext(ctx,
 		`SELECT id, tenant_id, definition_id, version_id, status, started_by, input_json, variables_json,
 		        error, started_at, completed_at, updated_at

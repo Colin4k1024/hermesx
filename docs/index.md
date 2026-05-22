@@ -113,6 +113,13 @@
 | `GET /admin/v1/audit-logs` | 跨租户审计日志 |
 | `GET /admin/v1/usage/tenants` | 租户用量汇总 |
 | `GET /admin/v1/usage` | 按租户聚合用量（支持 daily/monthly 粒度、时间范围过滤） |
+| `GET/PUT /admin/v1/evolution/sharing-policy` | 全局共享学习策略 |
+| `GET /admin/v1/evolution/sharing-policy/history` | 全局共享学习策略历史 |
+| `POST /admin/v1/evolution/sharing-policy/rollback` | 全局共享学习策略版本回滚 |
+| `GET/PUT /admin/v1/evolution/tenants/{id}/sharing-policy` | 租户共享学习策略 |
+| `GET /admin/v1/evolution/tenants/{id}/sharing-policy/history` | 租户共享学习策略历史 |
+| `POST /admin/v1/evolution/tenants/{id}/sharing-policy/rollback` | 租户共享学习策略版本回滚 |
+| `POST /admin/v1/evolution/shared-knowledge/revoke` | 共享知识撤回 |
 
 ### Tenant API（v1）
 
@@ -293,9 +300,12 @@ URL 安全检测（`url_safety`），防止 SSRF 和恶意重定向。
 # ~/.hermes/config.yaml
 evolution:
   enabled: true
-  store_dsn: ""          # 空 = SQLite 默认路径
-  min_confidence: 0.7    # 低于此阈值的基因不参与回放
-  max_genes_per_turn: 3  # 每轮最多注入的策略数
+  storage_mode: "sqlite"     # sqlite 或 mysql
+  db_path: ""                # 空 = SQLite 默认路径
+  mysql_dsn: ""              # storage_mode=mysql 时必填
+  min_confidence: 0.7        # 低于此阈值的基因不参与回放
+  max_genes_prompt: 3        # 每轮最多注入的策略数
+  sharing_mode: "disabled"   # disabled / anonymous / trusted
 ```
 
 ---

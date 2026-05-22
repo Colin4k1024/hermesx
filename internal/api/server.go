@@ -11,6 +11,8 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/api/admin"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/evolution"
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/skills"
@@ -33,6 +35,8 @@ type APIServerConfig struct {
 	StaticDir             string                // directory to serve static files from (optional)
 	SkillsClient          objstore.ObjectStore  // optional; nil disables per-tenant skill loading
 	Provisioner           *skills.Provisioner   // optional; nil disables per-user skill provisioning
+	UsageStore            metering.UsageStore   // optional; enables usage_records-backed usage APIs
+	EvolutionStore        *evolution.GeneStore  // optional; enables evolution sharing governance APIs
 	TenantOpts            []TenantHandlerOption // optional; wired into TenantHandler on creation
 }
 
@@ -120,7 +124,13 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.Handle("/v1/audit-logs", NewAuditHandler(cfg.Store.AuditLogs()))
 	api.Handle("/v1/execution-receipts", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
 	api.Handle("/v1/execution-receipts/", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
-	api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
+	if cfg.UsageStore != nil {
+		usageH := NewUsageV2Handler(cfg.UsageStore)
+		api.Handle("/v1/usage", usageH)
+		api.Handle("/v1/usage/", usageH)
+	} else {
+		api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
+	}
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 	workflowH := NewWorkflowHandler(cfg.Store.Workflows())
 	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
@@ -174,7 +184,14 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	mux.Handle("POST /admin/v1/bootstrap", bootstrapCreate)
 
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
-	adminH := admin.NewAdminHandler(cfg.Store, nil)
+	adminOpts := []admin.AdminOption{}
+	if cfg.UsageStore != nil {
+		adminOpts = append(adminOpts, admin.WithUsageStore(cfg.UsageStore))
+	}
+	if cfg.EvolutionStore != nil {
+		adminOpts = append(adminOpts, admin.WithEvolutionStore(cfg.EvolutionStore))
+	}
+	adminH := admin.NewAdminHandler(cfg.Store, nil, adminOpts...)
 	mux.Handle("/admin/", stack.Wrap(adminH.Handler()))
 
 	// Static file serving (optional).

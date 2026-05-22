@@ -301,6 +301,25 @@ var migrations = []string{
 		PRIMARY KEY (tenant_id, session_id, checkpoint_id),
 		INDEX idx_agent_checkpoints_tenant_updated (tenant_id, updated_at)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v23: usage metering table for MySQL production parity.
+	`CREATE TABLE IF NOT EXISTS usage_records (
+		id                 BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+		tenant_id          CHAR(36)     NOT NULL,
+		session_id         VARCHAR(64)  NOT NULL,
+		user_id            VARCHAR(255) NOT NULL DEFAULT '',
+		model              VARCHAR(255) NOT NULL,
+		provider           VARCHAR(100) NOT NULL,
+		input_tokens       INT          NOT NULL DEFAULT 0,
+		output_tokens      INT          NOT NULL DEFAULT 0,
+		cache_read_tokens  INT          NOT NULL DEFAULT 0,
+		cache_write_tokens INT          NOT NULL DEFAULT 0,
+		cost_usd           DECIMAL(10,6) NOT NULL DEFAULT 0,
+		degraded           TINYINT(1)   NOT NULL DEFAULT 0,
+		created_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		INDEX idx_usage_records_tenant_date (tenant_id, created_at),
+		INDEX idx_usage_records_session (tenant_id, session_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

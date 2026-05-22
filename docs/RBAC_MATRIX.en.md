@@ -10,10 +10,15 @@
 | Role | Description | Scope |
 |------|-------------|-------|
 | `super_admin` | Platform operator | Cross-tenant, all operations |
-| `admin` | Tenant administrator | Own tenant, all operations |
+| `admin` | Legacy break-glass compatibility grant | Explicitly granted admin APIs only |
 | `owner` | Tenant owner | Own tenant, management + execution |
 | `user` | Regular user | Own tenant, execution + self-data |
 | `auditor` | Read-only compliance | Own tenant, read audit/receipts |
+| `platform_admin` | Platform operator | Cross-tenant governance |
+| `security_admin` | Security operator | Secrets, safety, egress, sharing rollback |
+| `billing_admin` | Billing operator | Pricing and usage |
+| `ops_admin` | Operations operator | Sandbox, runtime, egress |
+| `tenant_admin` | Tenant operator | Tenant-local administration |
 
 ---
 
@@ -110,6 +115,16 @@
 | Get | Yes | Yes | Yes | — | — |
 | Update | Yes | Yes | — | — | — |
 
+### Resource: Evolution Sharing
+
+| Operation | Required Scope |
+|-----------|----------------|
+| Get global sharing policy | `sharing:read` or `security:read` |
+| Update global sharing policy | `sharing:write` or `security:write` |
+| Get tenant sharing policy | `sharing:read` or `tenant:read` |
+| Update tenant sharing policy | `sharing:write` or `tenant:write` |
+| Revoke shared knowledge | `sharing:write` or `security:write` |
+
 ---
 
 ## Route-to-Role Mapping
@@ -131,6 +146,8 @@ Auditor-gated routes:
   /v1/execution-receipts     → auditor
 ```
 
+Admin `/admin/v1/*` routes are additionally guarded by domain scopes in `internal/api/admin/handler.go`. The explicit `admin` scope is accepted as break-glass compatibility, but empty legacy scopes are rejected for Admin domain routes.
+
 ---
 
 ## Scope Model
@@ -140,6 +157,14 @@ Scopes provide fine-grained access within a role:
 | Scope | Grants |
 |-------|--------|
 | `admin` | Full administrative access |
+| `tenant:read` / `tenant:write` | Tenant lifecycle and tenant-scoped policy management |
+| `key:read` / `key:write` | API key lifecycle |
+| `billing:read` / `billing:write` | Pricing and usage controls |
+| `usage:read` / `usage:read:all` | Tenant usage and cross-tenant aggregate usage |
+| `audit:read` | Audit logs and execution receipts |
+| `security:read` / `security:write` | Secrets, safety, egress, and sharing security controls |
+| `ops:read` / `ops:write` | Runtime and sandbox operations |
+| `sharing:read` / `sharing:write` | Evolution shared learning policy and rollback |
 | `read` | Read operations on all accessible resources |
 | `write` | Create/update operations |
 | `execute` | Tool and chat execution |

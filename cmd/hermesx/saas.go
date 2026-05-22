@@ -272,6 +272,33 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// ── 8.5. Wire Oris evolution (optional, governed shared store) ──────────
+	var evolutionStore *evolution.GeneStore // lifted to function scope for shutdown (B3)
+	var evolutionImprover *evolution.Improver
+	{
+		hermesCfg := config.Load()
+		evCfg := evolution.Config{
+			Enabled:          hermesCfg.Evolution.Enabled,
+			StorageMode:      hermesCfg.Evolution.StorageMode,
+			DBPath:           hermesCfg.Evolution.DBPath,
+			MySQLDSN:         hermesCfg.Evolution.MySQLDSN,
+			MinConfidence:    hermesCfg.Evolution.MinConfidence,
+			ReplayThreshold:  hermesCfg.Evolution.ReplayThreshold,
+			MaxGenesInPrompt: hermesCfg.Evolution.MaxGenesInPrompt,
+			SharingMode:      hermesCfg.Evolution.SharingMode,
+		}
+		if evCfg.Enabled {
+			gs, evErr := evolution.Open(evCfg)
+			if evErr != nil {
+				slog.Warn("evolution store init failed, running without evolution", "error", evErr)
+			} else {
+				evolutionStore = gs
+				evolutionImprover = evolution.NewImprover(gs, nil, evCfg)
+				slog.Info("Oris evolution enabled", "sharing_mode", gs.SharingMode())
+			}
+		}
+	}
+
 	// ── 8. Build API server config ───────────────────────────
 	serverCfg := api.APIServerConfig{
 		Port:                  port,
@@ -285,35 +312,13 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		StaticDir:             staticDir,
 		SkillsClient:          skillsClient,
 		Provisioner:           syncProv,
+		EvolutionStore:        evolutionStore,
 		TenantOpts:            tenantOpts,
 	}
 
 	saasServer := api.NewAPIServer(serverCfg)
-
-	// ── 8.5. Wire Oris evolution (optional, global shared store) ──────────
-	var evolutionStore *evolution.GeneStore // lifted to function scope for shutdown (B3)
-	{
-		hermesCfg := config.Load()
-		evCfg := evolution.Config{
-			Enabled:          hermesCfg.Evolution.Enabled,
-			StorageMode:      hermesCfg.Evolution.StorageMode,
-			DBPath:           hermesCfg.Evolution.DBPath,
-			MySQLDSN:         hermesCfg.Evolution.MySQLDSN,
-			MinConfidence:    hermesCfg.Evolution.MinConfidence,
-			ReplayThreshold:  hermesCfg.Evolution.ReplayThreshold,
-			MaxGenesInPrompt: hermesCfg.Evolution.MaxGenesInPrompt,
-		}
-		if evCfg.Enabled {
-			gs, evErr := evolution.Open(evCfg)
-			if evErr != nil {
-				slog.Warn("evolution store init failed, running without evolution", "error", evErr)
-			} else {
-				evolutionStore = gs
-				evImp := evolution.NewImprover(gs, nil, evCfg)
-				saasServer.AgentChat.SetEvolutionImprover(evImp)
-				slog.Info("Oris evolution enabled (global shared store)")
-			}
-		}
+	if evolutionImprover != nil {
+		saasServer.AgentChat.SetEvolutionImprover(evolutionImprover)
 	}
 
 	// ── 9. Optionally prepare ACP server ─────────────────────

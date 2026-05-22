@@ -6,10 +6,24 @@
 
 | 后端 | 驱动 | 用途 | 包路径 |
 |------|------|------|--------|
-| PostgreSQL 16+ | pgx/v5 | SaaS 多租户模式 | `internal/store/pg/` |
+| PostgreSQL 16+ | pgx/v5 | SaaS 多租户生产后端 | `internal/store/pg/` |
+| MySQL 8.4+ | go-sql-driver/mysql | SaaS 多租户生产后端 | `internal/store/mysql/` |
 | SQLite | go-sqlite3 | CLI 单用户模式 | `internal/store/sqlite/` |
 
-SaaS 模式必须使用 PostgreSQL。连接通过 `DATABASE_URL` 环境变量配置。
+SaaS 模式使用 `DATABASE_DRIVER` 选择生产后端，当前支持 `postgres` 与 `mysql`。连接通过 `DATABASE_URL` 环境变量配置。SQLite 仅用于 CLI 单用户模式，不作为 SaaS 隔离后端。
+
+## 企业支持矩阵
+
+| 能力 | PostgreSQL | MySQL | 证明/门禁 |
+|------|------------|-------|-----------|
+| 租户隔离 | Store 层 `tenant_id` 参数 + PostgreSQL RLS/FORCE RLS | Store 层 `tenant_id` 参数 + MySQL SQL 静态护栏 + 跨租户回归 | `scripts/check_tenant_sql.sh`, `scripts/check_tenant_sql_mysql.sh`, `tests/integration/cross_tenant_attack_test.go` |
+| 审计日志 | `audit_logs` + tenant-scoped query + RLS | `audit_logs` + tenant-scoped query | `internal/store/pg/auditlog.go`, `internal/store/mysql/auditlog.go` |
+| Execution receipts | tenant-scoped store + API query | tenant-scoped store + API query | `internal/store/pg/execution_receipts.go`, `internal/store/mysql/execution_receipts.go`, `internal/api/execution_receipts.go` |
+| Usage metering | `usage_records` + `PGUsageStore` + aggregate-only platform query | `usage_records` + `MySQLUsageStore` + aggregate-only platform query | `internal/metering/pg_store.go`, `internal/metering/mysql_store.go`, `internal/api/admin/usage.go` |
+| GDPR 删除 | Store cascade + MinIO cleanup | Store cascade + MinIO cleanup | `internal/api/gdpr.go`, per-backend store `DeleteAllByTenant` methods |
+| Workflow | definitions / versions / runs / step runs | definitions / versions / runs / step runs | `internal/store/pg/workflows.go`, `internal/store/mysql/workflows.go` |
+| 备份恢复 | pgBackRest / PITR runbook | MySQL logical/physical backup + PITR runbook | `docs/runbooks/pg-pitr-recovery.md`, `docs/runbooks/mysql-backup-restore.md` |
+| 跨租户统计 | metering store aggregate API; no handler-level RLS disable | metering store aggregate API | `metering.TenantUsageAggregator` |
 
 ## 数据表
 

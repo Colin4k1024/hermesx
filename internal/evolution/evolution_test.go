@@ -2,9 +2,11 @@ package evolution_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	orisstore "github.com/Colin4k1024/Oris/sdks/go/store"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
@@ -144,6 +146,22 @@ func openTestStore(t *testing.T) *evolution.GeneStore {
 	return gs
 }
 
+func openTestStoreWithConfig(t *testing.T, cfg evolution.Config) *evolution.GeneStore {
+	t.Helper()
+	if cfg.StorageMode == "" {
+		cfg.StorageMode = "sqlite"
+	}
+	if cfg.DBPath == "" {
+		cfg.DBPath = filepath.Join(t.TempDir(), "test_evolution.db")
+	}
+	gs, err := evolution.Open(cfg)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	t.Cleanup(func() { _ = gs.Close() })
+	return gs
+}
+
 func TestGeneStore_OpenClose(t *testing.T) {
 	gs := openTestStore(t)
 	if gs == nil {
@@ -179,6 +197,370 @@ func TestGeneStore_SaveAndQuery(t *testing.T) {
 	}
 	if results[0].GeneID != gene.GeneID {
 		t.Errorf("unexpected gene_id: %s", results[0].GeneID)
+	}
+}
+
+func TestGeneStore_SharingDisabled_DoesNotLeakAcrossTenants(t *testing.T) {
+	gs := openTestStore(t)
+	ctx := context.Background()
+
+	gene := orisstore.Gene{
+		GeneID:     "tenantgene1",
+		Name:       "tenant-gene",
+		TaskClass:  evolution.TaskClassCodingFeature,
+		Confidence: 0.95,
+		Strategy:   map[string]any{"insight": "tenant-only strategy"},
+		Source:     "test",
+	}
+	if err := gs.Save(ctx, "tenant-a", gene); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	results, err := gs.QueryTop(ctx, "tenant-b", evolution.TaskClassCodingFeature, 0.5, 5)
+	if err != nil {
+		t.Fatalf("QueryTop: %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("expected no cross-tenant shared results, got %d", len(results))
+	}
+}
+
+func TestGeneStore_SharingAnonymous_AllowsSharedReplayWithoutContributor(t *testing.T) {
+	cfg := evolution.DefaultConfig()
+	cfg.StorageMode = "sqlite"
+	cfg.SharingMode = evolution.SharingAnonymous
+	gs := openTestStoreWithConfig(t, cfg)
+	ctx := context.Background()
+
+	gene := orisstore.Gene{
+		GeneID:     "tenantgene2",
+		Name:       "tenant-gene",
+		TaskClass:  evolution.TaskClassCodingFeature,
+		Confidence: 0.95,
+		Strategy:   map[string]any{"insight": "shared anonymous strategy"},
+		Source:     "test",
+	}
+	if err := gs.Save(ctx, "tenant-a", gene); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	results, err := gs.QueryTop(ctx, "tenant-b", evolution.TaskClassCodingFeature, 0.5, 5)
+	if err != nil {
+		t.Fatalf("QueryTop: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one shared result, got %d", len(results))
+	}
+	if results[0].ContributorID != "" {
+		t.Fatalf("anonymous shared result exposed contributor %q", results[0].ContributorID)
+	}
+	if results[0].Source != "shared.anonymous" {
+		t.Fatalf("source = %q, want shared.anonymous", results[0].Source)
+	}
+}
+
+func TestGeneStore_SharingTrusted_PreservesContributor(t *testing.T) {
+	cfg := evolution.DefaultConfig()
+	cfg.StorageMode = "sqlite"
+	cfg.SharingMode = evolution.SharingTrusted
+	gs := openTestStoreWithConfig(t, cfg)
+	ctx := context.Background()
+
+	gene := orisstore.Gene{
+		GeneID:     "tenantgene3",
+		Name:       "tenant-gene",
+		TaskClass:  evolution.TaskClassAnalysis,
+		Confidence: 0.95,
+		Strategy:   map[string]any{"insight": "shared trusted strategy"},
+		Source:     "test",
+	}
+	if err := gs.Save(ctx, "tenant-a", gene); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	results, err := gs.QueryTop(ctx, "tenant-b", evolution.TaskClassAnalysis, 0.5, 5)
+	if err != nil {
+		t.Fatalf("QueryTop: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected one shared result, got %d", len(results))
+	}
+	if results[0].ContributorID != "tenant-a" {
+		t.Fatalf("contributor = %q, want tenant-a", results[0].ContributorID)
+	}
+	if results[0].Source != "shared.trusted" {
+		t.Fatalf("source = %q, want shared.trusted", results[0].Source)
+	}
+}
+
+func TestGeneStore_PolicyPersistsAcrossReopen(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "policy_evolution.db")
+	cfg := evolution.Config{
+		StorageMode: "sqlite",
+		DBPath:      dbPath,
+	}
+
+	gs, err := evolution.Open(cfg)
+	if err != nil {
+		t.Fatalf("Open: %v", err)
+	}
+	if _, err := gs.SetSharingMode(evolution.SharingTrusted, "enable trusted sharing"); err != nil {
+		t.Fatalf("SetSharingMode: %v", err)
+	}
+	tenantPolicy, err := gs.SetTenantSharingPolicy(evolution.TenantSharingPolicy{
+		TenantID:         "tenant-sensitive",
+		ConsumeShared:    false,
+		ContributionMode: evolution.SharingDisabled,
+		Labels:           []string{"regulated"},
+	}, "regulated tenant opt-out")
+	if err != nil {
+		t.Fatalf("SetTenantSharingPolicy: %v", err)
+	}
+	if tenantPolicy.Version != 1 {
+		t.Fatalf("tenant policy version = %d, want 1", tenantPolicy.Version)
+	}
+	if err := gs.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+
+	reopened, err := evolution.Open(cfg)
+	if err != nil {
+		t.Fatalf("reopen: %v", err)
+	}
+	t.Cleanup(func() { _ = reopened.Close() })
+
+	policy := reopened.SharingPolicySnapshot()
+	if policy.Mode != evolution.SharingTrusted {
+		t.Fatalf("sharing mode after reopen = %q, want trusted", policy.Mode)
+	}
+	if policy.Version != 1 {
+		t.Fatalf("sharing version after reopen = %d, want 1", policy.Version)
+	}
+	reopenedTenantPolicy := reopened.EffectiveTenantSharingPolicy("tenant-sensitive")
+	if reopenedTenantPolicy.ConsumeShared {
+		t.Fatal("tenant policy consume_shared should remain false after reopen")
+	}
+	if reopenedTenantPolicy.ContributionMode != evolution.SharingDisabled {
+		t.Fatalf("tenant contribution mode after reopen = %q, want disabled", reopenedTenantPolicy.ContributionMode)
+	}
+	if reopenedTenantPolicy.Version != 1 {
+		t.Fatalf("tenant policy version after reopen = %d, want 1", reopenedTenantPolicy.Version)
+	}
+
+	updatedPolicy, err := reopened.SetTenantSharingPolicy(evolution.TenantSharingPolicy{
+		TenantID:         "tenant-sensitive",
+		ConsumeShared:    true,
+		ContributionMode: evolution.SharingAnonymous,
+		Labels:           []string{"regulated", "approved"},
+	}, "allow anonymous replay")
+	if err != nil {
+		t.Fatalf("second SetTenantSharingPolicy: %v", err)
+	}
+	if updatedPolicy.Version != 2 {
+		t.Fatalf("tenant policy version after second update = %d, want 2", updatedPolicy.Version)
+	}
+}
+
+func TestGeneStore_SharingPolicyHistoryAndRollback(t *testing.T) {
+	gs := openTestStore(t)
+
+	first, err := gs.SetSharingMode(evolution.SharingAnonymous, "phase 1")
+	if err != nil {
+		t.Fatalf("SetSharingMode phase 1: %v", err)
+	}
+	second, err := gs.SetSharingMode(evolution.SharingTrusted, "phase 2")
+	if err != nil {
+		t.Fatalf("SetSharingMode phase 2: %v", err)
+	}
+	if first.Version != 1 || second.Version != 2 {
+		t.Fatalf("versions = %d/%d, want 1/2", first.Version, second.Version)
+	}
+	history, err := gs.ListSharingPolicyHistory(10, 0)
+	if err != nil {
+		t.Fatalf("ListSharingPolicyHistory: %v", err)
+	}
+	if len(history) != 2 {
+		t.Fatalf("history len = %d, want 2", len(history))
+	}
+	if history[0].Version != 2 || history[0].Mode != evolution.SharingTrusted {
+		t.Fatalf("latest history = %+v, want version 2 trusted", history[0])
+	}
+	rolledBack, err := gs.RollbackSharingPolicy(1, "rollback to anonymous")
+	if err != nil {
+		t.Fatalf("RollbackSharingPolicy: %v", err)
+	}
+	if rolledBack.Mode != evolution.SharingAnonymous {
+		t.Fatalf("rolled back mode = %q, want anonymous", rolledBack.Mode)
+	}
+	if rolledBack.Version != 3 {
+		t.Fatalf("rolled back version = %d, want 3", rolledBack.Version)
+	}
+	if gs.SharingPolicySnapshot().Mode != evolution.SharingAnonymous {
+		t.Fatalf("current mode = %q, want anonymous", gs.SharingPolicySnapshot().Mode)
+	}
+	tenantPolicy, err := gs.SetTenantSharingPolicy(evolution.TenantSharingPolicy{
+		TenantID:         "tenant-a",
+		ConsumeShared:    false,
+		ContributionMode: evolution.SharingDisabled,
+		Labels:           []string{"regulated"},
+	}, "restrict tenant")
+	if err != nil {
+		t.Fatalf("SetTenantSharingPolicy v1: %v", err)
+	}
+	_, err = gs.SetTenantSharingPolicy(evolution.TenantSharingPolicy{
+		TenantID:         "tenant-a",
+		ConsumeShared:    true,
+		ContributionMode: evolution.SharingAnonymous,
+		Labels:           []string{"approved"},
+	}, "relax tenant")
+	if err != nil {
+		t.Fatalf("SetTenantSharingPolicy v2: %v", err)
+	}
+	if tenantPolicy.Version != 1 {
+		t.Fatalf("tenant version = %d, want 1", tenantPolicy.Version)
+	}
+	tenantHistory, err := gs.ListTenantSharingPolicyHistory("tenant-a", 10, 0)
+	if err != nil {
+		t.Fatalf("ListTenantSharingPolicyHistory: %v", err)
+	}
+	if len(tenantHistory) != 2 {
+		t.Fatalf("tenant history len = %d, want 2", len(tenantHistory))
+	}
+	rolledBackTenant, err := gs.RollbackTenantSharingPolicy("tenant-a", 1, "restore strict policy")
+	if err != nil {
+		t.Fatalf("RollbackTenantSharingPolicy: %v", err)
+	}
+	if rolledBackTenant.Version != 3 {
+		t.Fatalf("tenant rollback version = %d, want 3", rolledBackTenant.Version)
+	}
+	if rolledBackTenant.ConsumeShared {
+		t.Fatal("tenant rollback should restore consume_shared=false")
+	}
+	if rolledBackTenant.ContributionMode != evolution.SharingDisabled {
+		t.Fatalf("tenant rollback contribution mode = %q, want disabled", rolledBackTenant.ContributionMode)
+	}
+}
+
+func TestGeneStore_RevokeShared_BatchedDeletion(t *testing.T) {
+	gs := openTestStoreWithConfig(t, evolution.Config{
+		StorageMode: "sqlite",
+		SharingMode: evolution.SharingTrusted,
+	})
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	for i := 0; i < 450; i++ {
+		if err := gs.Save(ctx, "tenant-b", orisstore.Gene{
+			GeneID:     fmt.Sprintf("tenant-b-%03d", i),
+			Name:       "shared-source-b",
+			TaskClass:  evolution.TaskClassCodingFeature,
+			Confidence: 0.9,
+			Strategy:   map[string]any{"steps": []string{"reuse"}},
+			Source:     "test",
+			CreatedAt:  now.Add(time.Duration(i) * time.Second),
+			UpdatedAt:  now.Add(time.Duration(i) * time.Second),
+		}); err != nil {
+			t.Fatalf("Save tenant-b gene %d: %v", i, err)
+		}
+	}
+	for i := 0; i < 60; i++ {
+		if err := gs.Save(ctx, "tenant-c", orisstore.Gene{
+			GeneID:     fmt.Sprintf("tenant-c-%03d", i),
+			Name:       "shared-source-c",
+			TaskClass:  evolution.TaskClassCodingFeature,
+			Confidence: 0.9,
+			Strategy:   map[string]any{"steps": []string{"retain"}},
+			Source:     "test",
+			CreatedAt:  now.Add(time.Duration(500+i) * time.Second),
+			UpdatedAt:  now.Add(time.Duration(500+i) * time.Second),
+		}); err != nil {
+			t.Fatalf("Save tenant-c gene %d: %v", i, err)
+		}
+	}
+
+	deleted, err := gs.RevokeShared(ctx, evolution.SharedRevokeCriteria{
+		TaskClass:    evolution.TaskClassCodingFeature,
+		SourceTenant: "tenant-b",
+	})
+	if err != nil {
+		t.Fatalf("RevokeShared: %v", err)
+	}
+	if deleted != 450 {
+		t.Fatalf("deleted = %d, want 450", deleted)
+	}
+
+	results, err := gs.QueryTop(ctx, "tenant-z", evolution.TaskClassCodingFeature, 0.5, 600)
+	if err != nil {
+		t.Fatalf("QueryTop after revoke: %v", err)
+	}
+	if len(results) != 60 {
+		t.Fatalf("shared results after revoke = %d, want 60", len(results))
+	}
+	for _, gene := range results {
+		if gene.ContributorID != "tenant-c" {
+			t.Fatalf("unexpected contributor after revoke: %q", gene.ContributorID)
+		}
+	}
+}
+
+func TestGeneStore_RevokeShared_TimeWindow(t *testing.T) {
+	gs := openTestStoreWithConfig(t, evolution.Config{
+		StorageMode: "sqlite",
+		SharingMode: evolution.SharingTrusted,
+	})
+	ctx := context.Background()
+	base := time.Date(2026, 5, 22, 10, 0, 0, 0, time.UTC)
+
+	seed := []struct {
+		id        string
+		createdAt time.Time
+		label     string
+	}{
+		{id: "before-window", createdAt: base.Add(-2 * time.Hour), label: "before"},
+		{id: "in-window", createdAt: base.Add(-1 * time.Hour), label: "inside"},
+		{id: "after-window", createdAt: base, label: "after"},
+	}
+	for _, item := range seed {
+		if err := gs.Save(ctx, "tenant-b", orisstore.Gene{
+			GeneID:     item.id,
+			Name:       item.label,
+			TaskClass:  evolution.TaskClassAnalysis,
+			Confidence: 0.9,
+			Strategy:   map[string]any{"steps": []string{item.label}},
+			Source:     "test",
+			CreatedAt:  item.createdAt,
+			UpdatedAt:  item.createdAt,
+		}); err != nil {
+			t.Fatalf("Save %s: %v", item.id, err)
+		}
+	}
+
+	from := base.Add(-90 * time.Minute)
+	to := base.Add(-30 * time.Minute)
+	deleted, err := gs.RevokeShared(ctx, evolution.SharedRevokeCriteria{
+		TaskClass:    evolution.TaskClassAnalysis,
+		SourceTenant: "tenant-b",
+		From:         &from,
+		To:           &to,
+	})
+	if err != nil {
+		t.Fatalf("RevokeShared time window: %v", err)
+	}
+	if deleted != 1 {
+		t.Fatalf("deleted = %d, want 1", deleted)
+	}
+
+	results, err := gs.QueryTop(ctx, "tenant-z", evolution.TaskClassAnalysis, 0.5, 10)
+	if err != nil {
+		t.Fatalf("QueryTop after time window revoke: %v", err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("shared results after time window revoke = %d, want 2", len(results))
+	}
+	for _, gene := range results {
+		if gene.GeneID == "shared-in-window" {
+			t.Fatal("time-window revoke left the in-window shared gene behind")
+		}
 	}
 }
 

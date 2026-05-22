@@ -325,34 +325,7 @@ Returns the receipt object directly (not wrapped in an array). Returns `404` if 
 
 The `/v1/execution-receipts` list endpoint does not currently support filtering by `idempotency_id` directly. To check whether a specific idempotency key has already been recorded, list receipts for the relevant session and filter client-side, or use the internal `GetByIdempotencyID` store method if building server-side integrations.
 
-#### Integration example: safe retry with idempotency
-
-```bash
-IDEM_ID="job-$(date +%s)-$RANDOM"
-
-submit_receipt() {
-  curl -s -X POST "http://localhost:8080/v1/execution-receipts" \
-    -H "Authorization: Bearer hk_your_api_key" \
-    -H "Content-Type: application/json" \
-    -d "{
-      \"session_id\": \"sess-abc\",
-      \"tool_name\": \"summarize\",
-      \"input\": \"...\",
-      \"output\": \"...\",
-      \"status\": \"success\",
-      \"duration_ms\": 500,
-      \"idempotency_id\": \"$IDEM_ID\"
-    }"
-}
-
-# First call creates the receipt.
-submit_receipt
-
-# Second call (e.g. after a network error) returns the same receipt — no duplicate.
-submit_receipt
-```
-
-Both calls return identical JSON with the same `id` and `created_at`.
+Execution receipts are written by the internal tool execution path. The public API exposes query-only access.
 
 ### GDPR Compliance /v1/gdpr
 
@@ -479,10 +452,21 @@ Response:
 
 ### GET /v1/usage — Usage Statistics
 
-Returns session and message usage statistics for the current tenant.
+Returns usage statistics for the current tenant. When `UsageStore` is configured, this endpoint returns day/month aggregates from `usage_records`; otherwise it keeps the legacy session token summary.
 
 ```bash
 curl http://localhost:8080/v1/usage \
+  -H "Authorization: Bearer hk_your_api_key"
+```
+
+Common query parameters: `from`, `to`, `granularity=day|month`.
+
+### GET /v1/usage/details — Session Usage Details
+
+Available when `UsageStore` is configured. Returns usage records for one tenant-scoped session.
+
+```bash
+curl "http://localhost:8080/v1/usage/details?session_id=sess-..." \
   -H "Authorization: Bearer hk_your_api_key"
 ```
 
@@ -701,12 +685,26 @@ Allowed headers: `Authorization, Content-Type, X-Hermes-Session-Id, X-Hermes-Use
 
 ## Admin Sub-Routes /admin/*
 
-Admin panel dedicated routes requiring `admin` role. Provides RESTful interfaces for advanced management functions (pricing rules, platform configuration, etc.).
+Admin panel routes are authorized by governance domain: `billing:*`, `audit:read`, `security:*`, `ops:*`, `tenant:*`, `key:*`, and `sharing:*`. The legacy `admin` scope is retained only as explicit break-glass compatibility.
 
 ```bash
 curl http://localhost:8080/admin/v1/pricing-rules \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
+
+### Evolution Sharing Governance
+
+| Method | Path | Scope | Description |
+|--------|------|-------|-------------|
+| `GET` | `/admin/v1/evolution/sharing-policy` | `sharing:read` or `security:read` | Get global sharing level |
+| `GET` | `/admin/v1/evolution/sharing-policy/history` | `sharing:read` or `security:read` | List global sharing policy history |
+| `PUT` | `/admin/v1/evolution/sharing-policy` | `sharing:write` or `security:write` | Set `disabled` / `anonymous` / `trusted` |
+| `POST` | `/admin/v1/evolution/sharing-policy/rollback` | `sharing:write` or `security:write` | Roll back the global sharing policy to a prior version and mint a new version |
+| `GET` | `/admin/v1/evolution/tenants/{id}/sharing-policy` | `sharing:read` or `tenant:read` | Get effective tenant sharing policy |
+| `GET` | `/admin/v1/evolution/tenants/{id}/sharing-policy/history` | `sharing:read` or `tenant:read` | List tenant sharing policy history |
+| `PUT` | `/admin/v1/evolution/tenants/{id}/sharing-policy` | `sharing:write` or `tenant:write` | Set tenant consumption/contribution policy |
+| `POST` | `/admin/v1/evolution/tenants/{id}/sharing-policy/rollback` | `sharing:write` or `tenant:write` | Roll back the tenant sharing policy to a prior version and mint a new version |
+| `POST` | `/admin/v1/evolution/shared-knowledge/revoke` | `sharing:write` or `security:write` | Revoke shared knowledge by tenant, task class, source, or time window |
 
 ## Static Pages
 

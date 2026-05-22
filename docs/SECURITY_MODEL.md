@@ -31,8 +31,8 @@
 ┌──────────────────────────▼──────────────────────────────────┐
 │              DATA LAYER (Isolation Boundary)                  │
 │  ┌──────────────────────────────────────────────────────┐   │
-│  │  PostgreSQL RLS: SET LOCAL app.current_tenant = ?      │   │
-│  │  Every query filtered at DB level, not just app level  │   │
+│  │  Store tenant guard + backend-specific DB controls      │   │
+│  │  PostgreSQL: RLS; MySQL: static guard + regressions     │   │
 │  └──────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -103,10 +103,12 @@ The `TenantMiddleware` extracts `tenant_id` exclusively from `AuthContext`, whic
 |-------|-----------|-------------------|
 | 1. Application | `AuthContext.TenantID` from credential | Requires valid key for target tenant |
 | 2. Middleware | All store calls include tenant_id | Requires code modification |
-| 3. Database (RLS) | `SET LOCAL app.current_tenant` + policy | Requires superuser DB access |
+| 3. Database/backend guard | PostgreSQL RLS or MySQL static SQL guard + regression | Requires privileged DB access or code change |
 | 4. Index | Unique indexes include tenant_id | Schema-level enforcement |
 
-### PostgreSQL Row-Level Security
+### Backend Isolation Controls
+
+PostgreSQL uses Row-Level Security as an additional database-side guard.
 
 Every tenant-scoped table has:
 
@@ -130,6 +132,13 @@ func withTenantTx(ctx context.Context, pool *pgxpool.Pool, tenantID string, fn f
 ```
 
 **Important**: RLS affects non-superuser roles. The application connects as a restricted role, not the database owner.
+
+MySQL does not provide PostgreSQL-equivalent RLS. MySQL production support is therefore proven by:
+
+- Store-layer `tenant_id` parameters on tenant-scoped operations.
+- `scripts/check_tenant_sql_mysql.sh` static SQL guard.
+- Explicit skip markers for scheduler or platform aggregate queries.
+- Cross-tenant regression and restore drills documented in `docs/runbooks/backend-enterprise-validation-matrix.md`.
 
 ### Tables with RLS
 

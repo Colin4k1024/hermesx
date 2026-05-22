@@ -56,6 +56,7 @@ type EvolutionConfig struct {
 	MinConfidence    float64 `yaml:"min_confidence"`   // minimum confidence to query (default 0.5)
 	ReplayThreshold  float64 `yaml:"replay_threshold"` // inject gene if confidence ≥ this (default 0.75)
 	MaxGenesInPrompt int     `yaml:"max_genes_prompt"` // max genes to inject per turn (default 3)
+	SharingMode      string  `yaml:"sharing_mode"`     // "disabled" (default) | "anonymous" | "trusted"
 }
 
 // DatabaseConfig controls the state store backend.
@@ -377,5 +378,29 @@ func mergeConfig(dst, src *Config) {
 	}
 	if src.Memory.Provider != "" {
 		dst.Memory.Provider = src.Memory.Provider
+	}
+	if src.Evolution.Enabled {
+		dst.Evolution.Enabled = src.Evolution.Enabled
+	}
+	if src.Evolution.StorageMode != "" {
+		dst.Evolution.StorageMode = src.Evolution.StorageMode
+	}
+	if src.Evolution.DBPath != "" {
+		dst.Evolution.DBPath = src.Evolution.DBPath
+	}
+	if src.Evolution.MySQLDSN != "" {
+		dst.Evolution.MySQLDSN = src.Evolution.MySQLDSN
+	}
+	if src.Evolution.MinConfidence > 0 {
+		dst.Evolution.MinConfidence = src.Evolution.MinConfidence
+	}
+	if src.Evolution.ReplayThreshold > 0 {
+		dst.Evolution.ReplayThreshold = src.Evolution.ReplayThreshold
+	}
+	if src.Evolution.MaxGenesInPrompt > 0 {
+		dst.Evolution.MaxGenesInPrompt = src.Evolution.MaxGenesInPrompt
+	}
+	if src.Evolution.SharingMode != "" {
+		dst.Evolution.SharingMode = src.Evolution.SharingMode
 	}
 }

@@ -2,25 +2,24 @@ package metering
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strings"
 	"time"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// PGUsageStore implements UsageStore backed by PostgreSQL.
-type PGUsageStore struct {
-	pool *pgxpool.Pool
+// MySQLUsageStore implements UsageStore backed by MySQL.
+type MySQLUsageStore struct {
+	db *sql.DB
 }
 
-// NewPGUsageStore creates a new PostgreSQL usage store.
-func NewPGUsageStore(pool *pgxpool.Pool) *PGUsageStore {
-	return &PGUsageStore{pool: pool}
+// NewMySQLUsageStore creates a new MySQL usage store.
+func NewMySQLUsageStore(db *sql.DB) *MySQLUsageStore {
+	return &MySQLUsageStore{db: db}
 }
 
 // BatchInsert inserts multiple usage records in a single statement.
-func (s *PGUsageStore) BatchInsert(ctx context.Context, records []UsageRecord) error {
+func (s *MySQLUsageStore) BatchInsert(ctx context.Context, records []UsageRecord) error {
 	if len(records) == 0 {
 		return nil
 	}
@@ -33,10 +32,7 @@ func (s *PGUsageStore) BatchInsert(ctx context.Context, records []UsageRecord) e
 		if i > 0 {
 			b.WriteString(", ")
 		}
-		base := i * 12
-		fmt.Fprintf(&b, "($%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d, $%d)",
-			base+1, base+2, base+3, base+4, base+5, base+6,
-			base+7, base+8, base+9, base+10, base+11, base+12)
+		b.WriteString("(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
 		createdAt := r.CreatedAt
 		if createdAt.IsZero() {
 			createdAt = time.Now()
@@ -46,41 +42,40 @@ func (s *PGUsageStore) BatchInsert(ctx context.Context, records []UsageRecord) e
 			r.CostUSD, r.Degraded, createdAt)
 	}
 
-	_, err := s.pool.Exec(ctx, b.String(), args...)
+	_, err := s.db.ExecContext(ctx, b.String(), args...)
 	return err
 }
 
 // QueryByTenant returns aggregated usage for a tenant within a time range.
-func (s *PGUsageStore) QueryByTenant(ctx context.Context, tenantID string, from, to time.Time, granularity string) ([]UsageSummary, error) {
-	// Whitelist-only approach: reject unknown granularity to prevent any injection path.
-	var truncExpr string
+func (s *MySQLUsageStore) QueryByTenant(ctx context.Context, tenantID string, from, to time.Time, granularity string) ([]UsageSummary, error) {
+	var dateExpr string
 	switch granularity {
 	case "hour":
-		truncExpr = "hour"
+		dateExpr = "DATE_FORMAT(created_at, '%Y-%m-%d %H:00:00')"
 	case "week":
-		truncExpr = "week"
+		dateExpr = "DATE_FORMAT(DATE_SUB(created_at, INTERVAL WEEKDAY(created_at) DAY), '%Y-%m-%d')"
 	case "month":
-		truncExpr = "month"
+		dateExpr = "DATE_FORMAT(created_at, '%Y-%m-01')"
 	case "day", "":
-		truncExpr = "day"
+		dateExpr = "DATE_FORMAT(created_at, '%Y-%m-%d')"
 	default:
 		return nil, fmt.Errorf("invalid granularity: %q (allowed: hour, day, week, month)", granularity)
 	}
 
 	query := fmt.Sprintf(`
-		SELECT date_trunc('%s', created_at)::date::text AS bucket,
+		SELECT %s AS bucket,
 		       COALESCE(SUM(input_tokens), 0),
 		       COALESCE(SUM(output_tokens), 0),
 		       COALESCE(SUM(cost_usd), 0)
 		FROM usage_records
-		WHERE tenant_id = $1 AND created_at >= $2 AND created_at < $3
+		WHERE tenant_id = ? AND created_at >= ? AND created_at < ?
 		GROUP BY bucket
 		ORDER BY bucket
-	`, truncExpr)
+	`, dateExpr)
 
-	rows, err := s.pool.Query(ctx, query, tenantID, from, to)
+	rows, err := s.db.QueryContext(ctx, query, tenantID, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("query usage by tenant: %w", err)
+		return nil, fmt.Errorf("mysql query usage by tenant: %w", err)
 	}
 	defer rows.Close()
 
@@ -88,7 +83,7 @@ func (s *PGUsageStore) QueryByTenant(ctx context.Context, tenantID string, from,
 	for rows.Next() {
 		var us UsageSummary
 		if err := rows.Scan(&us.Date, &us.InputTokens, &us.OutputTokens, &us.CostUSD); err != nil {
-			return nil, fmt.Errorf("scan usage summary: %w", err)
+			return nil, fmt.Errorf("mysql scan usage summary: %w", err)
 		}
 		results = append(results, us)
 	}
@@ -96,19 +91,19 @@ func (s *PGUsageStore) QueryByTenant(ctx context.Context, tenantID string, from,
 }
 
 // QueryBySession returns all usage records for a specific session.
-func (s *PGUsageStore) QueryBySession(ctx context.Context, tenantID, sessionID string) ([]UsageRecord, error) {
+func (s *MySQLUsageStore) QueryBySession(ctx context.Context, tenantID, sessionID string) ([]UsageRecord, error) {
 	query := `
 		SELECT tenant_id, session_id, user_id, model, provider,
 		       input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
 		       cost_usd, degraded, created_at
 		FROM usage_records
-		WHERE tenant_id = $1 AND session_id = $2
+		WHERE tenant_id = ? AND session_id = ?
 		ORDER BY created_at
 	`
 
-	rows, err := s.pool.Query(ctx, query, tenantID, sessionID)
+	rows, err := s.db.QueryContext(ctx, query, tenantID, sessionID)
 	if err != nil {
-		return nil, fmt.Errorf("query usage by session: %w", err)
+		return nil, fmt.Errorf("mysql query usage by session: %w", err)
 	}
 	defer rows.Close()
 
@@ -118,7 +113,7 @@ func (s *PGUsageStore) QueryBySession(ctx context.Context, tenantID, sessionID s
 		if err := rows.Scan(&r.TenantID, &r.SessionID, &r.UserID, &r.Model, &r.Provider,
 			&r.InputTokens, &r.OutputTokens, &r.CacheReadTokens, &r.CacheWriteTokens,
 			&r.CostUSD, &r.Degraded, &r.CreatedAt); err != nil {
-			return nil, fmt.Errorf("scan usage record: %w", err)
+			return nil, fmt.Errorf("mysql scan usage record: %w", err)
 		}
 		results = append(results, r)
 	}
@@ -126,9 +121,8 @@ func (s *PGUsageStore) QueryBySession(ctx context.Context, tenantID, sessionID s
 }
 
 // QueryTenants returns aggregate-only usage across tenants for platform
-// governance views. usage_records is an aggregate metering table and this query
-// intentionally does not expose user-level or session-level details.
-func (s *PGUsageStore) QueryTenants(ctx context.Context, q TenantUsageQuery) ([]TenantUsageSummary, error) {
+// governance views.
+func (s *MySQLUsageStore) QueryTenants(ctx context.Context, q TenantUsageQuery) ([]TenantUsageSummary, error) {
 	limit := q.Limit
 	if limit <= 0 || limit > 500 {
 		limit = 100
@@ -141,19 +135,19 @@ func (s *PGUsageStore) QueryTenants(ctx context.Context, q TenantUsageQuery) ([]
 	query := `
 		SELECT tenant_id,
 		       COUNT(DISTINCT NULLIF(session_id, '')) AS session_count,
-		       COALESCE(SUM(input_tokens), 0)::bigint,
-		       COALESCE(SUM(output_tokens), 0)::bigint,
+		       COALESCE(SUM(input_tokens), 0),
+		       COALESCE(SUM(output_tokens), 0),
 		       COALESCE(SUM(cost_usd), 0)
 		FROM usage_records
-		WHERE ($1::timestamptz IS NULL OR created_at >= $1)
-		  AND ($2::timestamptz IS NULL OR created_at <  $2)
+		WHERE (? IS NULL OR created_at >= ?)
+		  AND (? IS NULL OR created_at < ?)
 		GROUP BY tenant_id
 		ORDER BY COALESCE(SUM(cost_usd), 0) DESC, tenant_id ASC
-		LIMIT $3 OFFSET $4`
+		LIMIT ? OFFSET ?`
 
-	rows, err := s.pool.Query(ctx, query, q.From, q.To, limit, offset)
+	rows, err := s.db.QueryContext(ctx, query, q.From, q.From, q.To, q.To, limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("query tenant usage: %w", err)
+		return nil, fmt.Errorf("mysql query tenant usage: %w", err)
 	}
 	defer rows.Close()
 
@@ -161,7 +155,7 @@ func (s *PGUsageStore) QueryTenants(ctx context.Context, q TenantUsageQuery) ([]
 	for rows.Next() {
 		var item TenantUsageSummary
 		if err := rows.Scan(&item.TenantID, &item.SessionCount, &item.InputTokens, &item.OutputTokens, &item.CostUSD); err != nil {
-			return nil, fmt.Errorf("scan tenant usage: %w", err)
+			return nil, fmt.Errorf("mysql scan tenant usage: %w", err)
 		}
 		results = append(results, item)
 	}

@@ -68,7 +68,7 @@
 
 ```
 hermes              → CLI 模式 (SQLite, 本地交互)
-hermes saas-api     → SaaS 模式 (PostgreSQL, 多租户 HTTP)
+hermes saas-api     → SaaS 模式 (PostgreSQL 或 MySQL, 多租户 HTTP)
 ```
 
 **优势：**
@@ -78,17 +78,16 @@ hermes saas-api     → SaaS 模式 (PostgreSQL, 多租户 HTTP)
 
 ---
 
-## Why PostgreSQL?
+## Why PostgreSQL Or MySQL?
 
-| Requirement | PostgreSQL Feature |
-|-------------|-------------------|
-| Multi-tenant isolation | Row-Level Security (RLS) |
-| ACID transactions | 事务性 GDPR 删除 |
-| Schema evolution | 70+ idempotent migrations (PL/pgSQL DO blocks) |
-| Full-text search | pg_trgm + GIN index (CJK trigram) |
-| JSON flexibility | JSONB columns (sandbox_policy, metadata) |
-| Audit immutability | BEFORE UPDATE/DELETE trigger |
-| PITR backup | pgBackRest (RPO < 5min) |
+| Requirement | PostgreSQL Baseline | MySQL Baseline |
+|-------------|---------------------|----------------|
+| Multi-tenant isolation | Store tenant parameters + RLS/FORCE RLS | Store tenant parameters + static SQL tenant guard |
+| ACID transactions | Transactional GDPR delete | Transactional GDPR delete |
+| Schema evolution | Idempotent migrations | Idempotent migrations |
+| Audit trail | `audit_logs` + execution receipts | `audit_logs` + execution receipts |
+| Usage aggregation | `PGUsageStore` | `MySQLUsageStore` |
+| Backup recovery | pgBackRest / PITR | logical/physical backup + binlog PITR runbook |
 
 ---
 
@@ -352,7 +351,7 @@ hermesx/
 | Decision | Choice | Alternative Considered | Why |
 |----------|--------|----------------------|-----|
 | Language | Go | Rust, TypeScript | Performance + ecosystem + single binary |
-| Store | PostgreSQL | CockroachDB | RLS support, mature ecosystem, operational simplicity |
+| Store | PostgreSQL + MySQL | CockroachDB | Enterprise deployments require both `DATABASE_DRIVER=postgres` and `DATABASE_DRIVER=mysql`; PostgreSQL RLS is an extra guard, not the only isolation baseline |
 | Object store | MinIO | S3 directly | Self-hosted, S3-compatible, no vendor lock |
 | Rate limiting | Redis Lua | In-memory only | Distributed accuracy across replicas |
 | Circuit breaker | gobreaker | Custom | Battle-tested, Prometheus integration |

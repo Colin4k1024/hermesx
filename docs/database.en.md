@@ -6,10 +6,24 @@
 
 | Backend | Driver | Use Case | Package Path |
 |---------|--------|----------|-------------|
-| PostgreSQL 16+ | pgx/v5 | SaaS multi-tenant mode | `internal/store/pg/` |
+| PostgreSQL 16+ | pgx/v5 | SaaS multi-tenant production backend | `internal/store/pg/` |
+| MySQL 8.4+ | go-sql-driver/mysql | SaaS multi-tenant production backend | `internal/store/mysql/` |
 | SQLite | go-sqlite3 | CLI single-user mode | `internal/store/sqlite/` |
 
-SaaS mode requires PostgreSQL. The connection is configured via the `DATABASE_URL` environment variable.
+SaaS mode selects the production backend via `DATABASE_DRIVER`; supported values are `postgres` and `mysql`. The connection is configured via the `DATABASE_URL` environment variable. SQLite is only for CLI single-user mode and is not a SaaS isolation backend.
+
+## Enterprise Support Matrix
+
+| Capability | PostgreSQL | MySQL | Evidence/Gate |
+|------------|------------|-------|---------------|
+| Tenant isolation | Store-layer `tenant_id` parameter + PostgreSQL RLS/FORCE RLS | Store-layer `tenant_id` parameter + MySQL SQL static guard + cross-tenant regression | `scripts/check_tenant_sql.sh`, `scripts/check_tenant_sql_mysql.sh`, `tests/integration/cross_tenant_attack_test.go` |
+| Audit logs | `audit_logs` + tenant-scoped query + RLS | `audit_logs` + tenant-scoped query | `internal/store/pg/auditlog.go`, `internal/store/mysql/auditlog.go` |
+| Execution receipts | tenant-scoped store + API query | tenant-scoped store + API query | `internal/store/pg/execution_receipts.go`, `internal/store/mysql/execution_receipts.go`, `internal/api/execution_receipts.go` |
+| Usage metering | `usage_records` + `PGUsageStore` + aggregate-only platform query | `usage_records` + `MySQLUsageStore` + aggregate-only platform query | `internal/metering/pg_store.go`, `internal/metering/mysql_store.go`, `internal/api/admin/usage.go` |
+| GDPR deletion | Store cascade + MinIO cleanup | Store cascade + MinIO cleanup | `internal/api/gdpr.go`, per-backend store `DeleteAllByTenant` methods |
+| Workflow | definitions / versions / runs / step runs | definitions / versions / runs / step runs | `internal/store/pg/workflows.go`, `internal/store/mysql/workflows.go` |
+| Backup and restore | pgBackRest / PITR runbook | MySQL logical/physical backup + PITR runbook | `docs/runbooks/pg-pitr-recovery.md`, `docs/runbooks/mysql-backup-restore.md` |
+| Cross-tenant statistics | metering store aggregate API; no handler-level RLS disable | metering store aggregate API | `metering.TenantUsageAggregator` |
 
 ## Tables
 

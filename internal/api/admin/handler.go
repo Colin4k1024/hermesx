@@ -5,6 +5,7 @@ import (
 	"net/http"
 
 	"github.com/Colin4k1024/hermesx/internal/egress"
+	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/safety"
@@ -22,6 +23,7 @@ type AdminHandler struct {
 	logger         *slog.Logger
 	pricingCache   *metering.PricingStore
 	usageStore     metering.UsageStore
+	evolutionStore *evolution.GeneStore
 	egressHandler  *egress.AdminHandler
 	policyStore    safety.PolicyStore
 	canaryDetector *safety.CanaryDetector
@@ -57,6 +59,11 @@ func WithUsageStore(us metering.UsageStore) AdminOption {
 	return func(h *AdminHandler) { h.usageStore = us }
 }
 
+// WithEvolutionStore enables evolution sharing governance endpoints.
+func WithEvolutionStore(gs *evolution.GeneStore) AdminOption {
+	return func(h *AdminHandler) { h.evolutionStore = gs }
+}
+
 // WithEgressHandler registers the egress admin handler so its routes are
 // served under /admin/v1/egress/... with the same RequireScope("admin") guard.
 func WithEgressHandler(eh *egress.AdminHandler) AdminOption {
@@ -79,53 +86,69 @@ func WithLeakScanner(ls *secrets.LeakScanner) AdminOption {
 }
 
 // Handler returns an http.Handler that serves all admin routes under /admin/v1/.
-// All routes require the "admin" scope via RequireScope middleware.
+// Routes are guarded by domain-specific scopes, with the legacy "admin" scope
+// retained as an explicit break-glass compatibility grant.
 func (h *AdminHandler) Handler() http.Handler {
 	mux := http.NewServeMux()
+	handle := func(pattern string, scopes []string, fn http.HandlerFunc) {
+		mux.Handle(pattern, middleware.RequireAnyScope(scopes...)(fn))
+	}
 
 	// Sandbox policy endpoints.
-	mux.HandleFunc("POST /admin/v1/tenants/{id}/sandbox-policy", h.setSandboxPolicy)
-	mux.HandleFunc("GET /admin/v1/tenants/{id}/sandbox-policy", h.getSandboxPolicy)
-	mux.HandleFunc("DELETE /admin/v1/tenants/{id}/sandbox-policy", h.deleteSandboxPolicy)
+	handle("POST /admin/v1/tenants/{id}/sandbox-policy", []string{"ops:write", "tenant:write"}, h.setSandboxPolicy)
+	handle("GET /admin/v1/tenants/{id}/sandbox-policy", []string{"ops:read", "tenant:read"}, h.getSandboxPolicy)
+	handle("DELETE /admin/v1/tenants/{id}/sandbox-policy", []string{"ops:write", "tenant:write"}, h.deleteSandboxPolicy)
 
 	// API key management endpoints.
-	mux.HandleFunc("GET /admin/v1/tenants/{id}/api-keys", h.listAPIKeys)
-	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys", h.createAPIKey)
-	mux.HandleFunc("POST /admin/v1/tenants/{id}/api-keys/{kid}/rotate", h.rotateAPIKey)
-	mux.HandleFunc("DELETE /admin/v1/tenants/{id}/api-keys/{kid}", h.revokeAPIKey)
+	handle("GET /admin/v1/tenants/{id}/api-keys", []string{"key:read", "tenant:read"}, h.listAPIKeys)
+	handle("POST /admin/v1/tenants/{id}/api-keys", []string{"key:write"}, h.createAPIKey)
+	handle("POST /admin/v1/tenants/{id}/api-keys/{kid}/rotate", []string{"key:write"}, h.rotateAPIKey)
+	handle("DELETE /admin/v1/tenants/{id}/api-keys/{kid}", []string{"key:write"}, h.revokeAPIKey)
 
 	// Pricing rule management endpoints.
-	mux.HandleFunc("GET /admin/v1/pricing-rules", h.listPricingRules)
-	mux.HandleFunc("PUT /admin/v1/pricing-rules/{model}", h.upsertPricingRule)
-	mux.HandleFunc("DELETE /admin/v1/pricing-rules/{model}", h.deletePricingRule)
+	handle("GET /admin/v1/pricing-rules", []string{"billing:read"}, h.listPricingRules)
+	handle("PUT /admin/v1/pricing-rules/{model}", []string{"billing:write"}, h.upsertPricingRule)
+	handle("DELETE /admin/v1/pricing-rules/{model}", []string{"billing:write"}, h.deletePricingRule)
 
 	// Audit log query endpoint (cross-tenant).
-	mux.HandleFunc("GET /admin/v1/audit-logs", h.listAuditLogs)
+	handle("GET /admin/v1/audit-logs", []string{"audit:read"}, h.listAuditLogs)
 
-	// Tenant usage aggregation (cross-tenant, bypasses RLS — requires BYPASSRLS role).
-	mux.HandleFunc("GET /admin/v1/usage/tenants", h.listTenantUsage)
+	// Tenant usage aggregation (cross-tenant aggregate-only view).
+	handle("GET /admin/v1/usage/tenants", []string{"billing:read", "usage:read:all"}, h.listTenantUsage)
 
 	// Per-tenant usage aggregation via metering store.
-	mux.HandleFunc("GET /admin/v1/usage", h.adminUsageAggregation)
+	handle("GET /admin/v1/usage", []string{"billing:read", "usage:read"}, h.adminUsageAggregation)
+
+	// Evolution shared learning governance endpoints.
+	handle("GET /admin/v1/evolution/sharing-policy", []string{"sharing:read", "security:read"}, h.getEvolutionSharingPolicy)
+	handle("GET /admin/v1/evolution/sharing-policy/history", []string{"sharing:read", "security:read"}, h.listEvolutionSharingPolicyHistory)
+	handle("PUT /admin/v1/evolution/sharing-policy", []string{"sharing:write", "security:write"}, h.updateEvolutionSharingPolicy)
+	handle("POST /admin/v1/evolution/sharing-policy/rollback", []string{"sharing:write", "security:write"}, h.rollbackEvolutionSharingPolicy)
+	handle("GET /admin/v1/evolution/tenants/{id}/sharing-policy", []string{"sharing:read", "tenant:read"}, h.getEvolutionTenantSharingPolicy)
+	handle("GET /admin/v1/evolution/tenants/{id}/sharing-policy/history", []string{"sharing:read", "tenant:read"}, h.listEvolutionTenantSharingPolicyHistory)
+	handle("PUT /admin/v1/evolution/tenants/{id}/sharing-policy", []string{"sharing:write", "tenant:write"}, h.updateEvolutionTenantSharingPolicy)
+	handle("POST /admin/v1/evolution/tenants/{id}/sharing-policy/rollback", []string{"sharing:write", "tenant:write"}, h.rollbackEvolutionTenantSharingPolicy)
+	handle("POST /admin/v1/evolution/shared-knowledge/revoke", []string{"sharing:write", "security:write"}, h.revokeEvolutionSharedKnowledge)
 
 	// Secret pattern management endpoints.
-	mux.HandleFunc("GET /admin/v1/secrets/patterns", h.listSecretPatterns)
-	mux.HandleFunc("POST /admin/v1/secrets/patterns", h.createSecretPattern)
+	handle("GET /admin/v1/secrets/patterns", []string{"security:read"}, h.listSecretPatterns)
+	handle("POST /admin/v1/secrets/patterns", []string{"security:write"}, h.createSecretPattern)
 
 	// Canary token management endpoints.
-	mux.HandleFunc("GET /admin/v1/secrets/canary-tokens", h.listCanaryTokens)
-	mux.HandleFunc("DELETE /admin/v1/secrets/canary-tokens/{id}", h.deleteCanaryToken)
+	handle("GET /admin/v1/secrets/canary-tokens", []string{"security:read"}, h.listCanaryTokens)
+	handle("DELETE /admin/v1/secrets/canary-tokens/{id}", []string{"security:write"}, h.deleteCanaryToken)
 
 	// Safety policy management endpoints.
-	mux.HandleFunc("GET /admin/v1/safety/rules", h.listSafetyRules)
-	mux.HandleFunc("PUT /admin/v1/safety/rules/{id}", h.updateSafetyRule)
-	mux.HandleFunc("POST /admin/v1/safety/scan", h.safetyManualScan)
+	handle("GET /admin/v1/safety/rules", []string{"security:read"}, h.listSafetyRules)
+	handle("PUT /admin/v1/safety/rules/{id}", []string{"security:write"}, h.updateSafetyRule)
+	handle("POST /admin/v1/safety/scan", []string{"security:write"}, h.safetyManualScan)
 
 	// Egress allowlist management endpoints (delegated to egress.AdminHandler).
 	if h.egressHandler != nil {
-		h.egressHandler.RegisterV1Routes(mux)
+		egressMux := http.NewServeMux()
+		h.egressHandler.RegisterV1Routes(egressMux)
+		mux.Handle("/admin/v1/egress/", middleware.RequireAnyScope("security:write", "ops:write")(egressMux))
 	}
 
-	// Wrap with RequireScope("admin") middleware.
-	return middleware.RequireScope("admin")(mux)
+	return mux
 }

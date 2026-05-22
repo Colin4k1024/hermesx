@@ -160,6 +160,7 @@ func buildEvolution() (*evolution.GeneStore, *evolution.Improver) {
 		MinConfidence:    cfg.Evolution.MinConfidence,
 		ReplayThreshold:  cfg.Evolution.ReplayThreshold,
 		MaxGenesInPrompt: cfg.Evolution.MaxGenesInPrompt,
+		SharingMode:      cfg.Evolution.SharingMode,
 	}
 	if !evCfg.Enabled {
 		return nil, nil
