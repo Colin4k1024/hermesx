@@ -7,11 +7,11 @@ import (
 )
 
 type AdminHandler struct {
-	store  *PostgresStore
-	policy *AllowlistPolicy
+	store  RuleAdminStore
+	policy EgressPolicy
 }
 
-func NewAdminHandler(store *PostgresStore, policy *AllowlistPolicy) *AdminHandler {
+func NewAdminHandler(store RuleAdminStore, policy EgressPolicy) *AdminHandler {
 	return &AdminHandler{store: store, policy: policy}
 }
 

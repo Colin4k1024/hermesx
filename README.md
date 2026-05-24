@@ -8,238 +8,143 @@
 
 ## English
 
-**HermesX** — Enterprise Agent Runtime & Multi-Tenant SaaS Control Plane.
+**HermesX is an Agent-first Runtime Control Plane for governed, multi-tenant AI automation.**
 
-A production-grade platform for deploying, isolating, and governing AI agents at enterprise scale. Built in Go for single-binary deployment, native concurrency, and zero-dependency distribution.
+It is for platform and product teams that need to run agents as production infrastructure: every agent turn, tool call, workflow step, tenant boundary, and operational signal has to be controlled, audited, and recoverable.
 
-> Originally inspired by [hermes-agent](https://github.com/NousResearch/hermes-agent) by Nous Research. HermesX has since evolved into an independent enterprise platform with multi-tenant isolation, RBAC, audit trails, sandbox execution, and SaaS-grade observability — capabilities that go far beyond the original agent framework.
+HermesX is not just a chat loop. It combines an agent runtime, a SaaS control plane, and fixed SOP workflows so teams can ship agentic systems without rebuilding identity, tenancy, audit, sandboxing, and observability from scratch.
+
+### Release State
+
+| Field | Value |
+|-------|-------|
+| Current docs/API baseline | `v2.4.0-dev` |
+| Latest released baseline | `v2.3.0` |
+| OpenAPI info.version | `2.4.0-dev` |
+| Release-state rule | Features marked Unreleased are present in the current branch or changelog, but are not part of the latest released baseline until a `v2.4.0` release is cut. |
+
+### Who It Is For
+
+| Audience | Why HermesX fits |
+|----------|------------------|
+| Platform teams | Provide a shared runtime for internal agents with tenant isolation, API keys, RBAC, audit logs, and usage controls. |
+| Product teams | Add AI workflows, human approvals, and tool execution to SaaS products without making every feature team own agent infrastructure. |
+| Security and operations teams | Review execution receipts, sandbox policy, auth chains, audit trails, metrics, and disaster-recovery posture in one place. |
+
+### Why HermesX
+
+1. **Governed Agent Execution**: agents can call tools, use memory, delegate work, and stream responses while staying inside auth, policy, sandbox, and audit boundaries.
+2. **Multi-Tenant SaaS Control Plane**: tenants, roles, API keys, quotas, usage records, audit logs, GDPR actions, and admin operations are first-class runtime objects.
+3. **Workflow + Human-in-the-Loop Automation**: fixed SOP workflows persist definitions, immutable versions, runs, step state, retries, and human approval tasks.
 
 ### Architecture
 
-#### Technical Architecture
-![HermesX Technical Architecture](docs/diagrams/technical-architecture.png)
+```mermaid
+flowchart TB
+    entry["Entry Layer\nCLI, REST API, Web UI, messaging adapters, MCP"]
+    runtime["Runtime Layer\nAgent loop, tools, skills, memory, model routing"]
+    governance["Governance Layer\nAuth chain, tenant context, RBAC, scopes, audit, safety"]
+    execution["Execution Layer\nLocal process, Docker sandbox, K8s Job sandbox (Unreleased)"]
+    workflow["Workflow Layer\nDefinitions, versions, runs, human tasks, retries"]
+    operations["Operations Layer\nPostgreSQL RLS, Redis, object storage, metrics, traces, backup"]
 
-#### Product Architecture
-![HermesX Product Architecture](docs/diagrams/product-architecture.png)
+    entry --> governance
+    governance --> runtime
+    runtime --> execution
+    runtime --> workflow
+    workflow --> execution
+    governance --> operations
+    runtime --> operations
+    workflow --> operations
+```
 
-#### Application Architecture
-![HermesX Application Architecture](docs/diagrams/application-architecture.png)
+Detailed one-page overview: [docs/AGENT_FIRST_ARCHITECTURE.md](docs/AGENT_FIRST_ARCHITECTURE.md).
 
-#### Data Architecture
-![HermesX Data Architecture](docs/diagrams/data-architecture.png)
+Architecture diagrams are also available in [docs/diagrams/](docs/diagrams/):
 
-> Full draw.io source files: [`docs/diagrams/`](docs/diagrams/) — open with [draw.io](https://app.diagrams.net/) or the VS Code draw.io extension.
+| Diagram | File |
+|---------|------|
+| Technical architecture | [technical-architecture.png](docs/diagrams/technical-architecture.png) |
+| Product architecture | [product-architecture.png](docs/diagrams/product-architecture.png) |
+| Application architecture | [application-architecture.png](docs/diagrams/application-architecture.png) |
+| Data architecture | [data-architecture.png](docs/diagrams/data-architecture.png) |
 
-| Layer | Components |
-|-------|-----------|
-| Clients | API Client · SDK · Web UI · Telegram · Discord · Slack · MCP |
-| API Server | net/http · Go 1.25 · Single Binary |
-| Middleware | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
-| Agent Runtime | Soul · Skills · Memory · Tool Loop · Multimodal Router · Context Compress |
-| Eino Agent Runtime | EinoAgent (ReAct Graph) · Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
-| LLM Resilience | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
-| Tool Sandbox | Policy Check · Local Process · Docker OCI (--net=none) · K8s Job |
-| Distributed Scheduler | SaasScheduler · gocron · Redis Lock · PG Poll-Sync · ResultDeliverer |
-| Infrastructure | PostgreSQL (RLS) · Redis (Lua + Distributed Lock) · MinIO (S3) · OTel Collector |
-| Observability | Loki · Jaeger/Tempo · Prometheus · Grafana (7 Panels + 5 Alert Rules) |
-| Security | Auth Chain · RBAC · RLS · Audit · Sandbox · Egress · Safety Layer (Prompt Injection · Leak Scan · Stream Redaction) |
+### Minimal Demo
 
-### Project Stats
-
-| Metric | Value |
-|--------|-------|
-| Go source files | 413 |
-| Lines of code | 78,000+ |
-| Registered tools | 50 (36 core + 14 extended) |
-| Platform adapters | 15 |
-| Terminal backends | 7 |
-| Bundled skills | 126 |
-| Test files | 123 |
-| Total tests | 1,828 |
-| RLS-protected tables | 11 |
-| API endpoints | 22+ |
-| Version | v2.3.0 |
-
-### Core Capabilities
-
-#### Enterprise SaaS Platform
-
-- **Multi-tenant isolation**: PostgreSQL Row-Level Security (RLS) with `SET LOCAL app.current_tenant` per transaction
-- **Auth chain**: Static Token → API Key (SHA-256 hashed) → JWT/OIDC
-- **5 roles**: `super_admin`, `admin`, `owner`, `user`, `auditor`
-- **API Key scopes**: fine-grained `read`/`write`/`execute`/`admin`/`audit`/`gdpr` authorization
-- **Dual-layer rate limiting**: atomic Redis Lua script (tenant + user sliding window) with local LRU fallback
-- **Token usage metering**: async batch persistence with per-model cost calculation
-- **Execution receipts**: auditable tool invocation with idempotency dedup and trace correlation
-- **Audit trail**: immutable logs for all state-changing operations
-- **GDPR compliance**: full-chain tenant data export + transactional deletion
-- **Distributed cron scheduling**: gocron + Redis distributed lock for multi-pod execution, PG poll-sync, idempotent dedup, SECURITY DEFINER cross-tenant cleanup, result delivery to source platform
-- **Sandbox isolation**: per-tenant code execution with Docker network/resource limits
-- **Admin API**: tenant management, sandbox policy CRUD, API key lifecycle, pricing rules
-
-#### Observability
-
-- **Prometheus metrics**: 11+ custom business metrics (HTTP, LLM, tools, rate limiting, sessions)
-- **OpenTelemetry tracing**: HTTP → middleware → store → LLM full request chain
-- **PGX tracer**: database query spans with parameter capture
-- **Structured logging**: JSON via `slog` with tenant/request context
-
-#### Agent Runtime
-
-- **50 tools**: terminal, file ops, web search/crawl, browser, vision, image gen, TTS, code exec, subagent, session search, memory, todo, cron, MCP, and more
-- **15 platform adapters**: Telegram, Discord, Slack, WhatsApp, Signal, Email, Matrix, Mattermost, DingTalk, Feishu, WeCom, SMS, Home Assistant, Webhook, API Server
-- **7 terminal backends**: local, Docker, SSH, Modal, Daytona, Singularity, persistent shell
-- **Dual API support**: OpenAI-compatible + Anthropic Messages API (with prompt caching)
-- **LLM resilience**: FallbackRouter (primary→fallback switching) + RetryTransport (exponential backoff) + Circuit Breaker (per-model)
-- **Skill system**: procedural memory with YAML/Markdown files, hub search/install, security scanning
-- **Context compression**: automatic summarization when approaching token limits
-- **Subagent delegation**: parallel task execution via goroutines (max 8 concurrent)
-- **MCP integration**: Model Context Protocol client (stdio + SSE transport)
-
-#### Infrastructure
-
-- **Single binary**: zero runtime dependencies, cross-compile to any OS/arch
-- **Multi-replica ready**: verified 3-replica + Nginx ip_hash load balancer
-- **PG PITR backup**: pgBackRest with RPO < 5min, RTO < 1h
-- **CI/CD**: GitHub Actions (unit + integration + race + coverage + Docker push)
-- **Kubernetes ready**: Helm chart with PDB, HPA, conservative scale-down
-
-### Installation
-
-#### From Source
-
-Requirements: Go 1.23+
+#### CLI Agent
 
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
 go build -o hermesx ./cmd/hermesx/
 
-# Install globally
-sudo cp hermesx /usr/local/bin/
-```
-
-#### Using Make
-
-```bash
-make build      # Build binary
-make install    # Install to ~/.local/bin/
-```
-
-#### Docker
-
-```bash
-docker build -t hermesx .
-docker run -it --rm \
-  -v ~/.hermes:/home/hermes/.hermes \
-  hermesx
-```
-
-### Quick Start
-
-#### CLI Mode (Single Agent)
-
-```bash
-# Setup wizard
 ./hermesx setup
-
-# Interactive CLI
-./hermesx
-
-# Single query
 ./hermesx chat "What tools do you have?"
 ```
 
-#### SaaS Mode (Multi-Tenant)
+#### SaaS Control Plane
 
 ```bash
-# Start full stack
 docker compose -f docker-compose.prod.yml up -d
-
-# Run enterprise demo (11 steps)
 ./examples/enterprise-saas-demo/demo.sh
 ```
 
-### Architecture
-
-```
-hermesx/
-├── cmd/hermesx/             Entry point (Cobra CLI + SaaS server)
-├── internal/
-│   ├── agent/               Core agent loop, streaming, memory curator
-│   ├── api/                 REST API server + handlers
-│   │   └── admin/           Admin API (sandbox, keys, audit, pricing)
-│   ├── auth/                Auth chain (API key, JWT, scopes, RBAC)
-│   ├── cli/                 Interactive TUI, commands, setup wizard
-│   ├── gateway/             Multi-platform messaging gateway
-│   │   └── platforms/       15 platform adapters
-│   ├── llm/                 LLM client, FallbackRouter, RetryTransport, CircuitBreaker
-│   ├── metering/            Token usage recording, batch flush, cost calc
-│   ├── middleware/          Rate limit, scope check, tenant injection, tracing
-│   ├── observability/       OTel tracing, Prometheus metrics
-│   ├── skills/              Skill loading, parsing, hub, MinIO sync
-│   ├── store/               PostgreSQL store (RLS, 106+ migrations)
-│   │   ├── pg/              PG implementations (sessions, memories, keys, etc.)
-│   │   └── rediscache/      Redis (rate limit, sessions, context cache)
-│   ├── tools/               50 tool implementations + sandbox
-│   │   └── environments/    7 terminal backends + Docker sandbox
-│   └── ...
-├── deploy/                  Multi-replica, OTel collector, PITR
-├── tests/integration/       Go integration tests (tenant/session/RLS)
-├── examples/                Enterprise SaaS demo
-├── scripts/                 Backup, restore, verification
-├── skills/                  126 bundled skills
-└── docs/                    Security model, RBAC matrix, deployment guide
-```
-
-### Deployment
-
-#### Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DATABASE_URL` | Yes | PostgreSQL connection string |
-| `REDIS_URL` | Yes | Redis connection URL |
-| `LLM_API_KEY` | Yes | Primary LLM provider API key |
-| `LLM_FALLBACK_API_KEY` | No | Fallback LLM provider API key |
-| `MINIO_ENDPOINT` | No | S3-compatible storage for skills |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | OpenTelemetry collector |
-| `HERMES_ADMIN_TOKEN` | Yes | Platform admin static token |
-
-#### Infrastructure Requirements
-
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| PostgreSQL | 14+ | 16 (RLS support) |
-| Redis | 6+ | 7 (Lua script) |
-| Go | 1.23+ | 1.25 |
-
-### Testing
+#### Agent-first Governance Loop
 
 ```bash
-# Unit tests
-go test ./...
-make test
-
-# Integration tests (requires Docker)
-make test-integration
-
-# Race detection
-go test -race ./internal/agent/... ./internal/tools/... ./internal/gateway/...
+./examples/agent-first-minimal-demo/demo.sh fixture
 ```
+
+This deterministic fixture demo shows the API -> Agent Task -> Tool -> Receipt -> Audit correlation without requiring external services.
+
+### Capability Matrix
+
+| Capability | Latest released baseline (`v2.3.0`) | Current branch (`v2.4.0-dev`) |
+|------------|--------------------------------------|--------------------------------|
+| Agent runtime | OpenAI-compatible chat, native agent chat, tools, skills, memory, MCP client, context compression | Eino 0.9 main path, checkpoint resume, `include_agentic_blocks` debug output |
+| SaaS control plane | Tenant isolation, PostgreSQL RLS, auth chain, API key scopes, RBAC, audit logs, GDPR export/delete, execution receipts | Admin usage aggregation API |
+| Workflow automation | Fixed SOP workflow definitions, immutable versions, runs, step records, human tasks, retry/cancel API | Workflow `agent_task` default executor uses the Eino TurnLoop path |
+| Sandbox and execution | Local and Docker execution policy with tenant-level sandbox controls | K8s Job sandbox mode via `SANDBOX_MODE=k8s-job` |
+| Observability and ops | Prometheus metrics, OpenTelemetry tracing, structured logs, production compose, PG backup/restore | Grafana dashboard, Prometheus alert rules, OTel collector compose, Redis/MinIO backup scripts |
+| Distributed scheduling | SaaS cron scheduler with Redis lock, PG poll-sync, idempotent runs, result delivery | Release hardening and follow-up docs tracked in Unreleased |
+
+### Project Signals
+
+| Metric | Current value |
+|--------|---------------|
+| Go source files | 532 |
+| Go test files | 156 |
+| Bundled skills | 81 core + 45 optional |
+| OpenAPI paths | 45 |
+| Current docs/API baseline | `v2.4.0-dev` |
+| Latest released baseline | `v2.3.0` |
+
+Counts are intentionally small and evidence-oriented. The full API contract is available from `GET /v1/openapi`.
 
 ### Documentation
 
-| Document | Description |
-|----------|-------------|
-| [SECURITY_MODEL.md](docs/SECURITY_MODEL.md) | Threat model, auth chain, RLS, sandbox |
-| [RBAC_MATRIX.md](docs/RBAC_MATRIX.md) | 5 roles × 10 resources permission matrix |
-| [ENTERPRISE_READINESS.md](docs/ENTERPRISE_READINESS.md) | 12 capabilities with evidence |
-| [deployment.md](docs/deployment.md) | HA, scaling, backup, alerting |
+| Document | Purpose |
+|----------|---------|
+| [Agent-first architecture](docs/AGENT_FIRST_ARCHITECTURE.md) | Product positioning and layer boundaries |
+| [API reference](docs/api-reference.en.md) | Endpoint-level API documentation |
+| [Workflow guide](docs/workflow-guide.en.md) | Fixed SOP workflows and human tasks |
+| [Execution receipts](docs/EXECUTION_RECEIPTS.md) | Receipt semantics, idempotency, and API examples |
+| [Workflow/Agent boundary](docs/WORKFLOW_AGENT_BOUNDARY.md) | Where fixed SOP workflow logic ends and agent runtime logic begins |
+| [Security model](docs/SECURITY_MODEL.en.md) | Threat model, auth chain, RLS, sandboxing |
+| [RBAC matrix](docs/RBAC_MATRIX.en.md) | Role and resource permission matrix |
+| [Enterprise readiness](docs/ENTERPRISE_READINESS.en.md) | Evidence-based enterprise readiness matrix |
+| [Deployment guide](docs/deployment.en.md) | Docker, Kubernetes, HA, backup, alerting |
+| [Changelog](docs/CHANGELOG.en.md) | Released vs unreleased change history |
+
+### When To Use HermesX
+
+Use HermesX when agents must run inside product-grade boundaries: multiple tenants, real users, sensitive tools, auditable execution, approval workflows, and operational ownership.
+
+For a single local assistant, a pure prompt prototype, or a workflow that does not need tenant isolation or auditability, a smaller agent framework may be the shorter path.
 
 ### Acknowledgements
 
-HermesX was originally forked from [hermes-agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com). We are grateful for their foundational work on the self-improving AI agent framework. HermesX has since diverged significantly to serve enterprise multi-tenant SaaS use cases.
+HermesX was originally forked from [hermes-agent](https://github.com/NousResearch/hermes-agent) by [Nous Research](https://nousresearch.com). HermesX has since diverged into an independent runtime-control-plane project for enterprise agent systems.
 
 ### License
 
@@ -251,141 +156,143 @@ MIT
 
 ## 中文
 
-**HermesX** — 企业级 Agent 运行时 & 多租户 SaaS 控制平面。
+**HermesX 是面向 Agent 的运行时控制平面，用于受治理、多租户的 AI 自动化。**
 
-面向企业规模的 AI Agent 部署、隔离和治理的生产级平台。使用 Go 构建，单二进制部署、原生并发、零依赖分发。
+它面向需要把 Agent 当作生产基础设施运行的平台团队和产品团队：每一次 Agent 对话、工具调用、工作流步骤、租户边界和运维信号都需要可控制、可审计、可恢复。
 
-> 最初受 Nous Research 的 [hermes-agent](https://github.com/NousResearch/hermes-agent) 启发。HermesX 已演进为独立的企业平台，具备多租户隔离、RBAC、审计追踪、沙箱执行和 SaaS 级可观测性 — 远超原始 Agent 框架的能力边界。
+HermesX 不只是一个聊天循环。它把 Agent Runtime、SaaS 控制平面和固定 SOP 工作流组合在一起，让团队不必从零重建身份认证、租户隔离、审计、沙箱和可观测性。
 
-### 架构概览
+### 发布状态
 
-#### 技术架构
-![HermesX 技术架构图](docs/diagrams/technical-architecture.png)
+| 字段 | 值 |
+|------|----|
+| 当前文档/API 基线 | `v2.4.0-dev` |
+| 最新已发布基线 | `v2.3.0` |
+| OpenAPI info.version | `2.4.0-dev` |
+| 发布状态规则 | 标记为 Unreleased 的能力存在于当前分支或 changelog 中，但在 `v2.4.0` 正式发布前不属于最新稳定发布。 |
 
-#### 产品架构
-![HermesX 产品架构图](docs/diagrams/product-architecture.png)
+### 适用对象
 
-#### 应用架构
-![HermesX 应用架构图](docs/diagrams/application-architecture.png)
+| 对象 | 为什么适合 HermesX |
+|------|--------------------|
+| 平台团队 | 为内部 Agent 提供统一运行时，并内置租户隔离、API Key、RBAC、审计日志和用量控制。 |
+| 产品团队 | 在 SaaS 产品中加入 AI 工作流、人工审批和工具执行，而不让每个业务团队都维护 Agent 基础设施。 |
+| 安全与运维团队 | 在一个控制面中审查执行回执、沙箱策略、认证链、审计轨迹、指标和灾备状态。 |
 
-#### 数据架构
-![HermesX 数据架构图](docs/diagrams/data-architecture.png)
+### 三个支柱
 
-> draw.io 源文件位于 [`docs/diagrams/`](docs/diagrams/) 目录，可用 [draw.io](https://app.diagrams.net/) 或 VS Code draw.io 插件打开编辑。
+1. **受治理的 Agent 执行**：Agent 可以调用工具、使用记忆、委派任务和流式响应，同时受认证、策略、沙箱和审计约束。
+2. **多租户 SaaS 控制平面**：租户、角色、API Key、配额、用量、审计、GDPR 操作和管理端能力都是一等运行时对象。
+3. **工作流 + 人在回路自动化**：固定 SOP 工作流持久化定义、不可变版本、实例、步骤状态、重试和人工审批任务。
 
-| 层级 | 组件 |
-|------|------|
-| 客户端 | API Client · SDK · Web UI · Telegram · Discord · Slack · MCP |
-| API Server | net/http · Go 1.25 · 单二进制 |
-| 中间件栈 | Tracing → Metrics → RequestID → Auth → Tenant → Logging → Audit → RBAC → RateLimit → Handler |
-| Agent 运行时 | Soul · Skills · Memory · Tool Loop · 多模态路由 · 上下文压缩 |
-| Eino Agent 运行时 | EinoAgent（ReAct Graph）· Safety Pipeline · ToolAdapter · ModelAdapter · Workflow EinoExecutor |
-| LLM 弹性层 | FallbackRouter → RetryTransport → CircuitBreaker → LLM API |
-| 工具沙箱 | Policy Check · 本地进程 · Docker OCI（--net=none）· K8s Job |
-| 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
-| 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
-| 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana（7 面板 + 5 告警规则） |
-| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏）|
+### 架构
 
-### 项目数据
+```mermaid
+flowchart TB
+    entry["入口层\nCLI、REST API、Web UI、消息平台、MCP"]
+    runtime["运行时层\nAgent 循环、工具、技能、记忆、模型路由"]
+    governance["治理层\n认证链、租户上下文、RBAC、Scope、审计、安全"]
+    execution["执行层\n本地进程、Docker 沙箱、K8s Job 沙箱（未发布）"]
+    workflow["工作流层\n定义、版本、实例、人工任务、重试"]
+    operations["运维层\nPostgreSQL RLS、Redis、对象存储、指标、链路、备份"]
 
-| 指标 | 数值 |
-|------|------|
-| Go 源文件 | 413 个 |
-| 代码行数 | 78,000+ 行 |
-| 注册工具 | 50 个（36 核心 + 14 扩展） |
-| 平台适配器 | 15 个 |
-| 终端后端 | 7 个 |
-| 内置技能 | 126 个 |
-| 测试文件 | 123 个 |
-| 测试总数 | 1,828 个 |
-| RLS 保护表 | 11 个 |
-| API 端点 | 22+ 个 |
-| 版本 | v2.3.0 |
+    entry --> governance
+    governance --> runtime
+    runtime --> execution
+    runtime --> workflow
+    workflow --> execution
+    governance --> operations
+    runtime --> operations
+    workflow --> operations
+```
 
-### 核心能力
+一页架构说明见 [docs/AGENT_FIRST_ARCHITECTURE.md](docs/AGENT_FIRST_ARCHITECTURE.md)。
 
-#### 企业 SaaS 平台
+架构图位于 [docs/diagrams/](docs/diagrams/)：
 
-- **多租户隔离**：PostgreSQL 行级安全（RLS），每事务 `SET LOCAL app.current_tenant`
-- **认证链**：静态 Token → API Key（SHA-256 哈希）→ JWT/OIDC
-- **5 种角色**：`super_admin`、`admin`、`owner`、`user`、`auditor`
-- **API Key 作用域**：`read`/`write`/`execute`/`admin`/`audit`/`gdpr` 细粒度授权
-- **双层限流**：原子 Redis Lua 脚本（租户 + 用户滑动窗口），Redis 故障自动降级本地 LRU
-- **Token 用量计量**：异步批量持久化 + 按模型成本计算
-- **执行回执**：可审计的工具调用，含幂等去重和链路追踪关联
-- **审计追踪**：所有状态变更操作的不可变日志
-- **GDPR 合规**：全链路数据导出 + 事务性删除
-- **分布式定时调度**：gocron + Redis 分布式锁实现多 Pod 执行，PG 轮询同步、幂等去重、SECURITY DEFINER 跨租户清理、结果自动投递回源平台
-- **沙箱隔离**：按租户的代码执行环境，Docker 网络/资源限制
-- **Admin API**：租户管理、沙箱策略、密钥生命周期、定价规则
+| 图 | 文件 |
+|----|------|
+| 技术架构 | [technical-architecture.png](docs/diagrams/technical-architecture.png) |
+| 产品架构 | [product-architecture.png](docs/diagrams/product-architecture.png) |
+| 应用架构 | [application-architecture.png](docs/diagrams/application-architecture.png) |
+| 数据架构 | [data-architecture.png](docs/diagrams/data-architecture.png) |
 
-#### 可观测性
+### 最小演示
 
-- **Prometheus 指标**：11+ 自定义业务指标（HTTP、LLM、工具、限流、会话）
-- **OpenTelemetry 追踪**：HTTP → 中间件 → 存储 → LLM 全链路
-- **PGX 追踪器**：数据库查询 Span
-- **结构化日志**：`slog` JSON 格式，含租户/请求上下文
-
-#### Agent 运行时
-
-- **50 个工具**：终端、文件、搜索、浏览器、视觉、图像、TTS、代码执行、子 Agent、记忆、MCP 等
-- **15 个平台**：Telegram、Discord、Slack、WhatsApp、Signal、邮件、Matrix、钉钉、飞书、企业微信等
-- **7 个终端后端**：本地、Docker、SSH、Modal、Daytona、Singularity、持久 Shell
-- **LLM 弹性**：FallbackRouter + RetryTransport（指数退避）+ 熔断器（按模型独立）
-- **技能系统**：YAML/Markdown 文件 + Hub 搜索安装 + 安全扫描
-- **上下文压缩**：接近 Token 上限时自动摘要
-- **MCP 集成**：支持 stdio + SSE 传输
-
-### 安装
+#### CLI Agent
 
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
 go build -o hermesx ./cmd/hermesx/
-sudo cp hermesx /usr/local/bin/
-```
 
-### 快速开始
-
-#### CLI 模式（单 Agent）
-
-```bash
-./hermesx setup    # 配置向导
-./hermesx          # 交互式 CLI
+./hermesx setup
 ./hermesx chat "你有什么工具？"
 ```
 
-#### SaaS 模式（多租户）
+#### SaaS 控制平面
 
 ```bash
 docker compose -f docker-compose.prod.yml up -d
 ./examples/enterprise-saas-demo/demo.sh
 ```
 
-### 部署
+#### Agent-first 治理闭环
 
-| 变量 | 必需 | 说明 |
-|------|------|------|
-| `DATABASE_URL` | 是 | PostgreSQL 连接字符串 |
-| `REDIS_URL` | 是 | Redis 连接地址 |
-| `LLM_API_KEY` | 是 | 主 LLM Provider API Key |
-| `HERMES_ADMIN_TOKEN` | 是 | 平台管理员静态 Token |
-| `MINIO_ENDPOINT` | 否 | S3 兼容存储 |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | 否 | OTel 收集器 |
+```bash
+./examples/agent-first-minimal-demo/demo.sh fixture
+```
+
+这个确定性的 fixture demo 展示 API -> Agent Task -> Tool -> Receipt -> Audit 的关联链路，不依赖外部服务。
+
+### 能力矩阵
+
+| 能力 | 最新已发布基线（`v2.3.0`） | 当前分支（`v2.4.0-dev`） |
+|------|-----------------------------|---------------------------|
+| Agent Runtime | OpenAI 兼容 Chat、原生 Agent Chat、工具、技能、记忆、MCP、上下文压缩 | Eino 0.9 主链、checkpoint resume、`include_agentic_blocks` 调试输出 |
+| SaaS 控制平面 | 租户隔离、PostgreSQL RLS、认证链、API Key Scope、RBAC、审计、GDPR、执行回执 | Admin usage aggregation API |
+| 工作流自动化 | 固定 SOP 工作流定义、不可变版本、实例、步骤记录、人工任务、重试/取消 API | workflow `agent_task` 默认走 Eino TurnLoop |
+| 沙箱与执行 | 本地/Docker 执行策略，租户级沙箱控制 | `SANDBOX_MODE=k8s-job` K8s Job 沙箱 |
+| 可观测与运维 | Prometheus 指标、OpenTelemetry 链路、结构化日志、生产 compose、PG 备份/恢复 | Grafana Dashboard、Prometheus 告警、OTel Collector compose、Redis/MinIO 备份脚本 |
+| 分布式调度 | Redis Lock、PG 同步、幂等运行、结果投递的 SaaS cron scheduler | 未发布区跟踪发布加固和后续文档 |
+
+### 项目信号
+
+| 指标 | 当前值 |
+|------|--------|
+| Go 源文件 | 532 |
+| Go 测试文件 | 156 |
+| 内置技能 | 81 core + 45 optional |
+| OpenAPI 路径 | 45 |
+| 当前文档/API 基线 | `v2.4.0-dev` |
+| 最新已发布基线 | `v2.3.0` |
+
+这些数字只保留能帮助判断项目规模和契约状态的信号。完整 API 契约以 `GET /v1/openapi` 为准。
 
 ### 文档
 
-| 文档 | 说明 |
+| 文档 | 用途 |
 |------|------|
-| [SECURITY_MODEL.md](docs/SECURITY_MODEL.md) | 威胁模型、认证链、RLS、沙箱 |
-| [RBAC_MATRIX.md](docs/RBAC_MATRIX.md) | 5 角色 × 10 资源权限矩阵 |
-| [ENTERPRISE_READINESS.md](docs/ENTERPRISE_READINESS.md) | 12 项能力及证据 |
-| [deployment.md](docs/deployment.md) | 高可用、扩缩容、备份、告警 |
+| [Agent-first architecture](docs/AGENT_FIRST_ARCHITECTURE.md) | 产品定位与层边界 |
+| [API 参考](docs/api-reference.md) | API 端点说明 |
+| [工作流指南](docs/workflow-guide.md) | 固定 SOP 工作流与人工任务 |
+| [执行回执](docs/EXECUTION_RECEIPTS.md) | 回执语义、幂等行为与 API 示例 |
+| [工作流/Agent 边界](docs/WORKFLOW_AGENT_BOUNDARY.md) | 固定 SOP 工作流逻辑与 Agent Runtime 逻辑的边界 |
+| [安全模型](docs/SECURITY_MODEL.md) | 威胁模型、认证链、RLS、沙箱 |
+| [RBAC 矩阵](docs/RBAC_MATRIX.md) | 角色与资源权限 |
+| [企业就绪度](docs/ENTERPRISE_READINESS.md) | 基于证据的企业能力矩阵 |
+| [部署指南](docs/deployment.md) | Docker、Kubernetes、高可用、备份、告警 |
+| [Changelog](docs/CHANGELOG.md) | 已发布与未发布变更 |
+
+### 何时使用 HermesX
+
+当 Agent 需要进入真实产品边界时使用 HermesX：多租户、真实用户、敏感工具、可审计执行、审批工作流和运维责任。
+
+如果只是本地助手、提示词原型，或不需要租户隔离和审计能力的简单编排，选择更小的 Agent 框架会更直接。
 
 ### 致谢
 
-HermesX 最初 fork 自 [Nous Research](https://nousresearch.com) 的 [hermes-agent](https://github.com/NousResearch/hermes-agent)。感谢他们在自我进化 AI Agent 框架上的开创性工作。HermesX 已大幅偏离原始项目，专注于企业多租户 SaaS 场景。
+HermesX 最初 fork 自 [Nous Research](https://nousresearch.com) 的 [hermes-agent](https://github.com/NousResearch/hermes-agent)。HermesX 之后已经演进为独立的企业 Agent 运行时控制平面项目。
 
 ### 许可证
 

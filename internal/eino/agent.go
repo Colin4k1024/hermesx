@@ -118,7 +118,11 @@ func NewEinoAgent(ctx context.Context, opts ...Option) (*EinoAgent, error) {
 		return nil, fmt.Errorf("eino agent: transport is required")
 	}
 	if cfg.httpTransport == nil {
-		cfg.httpTransport = egress.NewSecureTransport(egress.NewAllowAllPolicy())
+		policy, _, err := egress.NewAllowlistPolicyFromEnv(nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("resolve egress policy: %w", err)
+		}
+		cfg.httpTransport = egress.NewSecureTransport(policy)
 	}
 
 	capture := NewCapture()

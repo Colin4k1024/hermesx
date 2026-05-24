@@ -27,13 +27,14 @@ type agentConversationRunner func(ctx context.Context, userMessage string, histo
 
 // chatHandler holds shared dependencies for agent chat, session, and memory endpoints.
 type chatHandler struct {
-	store        store.Store
-	llmURL       string
-	llmAPIKey    string
-	llmModel     string
-	apiMode      string
-	httpClient   *http.Client
-	skillsClient objstore.ObjectStore
+	store           store.Store
+	llmURL          string
+	llmAPIKey       string
+	llmModel        string
+	apiMode         string
+	httpClient      *http.Client
+	egressTransport *http.Transport
+	skillsClient    objstore.ObjectStore
 
 	// provisioner copies tenant skills into per-user OSS namespaces on first request.
 	provisioner *skills.Provisioner
@@ -148,4 +149,8 @@ func NewChatHandler(s store.Store, skillsClient objstore.ObjectStore, provisione
 		provisioner:  provisioner,
 		soulCache:    lru.NewLRU[string, string](soulCacheMaxEntries, nil, soulCacheTTL),
 	}
+}
+
+func (h *chatHandler) SetEgressTransport(transport *http.Transport) {
+	h.egressTransport = transport
 }

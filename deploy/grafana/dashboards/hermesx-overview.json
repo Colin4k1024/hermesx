@@ -1,11 +1,11 @@
 {
   "uid": "hermesx-overview",
   "title": "HermesX Overview",
-  "description": "HermesX SaaS platform overview: HTTP traffic, LLM performance, circuit breakers, rate limits, and sessions.",
+  "description": "HermesX SaaS platform overview: HTTP traffic, LLM performance, circuit breakers, rate limits, sessions, and tool execution.",
   "tags": ["hermesx", "observability"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "refresh": "30s",
   "time": {
     "from": "now-1h",
@@ -26,7 +26,7 @@
         "name": "tenant_id",
         "type": "query",
         "datasource": { "type": "prometheus", "uid": "${datasource}" },
-        "query": "label_values(http_requests_total, tenant_id)",
+        "query": "label_values(hermesx_http_requests_total, tenant_id)",
         "includeAll": true,
         "allValue": ".*",
         "current": { "text": "All", "value": "$__all" },
@@ -43,7 +43,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{tenant_id=~\"$tenant_id\"}[5m])) by (status)",
+          "expr": "sum(rate(hermesx_http_requests_total{tenant_id=~\"$tenant_id\"}[5m])) by (status)",
           "legendFormat": "{{status}}",
           "refId": "A"
         }
@@ -72,17 +72,17 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.50, sum(rate(hermesx_http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
           "legendFormat": "p50",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.95, sum(rate(hermesx_http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
           "legendFormat": "p95",
           "refId": "B"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
+          "expr": "histogram_quantile(0.99, sum(rate(hermesx_http_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
           "legendFormat": "p99",
           "refId": "C"
         }
@@ -111,13 +111,13 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "histogram_quantile(0.95, sum(rate(llm_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le, model))",
-          "legendFormat": "{{model}} p95",
+          "expr": "histogram_quantile(0.95, sum(rate(hermesx_llm_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le, provider, model))",
+          "legendFormat": "{{provider}}/{{model}} p95",
           "refId": "A"
         },
         {
-          "expr": "histogram_quantile(0.99, sum(rate(llm_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le, model))",
-          "legendFormat": "{{model}} p99",
+          "expr": "histogram_quantile(0.99, sum(rate(hermesx_llm_request_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le, provider, model))",
+          "legendFormat": "{{provider}}/{{model}} p99",
           "refId": "B"
         }
       ],
@@ -145,8 +145,8 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "circuit_breaker_state",
-          "legendFormat": "{{model}} — {{state}}",
+          "expr": "hermesx_breaker_state",
+          "legendFormat": "{{model}}",
           "refId": "A"
         }
       ],
@@ -169,20 +169,20 @@
     },
     {
       "id": 5,
-      "title": "Rate Limit Hits",
+      "title": "Rate Limit Rejections",
       "type": "timeseries",
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "sum(rate(rate_limit_hits_total{tenant_id=~\"$tenant_id\"}[5m])) by (tenant_id)",
+          "expr": "sum(rate(hermesx_rate_limit_rejected_total{tenant_id=~\"$tenant_id\"}[5m])) by (tenant_id)",
           "legendFormat": "tenant: {{tenant_id}}",
           "refId": "A"
         }
       ],
       "fieldConfig": {
         "defaults": {
-          "unit": "ops",
+          "unit": "reqps",
           "custom": {
             "drawStyle": "bars",
             "fillOpacity": 50,
@@ -203,7 +203,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "sum(active_sessions)",
+          "expr": "sum(hermesx_active_sessions{tenant_id=~\"$tenant_id\"})",
           "legendFormat": "Total Active Sessions",
           "refId": "A"
         }
@@ -233,7 +233,7 @@
       "datasource": { "type": "prometheus", "uid": "${datasource}" },
       "targets": [
         {
-          "expr": "sum(rate(http_requests_total{status=~\"5..\", tenant_id=~\"$tenant_id\"}[5m])) / sum(rate(http_requests_total{tenant_id=~\"$tenant_id\"}[5m])) * 100",
+          "expr": "100 * sum(rate(hermesx_http_requests_total{status=~\"5..\", tenant_id=~\"$tenant_id\"}[5m])) / clamp_min(sum(rate(hermesx_http_requests_total{tenant_id=~\"$tenant_id\"}[5m])), 0.001)",
           "legendFormat": "Error %",
           "refId": "A"
         }
@@ -262,6 +262,157 @@
       "options": {
         "legend": { "displayMode": "list", "placement": "bottom" },
         "tooltip": { "mode": "single" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "In-Flight HTTP Requests",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "hermesx_http_requests_in_flight",
+          "legendFormat": "In flight",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "value": null, "color": "green" },
+              { "value": 50, "color": "yellow" },
+              { "value": 100, "color": "red" }
+            ]
+          }
+        }
+      },
+      "options": {
+        "reduceOptions": { "values": false, "calcs": ["lastNotNull"], "fields": "" },
+        "orientation": "auto",
+        "textMode": "auto",
+        "colorMode": "value",
+        "graphMode": "area",
+        "justifyMode": "auto"
+      }
+    },
+    {
+      "id": 9,
+      "title": "LLM Token Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum(rate(hermesx_llm_tokens_total{tenant_id=~\"$tenant_id\"}[5m])) by (provider, model, direction)",
+          "legendFormat": "{{provider}}/{{model}} {{direction}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "tps",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "stacking": { "mode": "none" }
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Tool Execution Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "sum(rate(hermesx_tool_executions_total{tenant_id=~\"$tenant_id\"}[5m])) by (tool_name, status)",
+          "legendFormat": "{{tool_name}} {{status}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops",
+          "custom": {
+            "drawStyle": "bars",
+            "fillOpacity": 40,
+            "stacking": { "mode": "normal" }
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["sum"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Store Operation Latency p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hermesx_store_operation_duration_seconds_bucket[5m])) by (le, entity, operation))",
+          "legendFormat": "{{entity}}/{{operation}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 5,
+            "stacking": { "mode": "none" }
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
+      }
+    },
+    {
+      "id": 12,
+      "title": "Chat Completion Latency p95",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "datasource": { "type": "prometheus", "uid": "${datasource}" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(hermesx_chat_completion_duration_seconds_bucket{tenant_id=~\"$tenant_id\"}[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "fillOpacity": 10,
+            "stacking": { "mode": "none" }
+          }
+        }
+      },
+      "options": {
+        "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["mean", "max"] },
+        "tooltip": { "mode": "multi", "sort": "desc" }
       }
     }
   ],

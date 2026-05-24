@@ -1,237 +1,46 @@
-# Enterprise Readiness Matrix
+# 企业就绪度矩阵
 
-> HermesX — Enterprise Agent Runtime / SaaS Control Plane
-> Version: v1.3.0 | Last Updated: 2026-05-07
+> HermesX - 面向 Agent 的运行时控制平面
+> 当前文档/API 基线：`v2.4.0-dev`
+> 最新已发布基线：`v2.3.0`
+> 最后更新：2026-05-24
 
----
+本文件按证据口径描述企业就绪度。"Released" 表示属于 changelog 中的最新已发布基线；"Unreleased" 表示能力存在于当前分支或 changelog 的 Unreleased 区域，但在 `v2.4.0` 正式发布前不属于最新稳定发布。
 
-## 1. Multi-Tenancy
+## 汇总
 
-**Capability**: Full tenant isolation across all data paths  
-**Status**: Done  
-**Evidence**:
-- 10 tables with Row-Level Security (RLS) enabled
-- 37 RLS policies enforcing `app.current_tenant` session variable
-- `withTenantTx()` helper sets `SET LOCAL app.current_tenant` per transaction
-- TenantMiddleware derives tenant_id from AuthContext (not headers)
-- 58 integration tests validating cross-tenant isolation
-- Dedicated test suites: `tenant_isolation_test.go`, `rls_policy_test.go`, `cross_tenant_attack_test.go`
+| 能力 | 当前状态 | 发布状态 | 证据 | 后续动作 |
+|------|----------|----------|------|----------|
+| 多租户隔离 | Done | Released baseline | PostgreSQL RLS migration、Tenant middleware、租户级 Store、`tests/integration/` 集成测试 | 保持真实 PostgreSQL RLS 测试进入 CI |
+| Auth、API Key、RBAC | Done | Released baseline + OIDC plan | `internal/auth/`、`internal/middleware/rbac.go`、API key scopes、`RBAC_MATRIX.md`、[OIDC 集成测试计划](runbooks/enterprise-OIDC-integration-test-plan.md) | 执行 Keycloak/Auth0/local IdP E2E 并沉淀证据 |
+| Agent Runtime | Done | Released baseline + Unreleased Eino path | `internal/agent/`、Chat API、tool loop、skills、memory、MCP、changelog Unreleased Eino 0.9 条目 | Eino 0.9 行为在发布前按 `v2.4.0-dev` 处理 |
+| 执行回执与审计 | Done | Released baseline | Execution receipt store/API、Audit middleware/store、API 文档中的 trace 关联说明 | 如面向强监管部署，补充更长保留期与外部导出策略 |
+| 工作流与人工任务 | Done | Released baseline + Unreleased Eino 默认执行器 | `internal/workflow/`、workflow stores、OpenAPI workflow paths、`workflow-guide.md` | 将 workflow Eino executor 的发布说明与稳定 workflow API 分开 |
+| 沙箱隔离 | Done | Released baseline + Unreleased K8s Job mode | Local/Docker sandbox policy、租户级沙箱控制；K8s Job mode 位于 Unreleased | 生产前验证集群 RBAC、镜像策略、网络策略和资源限制 |
+| Egress 控制 | Done | 当前分支 `v2.4.0-dev` | `SecureTransport`、租户 allowlist、生产 `deny-all` 默认值、`HERMES_EGRESS_DEFAULT` override | 在生产类环境补 allowlist smoke test |
+| Metering 与 Usage | Partial | Released tenant usage + Unreleased admin aggregation | `usage_records`、租户 usage API、Unreleased admin aggregation | 明确 billing/invoicing 不属于当前能力边界 |
+| 可观测性 | Done | Released baseline + Unreleased 预置观测包 | Prometheus metrics、OTel tracing、结构化日志、[Grafana dashboard](../deploy/grafana/dashboards/hermesx-overview.json)、[alerts](../deploy/prometheus/alerts.yml)、[Prometheus config](../deploy/prometheus/prometheus.yml) | 在 staging 导入 dashboard 并 dry-run alerts |
+| 备份与灾备 | Partial | Released PG backup baseline + Unreleased Redis/MinIO scripts | PG backup/restore 文档、[scripts/dr-test.sh](../scripts/dr-test.sh)、[scripts/pitr-drill.sh](../scripts/pitr-drill.sh)、[PITR runbook](runbooks/pg-pitr-recovery.md) | 用生产级数据恢复演练记录 RTO/RPO |
+| OpenAPI 契约 | Done | 当前文档/API 基线 `v2.4.0-dev` | `internal/api/openapi.go`、`GET /v1/openapi`、OpenAPI tests | 保持 `info.version` 与 README 发布状态说明一致 |
+| CI 与安全门禁 | Done | Released baseline | Go tests、integration tests、race/coverage workflow、安全 workflow 文档 | 如生产策略要求，补 DAST/container runtime checks |
 
-**Risk**: No automated RLS regression test in CI (requires live PG)  
-**Next Action**: CI integration test job with PG service already wired
+## 发布状态说明
 
----
+| 领域 | 已发布基线（`v2.3.0`） | 当前分支（`v2.4.0-dev`） |
+|------|-------------------------|---------------------------|
+| API 版本 | 公共文档把 `v2.3.0` 标为最新已发布基线 | OpenAPI 报告 `2.4.0-dev`，因为它描述当前分支契约 |
+| Agent Runtime | 稳定 chat/tool/memory/skill/MCP runtime | Eino 0.9 主链、checkpoint resume、agentic blocks 调试输出 |
+| 运维 | Metrics、tracing、结构化日志、PG backup/restore | Grafana dashboard、Prometheus alerts、OTel collector compose、Redis/MinIO backup scripts |
+| 沙箱 | Local 与 Docker sandbox | K8s Job sandbox mode |
+| Admin usage | 租户 usage 可用 | 按租户聚合的 Admin usage API 未发布 |
 
-## 2. Auth / API Key / RBAC
+## 已知风险
 
-**Capability**: Chain authentication with scoped API keys and role-based access  
-**Status**: Done  
-**Evidence**:
-- Auth chain: Static Token → API Key (SHA-256 hashed) → JWT
-- API Key supports: scopes, roles, expiry, revocation
-- Roles: `super_admin`, `admin`, `owner`, `user`, `auditor`
-- `HasScope()` enforces scope-based access per endpoint
-- Tenant boundary enforcement: non-admin callers cannot specify foreign `tenant_id`
-- `generateRawKey()` panics on `crypto/rand.Read` failure
-
-**Risk**: JWT validation is prepared but not production-tested with real IdP  
-**Next Action**: OIDC integration test with Keycloak/Auth0
-
----
-
-## 3. Rate Limit / Quota
-
-**Capability**: Per-tenant and per-user rate limiting with distributed enforcement  
-**Status**: Done  
-**Evidence**:
-- `RateLimiter` interface with Redis sliding window (Lua atomic script)
-- `DualLayerLimiter` for simultaneous tenant + user limits
-- Local LRU fallback when Redis unavailable
-- Per-tenant override via `TenantLimitFn`
-- Prometheus counter: `hermes_rate_limit_rejected_total`
-- Pressure tested: 100 concurrent × 5 minutes, accuracy > 95%
-
-**Risk**: No per-endpoint granularity (all requests share one bucket)  
-**Next Action**: Endpoint-aware rate limiting (P2)
-
----
-
-## 4. Metering / Billing
-
-**Capability**: Token-level usage recording with aggregation queries  
-**Status**: Done  
-**Evidence**:
-- `UsageRecorder` with async batch persistence (buffered channel + periodic flush)
-- `usage_records` table: tenant_id, user_id, session_id, model, input/output tokens, cost
-- `UsageV2Handler`: `GET /v1/usage` with from/to/granularity (hour/day/month)
-- Per-tenant aggregation queries with time bucketing
-- Migrations v62-64 for schema + indexes
-
-**Risk**: No billing system integration (recording only, no invoicing)  
-**Next Action**: Stripe/billing webhook integration (P2)
-
----
-
-## 5. Audit / Compliance
-
-**Capability**: Immutable audit trail for all state-changing operations  
-**Status**: Done  
-**Evidence**:
-- `audit_logs` table with RLS
-- All POST/PUT/DELETE operations generate audit entries
-- Fields: actor, action, resource_type, resource_id, metadata, tenant_id, timestamp
-- `AuditLogStore` with Create/List/filtering
-- `GET /v1/audit-logs` gated behind `auditor` role
-- Execution receipts provide tool-level audit trail
-
-**Risk**: No tamper-proof guarantee (append-only but not cryptographically chained)  
-**Next Action**: Optional hash-chain verification for regulated environments (P2)
-
----
-
-## 6. GDPR / Data Lifecycle
-
-**Capability**: Full data export and deletion per tenant  
-**Status**: Done  
-**Evidence**:
-- `GET /v1/gdpr/export` — exports all tenant data as JSON
-- `DELETE /v1/gdpr/delete` — transactional deletion of sessions, messages, memories, api_keys, audit_logs, cron_jobs
-- Deletion cascades through all related tables in single transaction
-- Admin-only access control
-
-**Risk**: No data retention policy engine (manual deletion only)  
-**Next Action**: Automated retention sweep based on tenant configuration (P2)
-
----
-
-## 7. Observability
-
-**Capability**: Full-stack metrics, tracing, and structured logging  
-**Status**: Done  
-**Evidence**:
-- Prometheus metrics: 11 custom business metrics (HTTP, LLM, tools, rate limiting, sessions, store)
-- OpenTelemetry tracing: HTTP → middleware → store → LLM full chain
-- PGX tracer for database query spans
-- OTel Collector config: traces → Jaeger, metrics → Prometheus
-- Structured JSON logging via `slog`
-- Memory limiter (512MB) on collector
-- Alert rule examples in deployment guide
-
-**Risk**: No pre-built Grafana dashboards  
-**Next Action**: Dashboard JSON templates (P1)
-
----
-
-## 8. Sandbox Isolation
-
-**Capability**: Isolated code execution with resource limits  
-**Status**: Done  
-**Evidence**:
-- Local sandbox: process isolation with timeout, output truncation (50KB), env stripping
-- Docker sandbox: `--network=none`, `--memory`, `--cpus` limits
-- Per-tenant `SandboxPolicy` (JSONB on tenants table): enabled, max_timeout, allowed_tools, restrict_network
-- `AllowedTools` enforcement: non-whitelisted tools rejected
-- Max tool calls limit (default 50)
-- Skill metadata `sandbox: required` triggers Docker execution
-
-**Risk**: Docker sandbox requires Docker-in-Docker or socket mount in containerized deploys  
-**Next Action**: gVisor/Firecracker evaluation for production (P2)
-
----
-
-## 9. Backup / Disaster Recovery
-
-**Capability**: Automated backup with point-in-time restore capability  
-**Status**: Done  
-**Evidence**:
-- `scripts/backup/backup.sh`: pg_dump + gzip, 7-day retention, configurable output dir
-- `scripts/backup/restore.sh`: single-transaction restore with post-migration
-- `deploy/pitr/` templates for WAL archiving
-- Production compose includes volume persistence for PG/Redis
-
-**Risk**: No automated DR drill in CI; RPO depends on backup frequency  
-**Next Action**: Automated weekly restore verification (P1)
-
----
-
-## 10. CI / Security
-
-**Capability**: Automated build, test, security scan pipeline  
-**Status**: Done  
-**Evidence**:
-- `.github/workflows/ci.yml`: build + vet + test + coverage + race detection + Docker push
-- `.github/workflows/security.yml`: govulncheck + gosec + trivy (weekly + PR)
-- Integration test job with PG/Redis/MinIO services
-- Build matrix: linux/darwin × amd64/arm64 + windows/amd64
-- 21 test packages, all passing
-
-**Risk**: No DAST or container runtime scanning  
-**Next Action**: Add OWASP ZAP scan against deployed instance (P2)
-
----
-
-## 11. Known Risks
-
-| Risk | Severity | Mitigation |
-|------|----------|------------|
-| JWT/OIDC not production-tested | Medium | Auth chain works; needs IdP integration test |
-| No billing integration | Low | Usage recording is complete; billing is business logic |
-| Docker sandbox in containers | Medium | Local sandbox is always available as fallback |
-| Single PG writer (no read replicas) | Low | Sufficient for < 500 req/s; PgBouncer for connection pooling |
-| No Grafana dashboards | Low | Metrics exposed; dashboards are configuration |
-
----
-
-## 12. Roadmap
-
-### v1.4.0 (P1 — Next)
-- [ ] OIDC integration test with real IdP
-- [ ] Grafana dashboard templates
-- [ ] Automated DR verification in CI
-- [ ] Endpoint-aware rate limiting
-
-### v2.0.0 (P2 — Future)
-- [ ] Billing/invoicing webhook
-- [ ] Data retention policy engine
-- [ ] gVisor sandbox backend
-- [ ] Read replica support
-- [ ] Multi-region deployment guide
-
----
-
-## Store Interface Coverage
-
-The `Store` interface covers all core SaaS state objects:
-
-| Sub-Store | Operations | RLS |
-|-----------|-----------|-----|
-| Sessions | Create, Get, List, Delete, AppendMessage, ListMessages | Yes |
-| Tenants | Create, Get, List, Update, Delete | Yes |
-| APIKeys | Create, Get, List, Revoke, GetByHash | Yes |
-| AuditLogs | Create, List | Yes |
-| Memories | Set, Get, List, Delete | Yes |
-| UserProfiles | Get, Set, Delete | Yes |
-| CronJobs | Create, Get, List, Update, Delete | Yes |
-| Roles | Assign, Revoke, List | Yes |
-| ExecutionReceipts | Create, Get, List, GetByIdempotencyID | Yes |
-
----
-
-## API Surface
-
-22 documented endpoints across:
-- Health (3): `/v1/health`, `/v1/health/live`, `/v1/health/ready`
-- Chat (1): `/v1/chat/completions` (OpenAI-compatible)
-- Sessions (1): `/v1/sessions`
-- Tenants (1): `/v1/tenants`
-- API Keys (1): `/v1/api-keys`
-- Audit (1): `/v1/audit-logs`
-- Execution Receipts (1): `/v1/execution-receipts`
-- Usage (1): `/v1/usage`
-- GDPR (2): `/v1/gdpr/export`, `/v1/gdpr/delete`
-- Metrics (1): `/v1/metrics`
-- OpenAPI (1): `/v1/openapi`
-- Admin (4): `/admin/v1/tenants`, `/admin/v1/sandbox-policy`, etc.
-- Me (1): `/v1/me`
-
-Full OpenAPI 3.0.3 spec available at `GET /v1/openapi`.
+| 风险 | 严重度 | 缓解 |
+|------|--------|------|
+| `v2.4.0-dev` 文档可能被误解为稳定发布承诺 | Medium | README、OpenAPI、changelog 和本矩阵均区分当前分支与最新已发布基线 |
+| K8s Job sandbox 需要集群策略验证 | Medium | 在 cluster RBAC、network policy、image policy、resource limit 验证前保持 Unreleased |
+| OIDC E2E 尚未对外部 IdP 留痕 | Medium | 企业放行前执行 [enterprise-OIDC-integration-test-plan.md](runbooks/enterprise-OIDC-integration-test-plan.md) |
+| Grafana/Prometheus 配置需要 live validation | Low | JSON/YAML 已本地检查；需要导入 staging 并记录 dashboard/alert 证据 |
+| Backup/DR 在不同数据存储之间不均衡 | Medium | PG baseline 已存在；Redis/MinIO scripts 在自动恢复演练前保持 Unreleased |
+| Billing 仍是用量记录，不是开票系统 | Low | 将 usage API 描述为计量/控制平面能力，而非 billing platform |

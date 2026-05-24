@@ -5,7 +5,9 @@ All notable changes to HermesX are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - v2.4.0-dev
+
+Release state: these entries describe current-branch changes after the latest released baseline (`v2.3.0`). They are not stable release commitments until a `v2.4.0` release is cut.
 
 ### Added
 
@@ -22,9 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent Chat Same-Session Concurrency** — requests for the same `tenant/session` are serialized at the handler layer to avoid duplicate message, checkpoint, and token writes
 - **Workflow Agent Default Path** — `agent_task` default executor now uses `EinoAgentExecutor` instead of the legacy AIAgent path, sharing the `RunConversationTurnLoopSafe` main path with the API
 
+### Docs
+
+- **README positioning** — reframed HermesX as an Agent-first Runtime Control Plane with audience, pillars, minimal demo, capability matrix, and explicit release-state separation
+- **Agent-first architecture overview** — added `docs/AGENT_FIRST_ARCHITECTURE.md` with runtime/control-plane/workflow/governance boundaries
+- **Version alignment** — aligned README, OpenAPI, and Enterprise Readiness docs around `v2.4.0-dev` current docs/API baseline and `v2.3.0` latest released baseline
+
 ---
 
 ## [2.3.0] - 2026-05-20
+
+Latest released baseline referenced by the public README release-state note.
 
 SaaS Cron Scheduler — distributed scheduled task execution engine.
 

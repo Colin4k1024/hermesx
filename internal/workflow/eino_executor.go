@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"strings"
 
@@ -30,6 +31,7 @@ type EinoAgentExecutor struct {
 	apiMode           string
 	safetyInterceptor safety.SafetyInterceptor
 	leakScanner       *secrets.LeakScanner
+	httpTransport     *http.Transport
 }
 
 // NewEinoAgentExecutor creates an executor backed by Eino's ReAct agent.
@@ -41,6 +43,13 @@ func NewEinoAgentExecutor(transport llm.Transport, toolEntries []*tools.ToolEntr
 		safetyInterceptor: interceptor,
 		leakScanner:       scanner,
 	}
+}
+
+// WithHTTPTransport injects the shared egress-aware transport used by tools
+// inside workflow agent_task nodes.
+func (e *EinoAgentExecutor) WithHTTPTransport(transport *http.Transport) *EinoAgentExecutor {
+	e.httpTransport = transport
+	return e
 }
 
 func newEinoAgentExecutorFromClient(client *llm.Client, toolEntries []*tools.ToolEntry, interceptor safety.SafetyInterceptor, scanner *secrets.LeakScanner) *EinoAgentExecutor {
@@ -108,10 +117,7 @@ func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 		sessionID = fmt.Sprintf("workflow-%s-%s", runID, node.ID)
 	}
 
-	result, err := eino.RunConversationTurnLoopSafe(ctx,
-		fullPrompt,
-		nil,
-		nil,
+	opts := []eino.Option{
 		eino.WithTransport(transport),
 		eino.WithModel(model),
 		eino.WithProvider(e.provider),
@@ -126,7 +132,12 @@ func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 		eino.WithPlatform("workflow"),
 		eino.WithSafetyInterceptor(e.safetyInterceptor),
 		eino.WithLeakScanner(e.leakScanner),
-	)
+	}
+	if e.httpTransport != nil {
+		opts = append(opts, eino.WithHTTPTransport(e.httpTransport))
+	}
+
+	result, err := eino.RunConversationTurnLoopSafe(ctx, fullPrompt, nil, nil, opts...)
 	if err != nil {
 		return nil, err
 	}
