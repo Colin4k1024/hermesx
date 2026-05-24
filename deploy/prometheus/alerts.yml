@@ -1,12 +1,23 @@
 groups:
   - name: hermesx.rules
     rules:
+      - alert: HermesXTargetDown
+        expr: up{job="hermesx"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: hermesx
+        annotations:
+          summary: "HermesX target is down"
+          description: "Prometheus has not scraped the hermesx API target for more than 2 minutes."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
+
       - alert: HermesXHighErrorRate
         expr: |
           (
-            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            sum(rate(hermesx_http_requests_total{status=~"5.."}[5m]))
             /
-            sum(rate(http_requests_total[5m]))
+            clamp_min(sum(rate(hermesx_http_requests_total[5m])), 0.001)
           ) > 0.05
         for: 5m
         labels:
@@ -15,12 +26,14 @@ groups:
         annotations:
           summary: "HermesX error rate exceeds 5%"
           description: "HTTP 5xx error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
-          runbook_url: "https://wiki.internal/runbooks/hermesx-high-error-rate"
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
 
       - alert: HermesXHighLatency
         expr: |
-          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
-          > 10
+          histogram_quantile(
+            0.99,
+            sum(rate(hermesx_http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 10
         for: 5m
         labels:
           severity: critical
@@ -28,44 +41,73 @@ groups:
         annotations:
           summary: "HermesX p99 latency exceeds 10s"
           description: "The 99th percentile HTTP request latency is {{ $value | humanizeDuration }} over the last 5 minutes."
-          runbook_url: "https://wiki.internal/runbooks/hermesx-high-latency"
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
 
       - alert: HermesXCircuitBreakerOpen
-        expr: |
-          circuit_breaker_state{state="open"} == 1
+        expr: hermesx_breaker_state == 2
         for: 60s
         labels:
           severity: warning
           service: hermesx
         annotations:
           summary: "Circuit breaker open for model {{ $labels.model }}"
-          description: "The circuit breaker for model '{{ $labels.model }}' has been in open state for more than 60 seconds."
-          runbook_url: "https://wiki.internal/runbooks/hermesx-circuit-breaker"
+          description: "The circuit breaker for model '{{ $labels.model }}' has been open for more than 60 seconds."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
 
       - alert: HermesXRateLimitSpike
         expr: |
-          sum(rate(rate_limit_hits_total[1m])) by (tenant_id) > 100
-        for: 1m
+          sum(rate(hermesx_rate_limit_rejected_total[5m])) by (tenant_id) > 1
+        for: 2m
         labels:
           severity: warning
           service: hermesx
         annotations:
           summary: "Rate limit spike for tenant {{ $labels.tenant_id }}"
-          description: "Tenant '{{ $labels.tenant_id }}' is hitting rate limits at {{ $value | humanize }}/min."
-          runbook_url: "https://wiki.internal/runbooks/hermesx-rate-limit"
+          description: "Tenant '{{ $labels.tenant_id }}' is seeing more than 60 rejected requests per minute."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
 
       - alert: HermesXLLMProviderDown
         expr: |
           (
-            sum(rate(llm_request_duration_seconds_count{status="error"}[2m])) by (model)
+            sum(rate(hermesx_llm_request_duration_seconds_count{status="error"}[2m])) by (provider, model)
             /
-            sum(rate(llm_request_duration_seconds_count[2m])) by (model)
+            clamp_min(sum(rate(hermesx_llm_request_duration_seconds_count[2m])) by (provider, model), 0.001)
           ) > 0.5
         for: 2m
         labels:
           severity: critical
           service: hermesx
         annotations:
-          summary: "LLM provider error rate > 50% for model {{ $labels.model }}"
-          description: "Model '{{ $labels.model }}' has an error rate of {{ $value | humanizePercentage }} over the last 2 minutes."
-          runbook_url: "https://wiki.internal/runbooks/hermesx-llm-provider-down"
+          summary: "LLM provider error rate > 50% for {{ $labels.provider }}/{{ $labels.model }}"
+          description: "Provider '{{ $labels.provider }}' model '{{ $labels.model }}' has an error rate of {{ $value | humanizePercentage }} over the last 2 minutes."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
+
+      - alert: HermesXChatCompletionSlow
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(hermesx_chat_completion_duration_seconds_bucket[5m])) by (le)
+          ) > 30
+        for: 5m
+        labels:
+          severity: warning
+          service: hermesx
+        annotations:
+          summary: "HermesX chat completion p95 exceeds 30s"
+          description: "End-to-end chat completion p95 latency is {{ $value | humanizeDuration }} over the last 5 minutes."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"
+
+      - alert: HermesXStoreOperationSlow
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(hermesx_store_operation_duration_seconds_bucket[5m])) by (le, entity, operation)
+          ) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          service: hermesx
+        annotations:
+          summary: "HermesX store operation slow: {{ $labels.entity }}/{{ $labels.operation }}"
+          description: "Store operation p95 latency is {{ $value | humanizeDuration }} for {{ $labels.entity }}/{{ $labels.operation }}."
+          runbook_url: "docs/deployment.en.md#prometheus-metrics"

@@ -11,10 +11,13 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/api/admin"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
+	"github.com/Colin4k1024/hermesx/internal/store/pg"
+	workflowrt "github.com/Colin4k1024/hermesx/internal/workflow"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
@@ -89,8 +92,27 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 	})
 }
 
+func egressStores(s store.Store) (egress.RuleStore, egress.RuleAdminStore) {
+	if pp, ok := s.(pg.PoolProvider); ok && pp.Pool() != nil {
+		egressStore := egress.NewPGXStore(pp.Pool())
+		return egressStore, egressStore
+	}
+	return egress.EmptyRuleStore{}, nil
+}
+
 // NewAPIServer creates and configures the API server with all routes and middleware.
 func NewAPIServer(cfg APIServerConfig) *APIServer {
+	egressStore, egressAdminStore := egressStores(cfg.Store)
+	egressPolicy, egressDefault, err := egress.NewAllowlistPolicyFromEnv(egressStore, nil)
+	if err != nil {
+		slog.Error("invalid egress default policy", "error", err)
+		egressPolicy = egress.NewAllowlistPolicy(egressStore, nil, egress.DefaultDenyAll)
+		egressDefault = egress.DefaultDenyAll
+	}
+	cachedEgressPolicy := egress.NewCachedPolicy(egressPolicy, time.Minute)
+	egressTransport := egress.NewSecureTransport(cachedEgressPolicy)
+	slog.Info("egress policy configured", "default", egressDefault, "tenant_allowlist", egressAdminStore != nil)
+
 	stack := middleware.NewStack(middleware.StackConfig{
 		Tracing:   middleware.TracingMiddleware,
 		Metrics:   middleware.MetricsMiddleware,
@@ -122,7 +144,9 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.Handle("/v1/execution-receipts/", NewExecutionReceiptHandler(cfg.Store.ExecutionReceipts()))
 	api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
-	workflowH := NewWorkflowHandler(cfg.Store.Workflows())
+	workflowHTTPClient := &http.Client{Transport: egressTransport, Timeout: 30 * time.Second}
+	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutor(egressTransport))
+	workflowH := NewWorkflowHandlerWithEngine(cfg.Store.Workflows(), workflowEngine)
 	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
 	api.HandleFunc("/v1/workflow-definitions/", workflowH.ServeDefinitionsHTTP)
 	api.HandleFunc("/v1/workflow-runs", workflowH.ServeRunsHTTP)
@@ -140,6 +164,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
 	chatH := NewChatHandler(cfg.Store, cfg.SkillsClient, cfg.Provisioner)
+	chatH.SetEgressTransport(egressTransport)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
 
@@ -174,7 +199,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	mux.Handle("POST /admin/v1/bootstrap", bootstrapCreate)
 
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
-	adminH := admin.NewAdminHandler(cfg.Store, nil)
+	adminOpts := []admin.AdminOption{}
+	if egressAdminStore != nil {
+		adminOpts = append(adminOpts, admin.WithEgressHandler(egress.NewAdminHandler(egressAdminStore, cachedEgressPolicy)))
+	}
+	adminH := admin.NewAdminHandler(cfg.Store, nil, adminOpts...)
 	mux.Handle("/admin/", stack.Wrap(adminH.Handler()))
 
 	// Static file serving (optional).

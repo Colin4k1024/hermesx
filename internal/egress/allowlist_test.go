@@ -101,9 +101,9 @@ func TestEvaluateRules_NoMatch(t *testing.T) {
 	}
 }
 
-func TestAllowlistPolicy_BuiltinAlwaysAllowed(t *testing.T) {
+func TestAllowlistPolicy_BuiltinAllowedOutsideDenyAll(t *testing.T) {
 	store := newMemoryStore()
-	policy := NewAllowlistPolicy(store, nil, DefaultDenyAll)
+	policy := NewAllowlistPolicy(store, nil, DefaultAllowAll)
 
 	ctx := context.Background()
 	allowed, err := policy.IsAllowed(ctx, "tenant-1", "api.openai.com", "/v1/chat")
@@ -120,6 +120,70 @@ func TestAllowlistPolicy_BuiltinAlwaysAllowed(t *testing.T) {
 	}
 	if !allowed {
 		t.Fatal("builtin LLM endpoints should always be allowed")
+	}
+}
+
+func TestAllowlistPolicy_DenyAllRequiresExplicitBuiltinRule(t *testing.T) {
+	store := newMemoryStore()
+	policy := NewAllowlistPolicy(store, nil, DefaultDenyAll)
+
+	ctx := context.Background()
+	allowed, err := policy.IsAllowed(ctx, "tenant-1", "api.openai.com", "/v1/chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if allowed {
+		t.Fatal("deny-all should not allow builtin endpoints without tenant rules")
+	}
+
+	store.rules["tenant-1"] = []EgressRule{
+		{HostPattern: "api.openai.com", PathPrefix: "/v1/", Action: ActionAllow, Priority: 10},
+	}
+	if err := policy.Reload(ctx); err != nil {
+		t.Fatal(err)
+	}
+	allowed, err = policy.IsAllowed(ctx, "tenant-1", "api.openai.com", "/v1/chat")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowed {
+		t.Fatal("explicit tenant rule should allow builtin endpoint under deny-all")
+	}
+}
+
+func TestResolveDefaultPolicy(t *testing.T) {
+	tests := []struct {
+		name        string
+		environment string
+		override    string
+		want        DefaultPolicy
+		wantErr     bool
+	}{
+		{name: "development default", environment: "development", want: DefaultAllowAll},
+		{name: "empty is development", want: DefaultAllowAll},
+		{name: "production denies", environment: "production", want: DefaultDenyAll},
+		{name: "prod denies", environment: "prod", want: DefaultDenyAll},
+		{name: "override allow", environment: "production", override: "allow-all", want: DefaultAllowAll},
+		{name: "override deny underscore", override: "deny_all", want: DefaultDenyAll},
+		{name: "override log only", override: "log-only", want: DefaultLogOnly},
+		{name: "bad override", override: "permissive", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := ResolveDefaultPolicy(tt.environment, tt.override)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatal("expected error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("got %s, want %s", got, tt.want)
+			}
+		})
 	}
 }
 

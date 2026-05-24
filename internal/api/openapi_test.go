@@ -75,6 +75,7 @@ func TestOpenAPISpec_AllPathsPresent(t *testing.T) {
 		"/admin/v1/tenants/{id}/api-keys",
 		"/admin/v1/pricing-rules",
 		"/admin/v1/audit-logs",
+		"/admin/v1/usage",
 		"/admin/v1/usage/tenants",
 	}
 
@@ -194,11 +195,7 @@ func TestOpenAPISpec_InfoBranding(t *testing.T) {
 	}
 
 	version, _ := info["version"].(string)
-	if version == "" {
-		t.Error("info.version is empty")
-	}
-	// Version must not reference a pre-v2 release.
-	if version == "1.3.0" || version == "1.4.0" {
-		t.Errorf("info.version %q is stale; want >= 2.x.x", version)
+	if version != "2.4.0-dev" {
+		t.Errorf("info.version = %q, want 2.4.0-dev", version)
 	}
 }

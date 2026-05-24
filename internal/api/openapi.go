@@ -11,7 +11,7 @@ func OpenAPISpec() http.HandlerFunc {
 		"openapi": "3.0.3",
 		"info": map[string]any{
 			"title":       "HermesX Agent API",
-			"version":     "2.2.0",
+			"version":     "2.4.0-dev",
 			"description": "Enterprise multi-tenant AI agent platform with RBAC, RLS, and execution audit trail.",
 			"contact":     map[string]any{"name": "HermesX Team"},
 		},
@@ -72,6 +72,7 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/pricing-rules":                      pricingRulesPath(),
 			"/admin/v1/pricing-rules/{model}":              pricingRuleByModelPath(),
 			"/admin/v1/audit-logs":                         adminAuditLogsPath(),
+			"/admin/v1/usage":                              adminUsageAggregationPath(),
 			"/admin/v1/usage/tenants":                      adminTenantUsagePath(),
 		},
 		"components": map[string]any{
@@ -671,6 +672,52 @@ func adminTenantUsagePath() map[string]any {
 				},
 				"403": map[string]any{"description": "Forbidden — admin scope required"},
 				"503": map[string]any{"description": "Database pool unavailable"},
+			},
+		},
+	}
+}
+
+func adminUsageAggregationPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":        []string{"Admin", "Usage"},
+			"summary":     "Aggregate token and cost usage for one tenant by day or month (admin scope required)",
+			"description": "Unreleased v2.4.0-dev endpoint. Requires tenant_id and returns time-bucketed usage for that tenant.",
+			"parameters": []map[string]any{
+				{"name": "tenant_id", "in": "query", "required": true, "description": "Tenant UUID to aggregate", "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "granularity", "in": "query", "description": "Aggregation bucket", "schema": map[string]any{"type": "string", "enum": []string{"daily", "monthly"}, "default": "daily"}},
+				{"name": "from", "in": "query", "description": "Lower bound as YYYY-MM-DD or RFC3339; defaults to 30 days ago", "schema": map[string]any{"type": "string"}},
+				{"name": "to", "in": "query", "description": "Upper bound as YYYY-MM-DD or RFC3339; defaults to now", "schema": map[string]any{"type": "string"}},
+			},
+			"responses": map[string]any{
+				"200": map[string]any{
+					"description": "Time-bucketed tenant usage",
+					"content": map[string]any{
+						"application/json": map[string]any{
+							"schema": map[string]any{
+								"type": "object",
+								"properties": map[string]any{
+									"data": map[string]any{
+										"type": "array",
+										"items": map[string]any{
+											"type": "object",
+											"properties": map[string]any{
+												"date":               map[string]any{"type": "string"},
+												"input_tokens":       map[string]any{"type": "integer"},
+												"output_tokens":      map[string]any{"type": "integer"},
+												"total_tokens":       map[string]any{"type": "integer"},
+												"estimated_cost_usd": map[string]any{"type": "number", "format": "double"},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+				"400": map[string]any{"description": "Missing tenant_id or invalid granularity"},
+				"403": map[string]any{"description": "Forbidden — admin scope required"},
+				"503": map[string]any{"description": "Usage store unavailable"},
 			},
 		},
 	}

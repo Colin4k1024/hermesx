@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
@@ -48,9 +49,17 @@ func NewEngine(s store.WorkflowStore, httpClient HTTPExecutor, agentExecutor Age
 	return &Engine{store: s, httpClient: httpClient, agentExecutor: agentExecutor}
 }
 
-type defaultAgentExecutor struct{}
+type defaultAgentExecutor struct {
+	httpTransport *http.Transport
+}
 
-func (defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
+// NewDefaultAgentExecutor creates the built-in Eino-backed workflow agent
+// executor and optionally injects the shared egress-aware HTTP transport.
+func NewDefaultAgentExecutor(httpTransport *http.Transport) AgentExecutor {
+	return defaultAgentExecutor{httpTransport: httpTransport}
+}
+
+func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
 	model, _ := node.Config["model"].(string)
 	if model == "" {
 		model = os.Getenv("LLM_MODEL")
@@ -72,6 +81,9 @@ func (defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 
 	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(), safety.NewInterceptorChain(safety.NewInMemoryPolicyStore()), secrets.NewLeakScanner())
 	executor.apiKey = apiKey
+	if d.httpTransport != nil {
+		executor.WithHTTPTransport(d.httpTransport)
+	}
 	return executor.Execute(ctx, tenantID, userID, node, payload)
 }
 
@@ -400,6 +412,7 @@ func (e *Engine) executeServiceTask(ctx context.Context, run *store.WorkflowRun,
 			req.Header.Set(k, fmt.Sprint(v))
 		}
 	}
+	req = req.WithContext(egress.WithPath(egress.WithTenant(req.Context(), run.TenantID), req.URL.Path))
 	resp, err := e.httpClient.Do(req)
 	if err != nil {
 		return nil, err

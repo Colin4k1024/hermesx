@@ -1,0 +1,28 @@
+{
+  "audit_logs": [
+    {
+      "tenant_id": "tenant_demo",
+      "user_id": "user_demo",
+      "session_id": "sess_agent_first_minimal_demo",
+      "action": "POST /v1/agent/chat",
+      "detail": "",
+      "request_id": "demo-agent-first-001",
+      "status_code": 200,
+      "latency_ms": 231,
+      "created_at": "2026-05-24T04:00:00Z"
+    },
+    {
+      "tenant_id": "tenant_demo",
+      "user_id": "auditor_demo",
+      "session_id": "",
+      "action": "GET /v1/execution-receipts",
+      "detail": "limit=20&session_id=sess_agent_first_minimal_demo",
+      "request_id": "demo-receipt-query-001",
+      "status_code": 200,
+      "latency_ms": 12,
+      "created_at": "2026-05-24T04:00:01Z"
+    }
+  ],
+  "total": 2
+}
+

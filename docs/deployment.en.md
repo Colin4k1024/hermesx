@@ -402,6 +402,8 @@ Architecture: Nginx (ip_hash) → 3× hermes instances → Shared PG + Redis + M
 | `HERMES_MAX_TOKENS` | `4096` | Max response tokens |
 | `HERMES_BASE_URL` | provider default | Custom LLM endpoint |
 | `HERMES_DEBUG` | `false` | Debug logging |
+| `HERMES_ENV` | `development` | Set to `production` to make egress default to `deny-all` |
+| `HERMES_EGRESS_DEFAULT` | derived from environment | Explicit egress default override: `allow-all`, `deny-all`, or `log-only` |
 
 ### Observability (v2.0.0 Enhanced)
 

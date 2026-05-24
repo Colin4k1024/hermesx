@@ -3,12 +3,14 @@
 # Usage: ./dr-test.sh
 #
 # This script:
-#   1. Tests Redis restore from latest backup
-#   2. Tests MinIO restore from latest backup
-#   3. Verifies data integrity (count objects, check sample keys)
-#   4. Outputs pass/fail report
+#   1. Verifies the latest PostgreSQL dump backup exists and is gzip-valid
+#   2. Tests Redis restore prerequisites from latest backup
+#   3. Tests MinIO restore prerequisites from latest backup
+#   4. Verifies live data integrity where credentials/tools are available
+#   5. Outputs pass/fail report
 #
 # Environment variables:
+#   POSTGRES_BACKUP_DIR - PostgreSQL dump backup directory (default: /backup/postgres)
 #   REDIS_HOST         - Redis hostname (default: localhost)
 #   REDIS_PORT         - Redis port (default: 6379)
 #   REDIS_PASSWORD     - Redis auth password (default: empty)
@@ -22,6 +24,7 @@
 
 set -euo pipefail
 
+POSTGRES_BACKUP_DIR="${POSTGRES_BACKUP_DIR:-/backup/postgres}"
 REDIS_HOST="${REDIS_HOST:-localhost}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_PASSWORD="${REDIS_PASSWORD:-}"
@@ -85,8 +88,46 @@ log "============================================"
 log ""
 
 # ─────────────────────────────────────────────
+# Test 0: PostgreSQL dump backup tests
+# ─────────────────────────────────────────────
+log "--- PostgreSQL Backup Tests ---"
+
+LATEST_PG_BACKUP=""
+if [[ -d "$POSTGRES_BACKUP_DIR" ]]; then
+  LATEST_PG_BACKUP=$(find "$POSTGRES_BACKUP_DIR" -name "hermes_*.sql.gz" -type f -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+  # Fallback for macOS (no -printf)
+  if [[ -z "$LATEST_PG_BACKUP" ]]; then
+    LATEST_PG_BACKUP=$(ls -t "$POSTGRES_BACKUP_DIR"/hermes_*.sql.gz 2>/dev/null | head -1)
+  fi
+fi
+
+if [[ -n "$LATEST_PG_BACKUP" && -f "$LATEST_PG_BACKUP" ]]; then
+  record_pass "PostgreSQL backup file exists: $(basename "$LATEST_PG_BACKUP")"
+
+  PG_FILE_SIZE=$(stat -f%z "$LATEST_PG_BACKUP" 2>/dev/null || stat -c%s "$LATEST_PG_BACKUP" 2>/dev/null || echo "0")
+  if [[ "$PG_FILE_SIZE" -gt 100 ]]; then
+    record_pass "PostgreSQL backup file size is valid (${PG_FILE_SIZE} bytes)"
+  else
+    record_fail "PostgreSQL backup file size" "File too small (${PG_FILE_SIZE} bytes)"
+  fi
+
+  if command -v gzip >/dev/null 2>&1; then
+    if gzip -t "$LATEST_PG_BACKUP" >/dev/null 2>&1; then
+      record_pass "PostgreSQL backup gzip integrity check passed"
+    else
+      record_fail "PostgreSQL backup gzip integrity" "gzip -t failed for $(basename "$LATEST_PG_BACKUP")"
+    fi
+  else
+    record_skip "PostgreSQL gzip integrity check" "gzip not found"
+  fi
+else
+  record_fail "PostgreSQL backup file exists" "No hermes_*.sql.gz backup found in ${POSTGRES_BACKUP_DIR}"
+fi
+
+# ─────────────────────────────────────────────
 # Test 1: Redis backup file existence
 # ─────────────────────────────────────────────
+log ""
 log "--- Redis Backup Tests ---"
 
 LATEST_REDIS_BACKUP=""

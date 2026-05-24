@@ -673,6 +673,21 @@ var migrations = []migration{
 				USING (tenant_id::text = current_setting('app.current_tenant', true));
 		END IF;
 	END $$`},
+
+	// v2.4.0-dev: tenant egress allowlist rules consumed by SecureTransport.
+	{108, `CREATE TABLE IF NOT EXISTS egress_rules (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		host_pattern TEXT NOT NULL,
+		path_prefix TEXT NOT NULL DEFAULT '/',
+		action TEXT NOT NULL CHECK (action IN ('allow','deny')),
+		priority INT NOT NULL DEFAULT 0,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	);
+	CREATE INDEX IF NOT EXISTS idx_egress_rules_tenant_priority
+		ON egress_rules (tenant_id, priority DESC);
+	CREATE INDEX IF NOT EXISTS idx_egress_rules_tenant_host
+		ON egress_rules (tenant_id, host_pattern)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion
