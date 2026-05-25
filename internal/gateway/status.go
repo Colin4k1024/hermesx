@@ -21,15 +21,24 @@ var activeSessionsGauge = promauto.NewGaugeVec(
 	[]string{"tenant_id"},
 )
 
+// ChannelInfo represents a single connected channel.
+type ChannelInfo struct {
+	ChannelID   string `json:"channel_id"`
+	Platform    string `json:"platform"`
+	PairAt      string `json:"pair_at,omitempty"`
+	LastMessage string `json:"last_message,omitempty"`
+}
+
 // PlatformState represents the connection state of a platform.
 type PlatformState struct {
-	Platform     string `json:"platform"`
-	State        string `json:"state"` // "connected", "disconnected", "error", "connecting"
-	ErrorCode    string `json:"error_code,omitempty"`
-	ErrorMessage string `json:"error_message,omitempty"`
-	ConnectedAt  string `json:"connected_at,omitempty"`
-	LastActivity string `json:"last_activity,omitempty"`
-	MessageCount int64  `json:"message_count"`
+	Platform     string        `json:"platform"`
+	State        string        `json:"state"` // "connected", "disconnected", "error", "connecting"
+	ErrorCode    string        `json:"error_code,omitempty"`
+	ErrorMessage string        `json:"error_message,omitempty"`
+	ConnectedAt  string        `json:"connected_at,omitempty"`
+	LastActivity string        `json:"last_activity,omitempty"`
+	MessageCount int64         `json:"message_count"`
+	Channels     []ChannelInfo `json:"channels,omitempty"`
 }
 
 // RuntimeStatus holds the runtime state of the gateway.
@@ -116,6 +125,44 @@ func (rs *RuntimeStatus) SetActiveSessions(count int) {
 	rs.ActiveSessions = count
 	rs.LastUpdated = time.Now().Format(time.RFC3339)
 	activeSessionsGauge.WithLabelValues("all").Set(float64(count))
+}
+
+// RegisterChannel registers a new channel for a platform.
+func (rs *RuntimeStatus) RegisterChannel(platform, channelID string) {
+	rs.mu.Lock()
+	defer rs.mu.Unlock()
+
+	ps, exists := rs.Platforms[platform]
+	if !exists {
+		ps = PlatformState{Platform: platform, State: "connected"}
+		rs.Platforms[platform] = ps
+	}
+
+	// Check if channel already registered.
+	for _, ch := range ps.Channels {
+		if ch.ChannelID == channelID {
+			return
+		}
+	}
+	ps.Channels = append(ps.Channels, ChannelInfo{
+		ChannelID: channelID,
+		Platform:  platform,
+		PairAt:    time.Now().Format(time.RFC3339),
+	})
+	rs.Platforms[platform] = ps
+	rs.persistLocked()
+}
+
+// ListChannels returns all registered channels across all platforms.
+func (rs *RuntimeStatus) ListChannels() []ChannelInfo {
+	rs.mu.RLock()
+	defer rs.mu.RUnlock()
+
+	var result []ChannelInfo
+	for _, ps := range rs.Platforms {
+		result = append(result, ps.Channels...)
+	}
+	return result
 }
 
 // ReadRuntimeStatus loads the runtime status from disk.
