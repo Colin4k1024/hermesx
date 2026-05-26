@@ -102,12 +102,13 @@ func TestSandbox_OutputTruncation(t *testing.T) {
 func TestSandbox_AllowedTools_Enforcement(t *testing.T) {
 	cfg := tools.DefaultSandboxConfig()
 
-	// "read_file" is in default allowlist
-	if !cfg.IsToolAllowed("read_file") {
-		t.Error("read_file should be allowed by default")
+	// Default allowlist is intentionally empty — no tools are allowed unless
+	// a caller supplies an explicit narrower allowlist (security-first default).
+	if cfg.IsToolAllowed("read_file") {
+		t.Error("read_file should NOT be allowed by default (DefaultAllowedTools is empty)")
 	}
 
-	// "dangerous_tool" is NOT in allowlist
+	// "dangerous_tool" is also not in the empty default allowlist
 	if cfg.IsToolAllowed("dangerous_tool") {
 		t.Error("dangerous_tool should NOT be allowed")
 	}
