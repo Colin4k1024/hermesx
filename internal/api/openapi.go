@@ -886,13 +886,13 @@ func adminEvolutionSharedKnowledgeRevokePath() map[string]any {
 func adminSecretsPatternsPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "List secret leak detection patterns (security:read or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "List secret leak detection patterns (security:read or admin scope required)",
 			"responses": map[string]any{"200": map[string]any{"description": "Secret patterns"}},
 		},
 		"post": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "Add a secret leak detection pattern (security:write or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "Add a secret leak detection pattern (security:write or admin scope required)",
 			"responses": map[string]any{"201": map[string]any{"description": "Secret pattern created"}},
 		},
 	}
@@ -901,8 +901,8 @@ func adminSecretsPatternsPath() map[string]any {
 func adminCanaryTokensPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "List active canary tokens (security:read or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "List active canary tokens (security:read or admin scope required)",
 			"responses": map[string]any{"200": map[string]any{"description": "Canary tokens"}},
 		},
 	}
@@ -911,8 +911,8 @@ func adminCanaryTokensPath() map[string]any {
 func adminCanaryTokenByIDPath() map[string]any {
 	return map[string]any{
 		"delete": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "Revoke a canary token by opaque ID (security:write or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "Revoke a canary token by opaque ID (security:write or admin scope required)",
 			"responses": map[string]any{"204": map[string]any{"description": "Canary token revoked"}},
 		},
 	}
@@ -921,8 +921,8 @@ func adminCanaryTokenByIDPath() map[string]any {
 func adminSafetyRulesPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "List safety rules (security:read or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "List safety rules (security:read or admin scope required)",
 			"responses": map[string]any{"200": map[string]any{"description": "Safety rules"}},
 		},
 	}
@@ -931,8 +931,8 @@ func adminSafetyRulesPath() map[string]any {
 func adminSafetyRuleByIDPath() map[string]any {
 	return map[string]any{
 		"put": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "Update tenant safety rule (security:write or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "Update tenant safety rule (security:write or admin scope required)",
 			"responses": map[string]any{"200": map[string]any{"description": "Safety rule updated"}},
 		},
 	}
@@ -941,8 +941,8 @@ func adminSafetyRuleByIDPath() map[string]any {
 func adminSafetyScanPath() map[string]any {
 	return map[string]any{
 		"post": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "Run a manual safety scan (security:write or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "Run a manual safety scan (security:write or admin scope required)",
 			"responses": map[string]any{"200": map[string]any{"description": "Safety scan result"}},
 		},
 	}
@@ -958,8 +958,8 @@ func adminEgressAllowlistPath() map[string]any {
 func adminEgressAllowlistByIDPath() map[string]any {
 	return map[string]any{
 		"delete": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "Delete egress allowlist rule (security:write, ops:write, or admin scope required)",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "Delete egress allowlist rule (security:write, ops:write, or admin scope required)",
 			"responses": map[string]any{"204": map[string]any{"description": "Egress rule deleted"}},
 		},
 	}
@@ -968,8 +968,8 @@ func adminEgressAllowlistByIDPath() map[string]any {
 func adminEgressBlockedLogPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
-			"tags":    []string{"Admin", "Security"},
-			"summary": "List blocked egress log placeholder and active rules",
+			"tags":      []string{"Admin", "Security"},
+			"summary":   "List blocked egress log placeholder and active rules",
 			"responses": map[string]any{"200": map[string]any{"description": "Blocked egress information"}},
 		},
 	}

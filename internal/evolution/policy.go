@@ -62,13 +62,13 @@ type EffectiveTenantSharingPolicy struct {
 
 // SharingPolicyHistoryEntry is an auditable snapshot of one policy version.
 type SharingPolicyHistoryEntry struct {
-	ScopeType        string     `json:"scope_type"`
-	ScopeID          string     `json:"scope_id"`
-	Version          int64      `json:"version"`
-	Reason           string     `json:"reason"`
-	ChangedAt        time.Time  `json:"changed_at"`
-	Mode             string     `json:"mode,omitempty"`
-	ConsumeShared    *bool      `json:"consume_shared,omitempty"`
-	ContributionMode string     `json:"contribution_mode,omitempty"`
-	Labels           []string   `json:"labels,omitempty"`
+	ScopeType        string    `json:"scope_type"`
+	ScopeID          string    `json:"scope_id"`
+	Version          int64     `json:"version"`
+	Reason           string    `json:"reason"`
+	ChangedAt        time.Time `json:"changed_at"`
+	Mode             string    `json:"mode,omitempty"`
+	ConsumeShared    *bool     `json:"consume_shared,omitempty"`
+	ContributionMode string    `json:"contribution_mode,omitempty"`
+	Labels           []string  `json:"labels,omitempty"`
 }
