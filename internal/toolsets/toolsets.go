@@ -12,6 +12,8 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/tools"
 )
 
+const GovernedToolsetName = "hermesx-governed"
+
 // CoreTools is the shared tool list for CLI and all messaging platform toolsets.
 // Edit this once to update all platforms simultaneously.
 var CoreTools = []string{
@@ -46,6 +48,33 @@ var CoreTools = []string{
 	"send_message",
 	// Home Assistant smart home control (gated on HASS_TOKEN via check_fn)
 	"ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service",
+}
+
+var highRiskTools = map[string]bool{
+	"terminal":         true,
+	"process":          true,
+	"write_file":       true,
+	"patch":            true,
+	"skill_manage":     true,
+	"image_generate":   true,
+	"execute_code":     true,
+	"delegate_task":    true,
+	"cronjob":          true,
+	"send_message":     true,
+	"browser_navigate":   true,
+	"browser_snapshot":   true,
+	"browser_click":      true,
+	"browser_type":       true,
+	"browser_scroll":     true,
+	"browser_back":       true,
+	"browser_press":      true,
+	"browser_get_images": true,
+	"browser_vision":     true,
+	"browser_console":    true,
+	"ha_list_entities":   true,
+	"ha_get_state":       true,
+	"ha_list_services":   true,
+	"ha_call_service":    true,
 }
 
 // ToolsetDef describes a toolset: direct tools plus included toolsets.
@@ -290,6 +319,30 @@ var mu sync.RWMutex
 func ResolveToolset(name string) []string {
 	visited := make(map[string]bool)
 	return resolveToolsetInner(name, visited)
+}
+
+// FilterTenantAuthorizedTools keeps the governed safe set by default and only
+// allows high-risk tools when the tenant sandbox policy explicitly lists them.
+func FilterTenantAuthorizedTools(names []string, allowed []string) []string {
+	if len(names) == 0 {
+		return nil
+	}
+	allowedSet := make(map[string]bool, len(allowed))
+	for _, name := range allowed {
+		allowedSet[name] = true
+	}
+	out := make([]string, 0, len(names))
+	for _, name := range names {
+		toolsetName := tools.Registry().GetToolsetForTool(name)
+		if !IsHighRiskTool(name) || allowedSet["*"] || allowedSet[name] || allowedSet["toolset:"+toolsetName] {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func IsHighRiskTool(name string) bool {
+	return highRiskTools[name]
 }
 
 func resolveToolsetInner(name string, visited map[string]bool) []string {

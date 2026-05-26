@@ -159,7 +159,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 	workflowHTTPClient := &http.Client{Transport: egressTransport, Timeout: 30 * time.Second}
 	receiptRecorder := tools.NewReceiptRecorder(cfg.Store.ExecutionReceipts())
-	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutorWithReceipts(egressTransport, receiptRecorder))
+	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutorWithGovernance(egressTransport, receiptRecorder, cfg.Store.Tenants()))
 	workflowH := NewWorkflowHandlerWithEngine(cfg.Store.Workflows(), workflowEngine)
 	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
 	api.HandleFunc("/v1/workflow-definitions/", workflowH.ServeDefinitionsHTTP)

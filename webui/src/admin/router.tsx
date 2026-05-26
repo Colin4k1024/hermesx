@@ -13,6 +13,8 @@ const Tenants = lazy(() => import('./pages/Tenants'))
 const Users = lazy(() => import('./pages/Users'))
 const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
+const Receipts = lazy(() => import('./pages/Receipts'))
+const WorkflowRuns = lazy(() => import('./pages/WorkflowRuns'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Sandbox = lazy(() => import('./pages/Sandbox'))
 const Security = lazy(() => import('./pages/Security'))
@@ -46,6 +48,8 @@ export const router = createHashRouter([
           { path: '/users', element: <Lazy><Users /></Lazy> },
           { path: '/keys', element: <Lazy><ApiKeys /></Lazy> },
           { path: '/audit', element: <Lazy><AuditLogs /></Lazy> },
+          { path: '/receipts', element: <Lazy><Receipts /></Lazy> },
+          { path: '/workflows', element: <Lazy><WorkflowRuns /></Lazy> },
           { path: '/pricing', element: <Lazy><Pricing /></Lazy> },
           { path: '/sandbox', element: <Lazy><Sandbox /></Lazy> },
           { path: '/security', element: <Lazy><Security /></Lazy> },

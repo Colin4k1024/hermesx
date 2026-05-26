@@ -52,6 +52,7 @@ func NewEngine(s store.WorkflowStore, httpClient HTTPExecutor, agentExecutor Age
 type defaultAgentExecutor struct {
 	httpTransport   *http.Transport
 	receiptRecorder *tools.ReceiptRecorder
+	tenantStore     store.TenantStore
 }
 
 // NewDefaultAgentExecutor creates the built-in Eino-backed workflow agent
@@ -64,6 +65,12 @@ func NewDefaultAgentExecutor(httpTransport *http.Transport) AgentExecutor {
 // executor with governance receipt recording enabled.
 func NewDefaultAgentExecutorWithReceipts(httpTransport *http.Transport, recorder *tools.ReceiptRecorder) AgentExecutor {
 	return defaultAgentExecutor{httpTransport: httpTransport, receiptRecorder: recorder}
+}
+
+// NewDefaultAgentExecutorWithGovernance creates the built-in workflow agent
+// executor with receipt recording and tenant-scoped tool authorization.
+func NewDefaultAgentExecutorWithGovernance(httpTransport *http.Transport, recorder *tools.ReceiptRecorder, tenants store.TenantStore) AgentExecutor {
+	return defaultAgentExecutor{httpTransport: httpTransport, receiptRecorder: recorder, tenantStore: tenants}
 }
 
 func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
@@ -86,7 +93,7 @@ func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID stri
 		return nil, fmt.Errorf("create workflow eino client: %w", err)
 	}
 
-	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(), safety.NewInterceptorChain(safety.NewInMemoryPolicyStore()), secrets.NewLeakScanner())
+	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(ctx, tenantID, d.tenantStore), safety.NewInterceptorChain(safety.NewInMemoryPolicyStore()), secrets.NewLeakScanner())
 	executor.apiKey = apiKey
 	if d.httpTransport != nil {
 		executor.WithHTTPTransport(d.httpTransport)
@@ -97,12 +104,13 @@ func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID stri
 	return executor.Execute(ctx, tenantID, userID, node, payload)
 }
 
-func defaultWorkflowToolEntries() []*tools.ToolEntry {
+func defaultWorkflowToolEntries(ctx context.Context, tenantID string, tenantStore store.TenantStore) []*tools.ToolEntry {
 	toolsetName := strings.TrimSpace(os.Getenv("HERMES_WORKFLOW_TOOLSET"))
 	if toolsetName == "" {
-		toolsetName = "hermesx-governed"
+		toolsetName = toolsets.GovernedToolsetName
 	}
 	names := toolsets.ResolveToolset(toolsetName)
+	names = toolsets.FilterTenantAuthorizedTools(names, workflowTenantAllowedTools(ctx, tenantID, tenantStore))
 	entries := make([]*tools.ToolEntry, 0, len(names))
 	for _, name := range names {
 		entry := tools.Registry().Lookup(name)
@@ -115,6 +123,17 @@ func defaultWorkflowToolEntries() []*tools.ToolEntry {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func workflowTenantAllowedTools(ctx context.Context, tenantID string, tenantStore store.TenantStore) []string {
+	if tenantStore == nil || strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
+	tenant, err := tenantStore.Get(ctx, tenantID)
+	if err != nil || tenant == nil || tenant.SandboxPolicy == nil {
+		return nil
+	}
+	return tenant.SandboxPolicy.AllowedTools
 }
 
 // StartRun starts a workflow instance on the latest published version.

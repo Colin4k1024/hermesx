@@ -36,6 +36,28 @@ func TestResolveToolsetHermesCLI(t *testing.T) {
 	}
 }
 
+func TestResolveToolsetGovernedExcludesHighRiskTools(t *testing.T) {
+	tools := ResolveToolset(GovernedToolsetName)
+	for _, name := range tools {
+		if IsHighRiskTool(name) {
+			t.Fatalf("governed toolset includes high-risk tool %q", name)
+		}
+	}
+}
+
+func TestFilterTenantAuthorizedTools(t *testing.T) {
+	filtered := FilterTenantAuthorizedTools([]string{"web_search", "terminal", "patch"}, []string{"terminal"})
+	want := map[string]bool{"web_search": true, "terminal": true}
+	if len(filtered) != len(want) {
+		t.Fatalf("filtered = %v, want two authorized tools", filtered)
+	}
+	for _, name := range filtered {
+		if !want[name] {
+			t.Fatalf("unexpected filtered tool %q in %v", name, filtered)
+		}
+	}
+}
+
 func TestResolveToolsetNonExistent(t *testing.T) {
 	tools := ResolveToolset("nonexistent-toolset")
 	if len(tools) != 0 {

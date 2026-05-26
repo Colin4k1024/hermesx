@@ -58,7 +58,7 @@ func CheckPackageForMalware(command string, args []string) string {
 		return ""
 	}
 
-	malware, err := queryOSV(pkg, ecosystem, version, http.DefaultClient)
+	malware, err := queryOSV(pkg, ecosystem, version, &http.Client{Timeout: osvTimeout})
 	if err != nil {
 		// Fail-open: network errors allow the package.
 		return ""
@@ -180,7 +180,6 @@ func queryOSV(pkg, ecosystem, version string, client *http.Client) ([]osvVuln, e
 		return nil, fmt.Errorf("marshal query: %w", err)
 	}
 
-	client.Timeout = osvTimeout
 	req, err := http.NewRequest("POST", osvEndpoint, bytes.NewReader(payload))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)

@@ -196,8 +196,11 @@ func (h *WorkflowHandler) publishDefinition(w http.ResponseWriter, r *http.Reque
 }
 
 func (h *WorkflowHandler) listDefinitions(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:read") {
 		return
 	}
 	defs, err := h.store.ListDefinitions(r.Context(), tenantID)
@@ -209,8 +212,11 @@ func (h *WorkflowHandler) listDefinitions(w http.ResponseWriter, r *http.Request
 }
 
 func (h *WorkflowHandler) getDefinition(w http.ResponseWriter, r *http.Request, id string) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:read") {
 		return
 	}
 	def, err := h.store.GetDefinition(r.Context(), tenantID, id)
@@ -256,8 +262,11 @@ func (h *WorkflowHandler) startRun(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) listRuns(w http.ResponseWriter, r *http.Request) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:read") {
 		return
 	}
 	opts := store.WorkflowRunListOptions{
@@ -279,8 +288,11 @@ func (h *WorkflowHandler) listRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *WorkflowHandler) getRun(w http.ResponseWriter, r *http.Request, id string) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:read") {
 		return
 	}
 	run, err := h.store.GetRun(r.Context(), tenantID, id)
@@ -341,6 +353,9 @@ func (h *WorkflowHandler) listTasks(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if !requireWorkflowScope(w, ac, "workflow:read") {
+		return
+	}
 	tasks, err := h.store.ListPendingHumanTasks(r.Context(), tenantID, workflowIdentity(ac), ac.Roles)
 	if err != nil {
 		http.Error(w, "list failed", http.StatusInternalServerError)
@@ -352,6 +367,9 @@ func (h *WorkflowHandler) listTasks(w http.ResponseWriter, r *http.Request) {
 func (h *WorkflowHandler) completeTask(w http.ResponseWriter, r *http.Request, stepID string) {
 	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:run") {
 		return
 	}
 	step, err := h.store.GetStepRun(r.Context(), tenantID, stepID)

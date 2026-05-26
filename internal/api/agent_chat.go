@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -180,7 +181,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			eino.WithSessionID(sessionID),
 			eino.WithPlatform("api"),
 			eino.WithSystemPrompt(systemPrompt),
-			eino.WithTools(h.agenticToolEntries()),
+			eino.WithTools(h.agenticToolEntries(ctx, tenantID)),
 			eino.WithMemoryProvider(memProvider),
 			eino.WithCheckpointStore(storeCheckpointAdapter(h.store)),
 			eino.WithReceiptRecorder(tools.NewReceiptRecorder(h.store.ExecutionReceipts())),
@@ -374,8 +375,9 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (h *chatHandler) agenticToolEntries() []*tools.ToolEntry {
-	names := toolsets.ResolveToolset(getEnvOr("HERMES_AGENT_TOOLSET", "hermesx-governed"))
+func (h *chatHandler) agenticToolEntries(ctx context.Context, tenantID string) []*tools.ToolEntry {
+	names := toolsets.ResolveToolset(getEnvOr("HERMES_AGENT_TOOLSET", toolsets.GovernedToolsetName))
+	names = toolsets.FilterTenantAuthorizedTools(names, h.tenantAllowedTools(ctx, tenantID))
 	entries := make([]*tools.ToolEntry, 0, len(names))
 	for _, name := range names {
 		entry := tools.Registry().Lookup(name)
@@ -388,6 +390,17 @@ func (h *chatHandler) agenticToolEntries() []*tools.ToolEntry {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func (h *chatHandler) tenantAllowedTools(ctx context.Context, tenantID string) []string {
+	if h.store == nil || strings.TrimSpace(tenantID) == "" {
+		return nil
+	}
+	tenant, err := h.store.Tenants().Get(ctx, tenantID)
+	if err != nil || tenant == nil || tenant.SandboxPolicy == nil {
+		return nil
+	}
+	return tenant.SandboxPolicy.AllowedTools
 }
 
 func (h *chatHandler) recordAgentUsage(ctx context.Context, tenantID, sessionID, userID string, result *eino.ConversationResult) {

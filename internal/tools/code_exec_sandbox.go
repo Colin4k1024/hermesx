@@ -103,16 +103,9 @@ const (
 	DefaultTimeout        = 30 * time.Second
 )
 
-// DefaultAllowedTools is the default set of tools that sandboxed code may invoke.
-var DefaultAllowedTools = []string{
-	"read_file",
-	"write_file",
-	"search_files",
-	"patch",
-	"terminal",
-	"web_search",
-	"web_extract",
-}
+// DefaultAllowedTools is intentionally empty: sandboxed code may not invoke
+// secondary Hermes tools unless a caller supplies a narrower explicit allowlist.
+var DefaultAllowedTools = []string{}
 
 // SandboxConfig holds resource limits and policy for code execution.
 type SandboxConfig struct {
@@ -185,7 +178,7 @@ func sandboxHTTPClient(cfg *SandboxConfig) *http.Client {
 	if cfg != nil && cfg.RestrictNetwork {
 		return &http.Client{Transport: blockedSandboxTransport{}, Timeout: 30 * time.Second}
 	}
-	return http.DefaultClient
+	return &http.Client{Timeout: 30 * time.Second}
 }
 
 // ProcessToolCallRequest reads a request.json, validates against the allowlist,
@@ -212,8 +205,13 @@ func ProcessToolCallRequest(rpcDir string, cfg *SandboxConfig, metrics *ExecMetr
 		return true
 	}
 
+	if cfg == nil {
+		writeRPCResponse(respPath, ToolCallResponse{Error: "sandbox tool calls require an explicit policy"})
+		return true
+	}
+
 	// Check allowlist
-	if cfg != nil && !cfg.IsToolAllowed(req.ToolName) {
+	if !cfg.IsToolAllowed(req.ToolName) {
 		slog.Info("sandbox rpc: tool not allowed", "tool", req.ToolName)
 		writeRPCResponse(respPath, ToolCallResponse{
 			Error: fmt.Sprintf("tool %q not in sandbox allowlist", req.ToolName),
@@ -225,7 +223,7 @@ func ProcessToolCallRequest(rpcDir string, cfg *SandboxConfig, metrics *ExecMetr
 	}
 
 	// Check max tool calls
-	if metrics != nil && cfg != nil && metrics.ToolCallCount >= cfg.MaxToolCalls {
+	if metrics != nil && metrics.ToolCallCount >= cfg.MaxToolCalls {
 		slog.Info("sandbox rpc: max tool calls reached", "limit", cfg.MaxToolCalls)
 		writeRPCResponse(respPath, ToolCallResponse{
 			Error: fmt.Sprintf("max tool calls (%d) exceeded", cfg.MaxToolCalls),
