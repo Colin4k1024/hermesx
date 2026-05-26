@@ -50,13 +50,20 @@ func NewEngine(s store.WorkflowStore, httpClient HTTPExecutor, agentExecutor Age
 }
 
 type defaultAgentExecutor struct {
-	httpTransport *http.Transport
+	httpTransport   *http.Transport
+	receiptRecorder *tools.ReceiptRecorder
 }
 
 // NewDefaultAgentExecutor creates the built-in Eino-backed workflow agent
 // executor and optionally injects the shared egress-aware HTTP transport.
 func NewDefaultAgentExecutor(httpTransport *http.Transport) AgentExecutor {
 	return defaultAgentExecutor{httpTransport: httpTransport}
+}
+
+// NewDefaultAgentExecutorWithReceipts creates the built-in workflow agent
+// executor with governance receipt recording enabled.
+func NewDefaultAgentExecutorWithReceipts(httpTransport *http.Transport, recorder *tools.ReceiptRecorder) AgentExecutor {
+	return defaultAgentExecutor{httpTransport: httpTransport, receiptRecorder: recorder}
 }
 
 func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
@@ -84,11 +91,18 @@ func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID stri
 	if d.httpTransport != nil {
 		executor.WithHTTPTransport(d.httpTransport)
 	}
+	if d.receiptRecorder != nil {
+		executor.WithReceiptRecorder(d.receiptRecorder)
+	}
 	return executor.Execute(ctx, tenantID, userID, node, payload)
 }
 
 func defaultWorkflowToolEntries() []*tools.ToolEntry {
-	names := toolsets.ResolveToolset("hermesx-cli")
+	toolsetName := strings.TrimSpace(os.Getenv("HERMES_WORKFLOW_TOOLSET"))
+	if toolsetName == "" {
+		toolsetName = "hermesx-governed"
+	}
+	names := toolsets.ResolveToolset(toolsetName)
 	entries := make([]*tools.ToolEntry, 0, len(names))
 	for _, name := range names {
 		entry := tools.Registry().Lookup(name)

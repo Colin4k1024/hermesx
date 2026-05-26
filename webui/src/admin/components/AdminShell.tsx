@@ -9,6 +9,7 @@ import {
   ScrollText,
   DollarSign,
   Shield,
+  LockKeyhole,
   Settings,
   LogOut,
   Sun,
@@ -29,6 +30,7 @@ const navItems = [
   { key: '/audit', icon: <ScrollText size={18} />, label: 'Audit Logs' },
   { key: '/pricing', icon: <DollarSign size={18} />, label: 'Pricing' },
   { key: '/sandbox', icon: <Shield size={18} />, label: 'Sandbox' },
+  { key: '/security', icon: <LockKeyhole size={18} />, label: 'Security' },
   { key: '/settings', icon: <Settings size={18} />, label: 'Settings' },
 ]
 

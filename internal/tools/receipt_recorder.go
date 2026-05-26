@@ -25,6 +25,11 @@ func NewReceiptRecorder(s store.ExecutionReceiptStore) *ReceiptRecorder {
 
 // Record wraps a tool invocation, capturing timing and result as an ExecutionReceipt.
 func (rr *ReceiptRecorder) Record(ctx context.Context, toolName string, args map[string]any, tctx *ToolContext, result string) {
+	rr.RecordWithDuration(ctx, toolName, args, tctx, result, 0)
+}
+
+// RecordWithDuration records a completed tool invocation with measured latency.
+func (rr *ReceiptRecorder) RecordWithDuration(ctx context.Context, toolName string, args map[string]any, tctx *ToolContext, result string, durationMs int) {
 	if rr == nil || rr.store == nil {
 		return
 	}
@@ -32,41 +37,7 @@ func (rr *ReceiptRecorder) Record(ctx context.Context, toolName string, args map
 		return
 	}
 
-	inputBytes, _ := json.Marshal(args)
-	input := string(inputBytes)
-	if len(input) > 4096 {
-		input = input[:4096]
-	}
-
-	output := result
-	if len(output) > 4096 {
-		output = output[:4096]
-	}
-
-	status := "success"
-	if strings.Contains(result, `"error"`) {
-		status = "error"
-	}
-
-	receipt := &store.ExecutionReceipt{
-		TenantID:  tctx.TenantID,
-		SessionID: tctx.SessionID,
-		UserID:    tctx.UserID,
-		ToolName:  toolName,
-		Input:     input,
-		Output:    output,
-		Status:    status,
-	}
-
-	if tctx.Extra != nil {
-		if id, ok := tctx.Extra["idempotency_id"].(string); ok {
-			receipt.IdempotencyID = id
-		}
-		if tid, ok := tctx.Extra["trace_id"].(string); ok {
-			receipt.TraceID = tid
-		}
-	}
-
+	receipt := buildReceipt(toolName, args, tctx, result, durationMs)
 	if err := rr.store.Create(ctx, receipt); err != nil {
 		slog.Warn("failed to record execution receipt", "tool", toolName, "error", err)
 	}

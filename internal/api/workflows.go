@@ -91,6 +91,9 @@ func (h *WorkflowHandler) createDefinition(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
+	if !requireWorkflowScope(w, ac, "workflow:write") {
+		return
+	}
 	var req workflowDefinitionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
@@ -121,8 +124,11 @@ func (h *WorkflowHandler) createDefinition(w http.ResponseWriter, r *http.Reques
 }
 
 func (h *WorkflowHandler) updateDefinition(w http.ResponseWriter, r *http.Request, id string) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:write") {
 		return
 	}
 	def, err := h.store.GetDefinition(r.Context(), tenantID, id)
@@ -162,6 +168,9 @@ func (h *WorkflowHandler) updateDefinition(w http.ResponseWriter, r *http.Reques
 func (h *WorkflowHandler) publishDefinition(w http.ResponseWriter, r *http.Request, id string) {
 	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:publish") {
 		return
 	}
 	def, err := h.store.GetDefinition(r.Context(), tenantID, id)
@@ -220,6 +229,9 @@ type startWorkflowRunRequest struct {
 func (h *WorkflowHandler) startRun(w http.ResponseWriter, r *http.Request) {
 	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:run") {
 		return
 	}
 	var req startWorkflowRunRequest
@@ -285,8 +297,11 @@ func (h *WorkflowHandler) getRun(w http.ResponseWriter, r *http.Request, id stri
 }
 
 func (h *WorkflowHandler) cancelRun(w http.ResponseWriter, r *http.Request, id string) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:cancel") {
 		return
 	}
 	run, err := h.engine.Cancel(r.Context(), tenantID, id)
@@ -302,8 +317,11 @@ func (h *WorkflowHandler) cancelRun(w http.ResponseWriter, r *http.Request, id s
 }
 
 func (h *WorkflowHandler) retryRun(w http.ResponseWriter, r *http.Request, id string) {
-	tenantID, _, ok := workflowAuthContext(w, r)
+	tenantID, ac, ok := workflowAuthContext(w, r)
 	if !ok {
+		return
+	}
+	if !requireWorkflowScope(w, ac, "workflow:run") {
 		return
 	}
 	run, steps, err := h.engine.Retry(r.Context(), tenantID, id)
@@ -373,6 +391,28 @@ func canCompleteStep(ac *auth.AuthContext, step *store.WorkflowStepRun) bool {
 		return true
 	}
 	return step.AssigneeRole != "" && ac.HasRole(step.AssigneeRole)
+}
+
+func requireWorkflowScope(w http.ResponseWriter, ac *auth.AuthContext, scope string) bool {
+	if ac == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return false
+	}
+	if ac.HasRole("admin") || ac.HasScope("admin") {
+		return true
+	}
+	if len(ac.Scopes) > 0 {
+		if ac.HasScope(scope) || ac.HasScope("workflow:*") {
+			return true
+		}
+		http.Error(w, "forbidden: missing "+scope, http.StatusForbidden)
+		return false
+	}
+	if ac.HasRole("operator") {
+		return true
+	}
+	http.Error(w, "forbidden: workflow mutation requires operator role or "+scope+" scope", http.StatusForbidden)
+	return false
 }
 
 func workflowAuthContext(w http.ResponseWriter, r *http.Request) (string, *auth.AuthContext, bool) {

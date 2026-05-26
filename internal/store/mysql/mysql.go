@@ -84,6 +84,10 @@ func (s *MySQLStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.
 func (s *MySQLStore) Workflows() store.WorkflowStore                 { return s.workflows }
 func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
 
+// DB exposes the underlying SQL pool for integrations that need a shared
+// transactional backend, such as usage metering.
+func (s *MySQLStore) DB() *sql.DB { return s.db }
+
 func (s *MySQLStore) Close() error {
 	return s.db.Close()
 }

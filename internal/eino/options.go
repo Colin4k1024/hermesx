@@ -117,3 +117,8 @@ func WithSecretResolver(resolver secrets.SecretResolver) Option {
 func WithHTTPTransport(transport *http.Transport) Option {
 	return func(c *agentConfig) { c.httpTransport = transport }
 }
+
+// WithReceiptRecorder records Eino tool executions as governance receipts.
+func WithReceiptRecorder(recorder *tools.ReceiptRecorder) Option {
+	return func(c *agentConfig) { c.receiptRecorder = recorder }
+}

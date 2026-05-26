@@ -14,6 +14,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/eino"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/Colin4k1024/hermesx/internal/tools"
@@ -182,6 +183,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			eino.WithTools(h.agenticToolEntries()),
 			eino.WithMemoryProvider(memProvider),
 			eino.WithCheckpointStore(storeCheckpointAdapter(h.store)),
+			eino.WithReceiptRecorder(tools.NewReceiptRecorder(h.store.ExecutionReceipts())),
 		}
 		if h.egressTransport != nil {
 			agentOpts = append(agentOpts, eino.WithHTTPTransport(h.egressTransport))
@@ -297,6 +299,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
 			Input: result.InputTokens, Output: result.OutputTokens,
 		})
+		h.recordAgentUsage(ctx, tenantID, sessionID, userID, result)
 
 		// Finish + DONE.
 		stop := "stop"
@@ -337,6 +340,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		Input:  result.InputTokens,
 		Output: result.OutputTokens,
 	})
+	h.recordAgentUsage(ctx, tenantID, sessionID, userID, result)
 
 	slog.Info("agent_chat_completion",
 		"tenant", tenantID,
@@ -371,7 +375,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *chatHandler) agenticToolEntries() []*tools.ToolEntry {
-	names := toolsets.ResolveToolset("hermesx-cli")
+	names := toolsets.ResolveToolset(getEnvOr("HERMES_AGENT_TOOLSET", "hermesx-governed"))
 	entries := make([]*tools.ToolEntry, 0, len(names))
 	for _, name := range names {
 		entry := tools.Registry().Lookup(name)
@@ -384,6 +388,36 @@ func (h *chatHandler) agenticToolEntries() []*tools.ToolEntry {
 		entries = append(entries, entry)
 	}
 	return entries
+}
+
+func (h *chatHandler) recordAgentUsage(ctx context.Context, tenantID, sessionID, userID string, result *eino.ConversationResult) {
+	if h.usageStore == nil || result == nil {
+		return
+	}
+	model := result.Model
+	if model == "" {
+		model = h.llmModel
+	}
+	provider := result.Provider
+	if provider == "" {
+		provider = "custom"
+	}
+	record := metering.UsageRecord{
+		TenantID:         tenantID,
+		SessionID:        sessionID,
+		UserID:           userID,
+		Model:            model,
+		Provider:         provider,
+		InputTokens:      result.InputTokens,
+		OutputTokens:     result.OutputTokens,
+		CacheReadTokens:  result.CacheReadTokens,
+		CacheWriteTokens: result.CacheWriteTokens,
+		CostUSD:          metering.CalculateCost(model, result.InputTokens, result.OutputTokens),
+		CreatedAt:        time.Now(),
+	}
+	if err := h.usageStore.BatchInsert(ctx, []metering.UsageRecord{record}); err != nil {
+		slog.Warn("usage_record_insert_failed", "tenant", tenantID, "session", sessionID, "error", err)
+	}
 }
 
 func storeMessageToLLM(m *store.Message) llm.Message {

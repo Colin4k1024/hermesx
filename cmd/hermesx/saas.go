@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -19,6 +20,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 	"github.com/Colin4k1024/hermesx/internal/gateway/platforms"
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
@@ -135,6 +137,16 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 	// pgStore aliases dataStore for backward compat with .Tenants()/.APIKeys() calls.
 	pgStore := dataStore
+
+	var usageStore metering.UsageStore
+	if pool != nil {
+		usageStore = metering.NewPGUsageStore(pool)
+	} else if provider, ok := dataStore.(interface{ DB() *sql.DB }); ok && provider.DB() != nil {
+		usageStore = metering.NewMySQLUsageStore(provider.DB())
+	}
+	if usageStore != nil {
+		slog.Info("usage records store enabled", "driver", driver)
+	}
 
 	// ── 3. Seed default tenant (for static token auth) ────────
 	var defaultTenantJustSeeded bool
@@ -312,6 +324,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		StaticDir:             staticDir,
 		SkillsClient:          skillsClient,
 		Provisioner:           syncProv,
+		UsageStore:            usageStore,
 		EvolutionStore:        evolutionStore,
 		TenantOpts:            tenantOpts,
 	}

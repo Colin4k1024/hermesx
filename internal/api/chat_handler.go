@@ -12,6 +12,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/eino"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -34,6 +35,7 @@ type chatHandler struct {
 	apiMode         string
 	httpClient      *http.Client
 	egressTransport *http.Transport
+	usageStore      metering.UsageStore
 	skillsClient    objstore.ObjectStore
 
 	// provisioner copies tenant skills into per-user OSS namespaces on first request.
@@ -153,4 +155,8 @@ func NewChatHandler(s store.Store, skillsClient objstore.ObjectStore, provisione
 
 func (h *chatHandler) SetEgressTransport(transport *http.Transport) {
 	h.egressTransport = transport
+}
+
+func (h *chatHandler) SetUsageStore(store metering.UsageStore) {
+	h.usageStore = store
 }

@@ -65,7 +65,7 @@ func WithEvolutionStore(gs *evolution.GeneStore) AdminOption {
 }
 
 // WithEgressHandler registers the egress admin handler so its routes are
-// served under /admin/v1/egress/... with the same RequireScope("admin") guard.
+// served under /admin/v1/egress/... with the admin domain-scope guard.
 func WithEgressHandler(eh *egress.AdminHandler) AdminOption {
 	return func(h *AdminHandler) { h.egressHandler = eh }
 }

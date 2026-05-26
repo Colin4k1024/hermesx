@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sync"
@@ -86,6 +88,12 @@ func (lw *LimitedWriter) Exceeded() bool {
 // Ensure LimitedWriter implements io.Writer.
 var _ io.Writer = (*LimitedWriter)(nil)
 
+type blockedSandboxTransport struct{}
+
+func (blockedSandboxTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("sandbox network access is restricted")
+}
+
 // --- SandboxConfig ---
 
 const (
@@ -153,8 +161,13 @@ type ExecMetrics struct {
 
 // ToolCallRequest is serialised to request.json inside the RPC directory.
 type ToolCallRequest struct {
-	ToolName string         `json:"tool_name"`
-	Args     map[string]any `json:"args"`
+	ToolName  string         `json:"tool_name"`
+	Args      map[string]any `json:"args"`
+	TenantID  string         `json:"tenant_id,omitempty"`
+	SessionID string         `json:"session_id,omitempty"`
+	UserID    string         `json:"user_id,omitempty"`
+	Platform  string         `json:"platform,omitempty"`
+	RequestID string         `json:"request_id,omitempty"`
 }
 
 // ToolCallResponse is serialised to response.json inside the RPC directory.
@@ -166,6 +179,13 @@ type ToolCallResponse struct {
 // rpcBaseDir returns the root directory for sandbox RPC exchanges.
 func rpcBaseDir() string {
 	return filepath.Join(config.HermesHome(), "cache", "sandbox_rpc")
+}
+
+func sandboxHTTPClient(cfg *SandboxConfig) *http.Client {
+	if cfg != nil && cfg.RestrictNetwork {
+		return &http.Client{Transport: blockedSandboxTransport{}, Timeout: 30 * time.Second}
+	}
+	return http.DefaultClient
 }
 
 // ProcessToolCallRequest reads a request.json, validates against the allowlist,
@@ -213,8 +233,25 @@ func ProcessToolCallRequest(rpcDir string, cfg *SandboxConfig, metrics *ExecMetr
 		return true
 	}
 
-	// Dispatch through global registry
-	result := Registry().Dispatch(context.Background(), req.ToolName, req.Args, nil)
+	dispatchCtx := context.Background()
+	toolCtx := &ToolContext{
+		TenantID:   req.TenantID,
+		SessionID:  req.SessionID,
+		UserID:     req.UserID,
+		Platform:   req.Platform,
+		HTTPClient: sandboxHTTPClient(cfg),
+		Extra: map[string]any{
+			"sandbox_rpc": true,
+			"request_id":  req.RequestID,
+		},
+	}
+	if toolCtx.Platform == "" {
+		toolCtx.Platform = "sandbox"
+	}
+
+	// Dispatch through global registry with explicit sandbox provenance so
+	// tools do not lose tenant/session/user context when requests are forwarded.
+	result := Registry().Dispatch(dispatchCtx, req.ToolName, req.Args, toolCtx)
 
 	if metrics != nil {
 		metrics.ToolCallCount++

@@ -16,9 +16,12 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/Colin4k1024/hermesx/internal/store/pg"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 	workflowrt "github.com/Colin4k1024/hermesx/internal/workflow"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -155,7 +158,8 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	}
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 	workflowHTTPClient := &http.Client{Transport: egressTransport, Timeout: 30 * time.Second}
-	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutor(egressTransport))
+	receiptRecorder := tools.NewReceiptRecorder(cfg.Store.ExecutionReceipts())
+	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutorWithReceipts(egressTransport, receiptRecorder))
 	workflowH := NewWorkflowHandlerWithEngine(cfg.Store.Workflows(), workflowEngine)
 	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
 	api.HandleFunc("/v1/workflow-definitions/", workflowH.ServeDefinitionsHTTP)
@@ -175,6 +179,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
 	chatH := NewChatHandler(cfg.Store, cfg.SkillsClient, cfg.Provisioner)
 	chatH.SetEgressTransport(egressTransport)
+	chatH.SetUsageStore(cfg.UsageStore)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
 
@@ -210,6 +215,17 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
 	adminOpts := []admin.AdminOption{}
+	leakScanner := secrets.NewLeakScanner()
+	canaryDetector := safety.NewCanaryDetector()
+	policyStore := safety.PolicyStore(safety.NewInMemoryPolicyStore())
+	if pp, ok := cfg.Store.(pg.PoolProvider); ok && pp.Pool() != nil {
+		policyStore = safety.NewPostgresPolicyStore(pp.Pool())
+	}
+	adminOpts = append(adminOpts,
+		admin.WithLeakScanner(leakScanner),
+		admin.WithCanaryDetector(canaryDetector),
+		admin.WithPolicyStore(policyStore),
+	)
 	if cfg.UsageStore != nil {
 		adminOpts = append(adminOpts, admin.WithUsageStore(cfg.UsageStore))
 	}

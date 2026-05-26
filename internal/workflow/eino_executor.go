@@ -32,6 +32,7 @@ type EinoAgentExecutor struct {
 	safetyInterceptor safety.SafetyInterceptor
 	leakScanner       *secrets.LeakScanner
 	httpTransport     *http.Transport
+	receiptRecorder   *tools.ReceiptRecorder
 }
 
 // NewEinoAgentExecutor creates an executor backed by Eino's ReAct agent.
@@ -49,6 +50,13 @@ func NewEinoAgentExecutor(transport llm.Transport, toolEntries []*tools.ToolEntr
 // inside workflow agent_task nodes.
 func (e *EinoAgentExecutor) WithHTTPTransport(transport *http.Transport) *EinoAgentExecutor {
 	e.httpTransport = transport
+	return e
+}
+
+// WithReceiptRecorder records governed tool executions performed by workflow
+// agent_task nodes.
+func (e *EinoAgentExecutor) WithReceiptRecorder(recorder *tools.ReceiptRecorder) *EinoAgentExecutor {
+	e.receiptRecorder = recorder
 	return e
 }
 
@@ -135,6 +143,9 @@ func (e *EinoAgentExecutor) Execute(ctx context.Context, tenantID, userID string
 	}
 	if e.httpTransport != nil {
 		opts = append(opts, eino.WithHTTPTransport(e.httpTransport))
+	}
+	if e.receiptRecorder != nil {
+		opts = append(opts, eino.WithReceiptRecorder(e.receiptRecorder))
 	}
 
 	result, err := eino.RunConversationTurnLoopSafe(ctx, fullPrompt, nil, nil, opts...)

@@ -18,7 +18,8 @@ import (
 
 // WrappedTool bridges a HermesX ToolEntry to Eino's InvokableTool interface.
 type WrappedTool struct {
-	entry *tools.ToolEntry
+	entry    *tools.ToolEntry
+	recorder *tools.ReceiptRecorder
 }
 
 var _ tool.InvokableTool = (*WrappedTool)(nil)
@@ -26,6 +27,11 @@ var _ tool.InvokableTool = (*WrappedTool)(nil)
 // Wrap creates an Eino InvokableTool from a HermesX ToolEntry.
 func Wrap(entry *tools.ToolEntry) *WrappedTool {
 	return &WrappedTool{entry: entry}
+}
+
+// WrapWithRecorder creates an Eino tool that records completed invocations.
+func WrapWithRecorder(entry *tools.ToolEntry, recorder *tools.ReceiptRecorder) *WrappedTool {
+	return &WrappedTool{entry: entry, recorder: recorder}
 }
 
 // WrapAll converts a slice of ToolEntry into Eino InvokableTools and their ToolInfos.
@@ -84,7 +90,19 @@ func (w *WrappedTool) InvokableRun(ctx context.Context, argumentsInJSON string, 
 	}
 	tctx = enrichToolContext(tctx, w.entry)
 
+	if w.recorder != nil && tctx.Extra != nil {
+		if idKey, ok := tctx.Extra["idempotency_id"].(string); ok && idKey != "" && tctx.TenantID != "" {
+			if existing, found := w.recorder.CheckIdempotency(ctx, tctx.TenantID, idKey); found {
+				return existing.Output, nil
+			}
+		}
+	}
+
+	start := time.Now()
 	result := w.entry.Handler(ctx, args, tctx)
+	if w.recorder != nil {
+		w.recorder.RecordWithDuration(ctx, w.entry.Name, args, tctx, result, int(time.Since(start).Milliseconds()))
+	}
 	return result, nil
 }
 

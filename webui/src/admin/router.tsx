@@ -15,6 +15,7 @@ const ApiKeys = lazy(() => import('./pages/ApiKeys'))
 const AuditLogs = lazy(() => import('./pages/AuditLogs'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Sandbox = lazy(() => import('./pages/Sandbox'))
+const Security = lazy(() => import('./pages/Security'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
 
 function Lazy({ children }: { children: React.ReactNode }) {
@@ -47,6 +48,7 @@ export const router = createHashRouter([
           { path: '/audit', element: <Lazy><AuditLogs /></Lazy> },
           { path: '/pricing', element: <Lazy><Pricing /></Lazy> },
           { path: '/sandbox', element: <Lazy><Sandbox /></Lazy> },
+          { path: '/security', element: <Lazy><Security /></Lazy> },
           { path: '/settings', element: <Lazy><SystemSettings /></Lazy> },
         ],
       },

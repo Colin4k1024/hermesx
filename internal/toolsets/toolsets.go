@@ -198,6 +198,18 @@ var Toolsets = map[string]*ToolsetDef{
 			"ha_list_entities", "ha_get_state", "ha_list_services", "ha_call_service",
 		},
 	},
+	"hermesx-governed": {
+		Description: "Enterprise default toolset for hosted API and workflow execution without shell, file mutation, code execution, delegation, cron, messaging, or device-control tools",
+		Tools: []string{
+			"web_search", "web_extract",
+			"read_file", "search_files",
+			"vision_analyze",
+			"skills_list", "skill_view",
+			"todo", "memory",
+			"session_search",
+			"clarify",
+		},
+	},
 	"hermesx-cli": {
 		Description: "Full interactive CLI toolset - all default tools plus cronjob management",
 		Tools:       copyStrings(CoreTools),

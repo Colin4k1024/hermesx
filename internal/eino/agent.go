@@ -100,6 +100,7 @@ type agentConfig struct {
 	leakScanner       *secrets.LeakScanner
 	secretResolver    secrets.SecretResolver
 	httpTransport     *http.Transport
+	receiptRecorder   *tools.ReceiptRecorder
 }
 
 var agenticProviderModelFactory = NewAgenticProviderModel
@@ -130,7 +131,7 @@ func NewEinoAgent(ctx context.Context, opts ...Option) (*EinoAgent, error) {
 
 	wrappedTools := make([]einotool.BaseTool, 0, len(cfg.toolEntries))
 	for _, entry := range cfg.toolEntries {
-		wrappedTools = append(wrappedTools, tooladapter.Wrap(entry))
+		wrappedTools = append(wrappedTools, tooladapter.WrapWithRecorder(entry, cfg.receiptRecorder))
 	}
 
 	handler := &runtimeHandler{

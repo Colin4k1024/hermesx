@@ -82,6 +82,15 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/evolution/tenants/{id}/sharing-policy/history":  adminEvolutionTenantSharingPolicyHistoryPath(),
 			"/admin/v1/evolution/tenants/{id}/sharing-policy/rollback": adminEvolutionTenantSharingPolicyRollbackPath(),
 			"/admin/v1/evolution/shared-knowledge/revoke":              adminEvolutionSharedKnowledgeRevokePath(),
+			"/admin/v1/secrets/patterns":                               adminSecretsPatternsPath(),
+			"/admin/v1/secrets/canary-tokens":                          adminCanaryTokensPath(),
+			"/admin/v1/secrets/canary-tokens/{id}":                     adminCanaryTokenByIDPath(),
+			"/admin/v1/safety/rules":                                   adminSafetyRulesPath(),
+			"/admin/v1/safety/rules/{id}":                              adminSafetyRuleByIDPath(),
+			"/admin/v1/safety/scan":                                    adminSafetyScanPath(),
+			"/admin/v1/egress/allowlist":                               adminEgressAllowlistPath(),
+			"/admin/v1/egress/allowlist/{id}":                          adminEgressAllowlistByIDPath(),
+			"/admin/v1/egress/blocked-log":                             adminEgressBlockedLogPath(),
 		},
 		"components": map[string]any{
 			"securitySchemes": map[string]any{
@@ -108,6 +117,7 @@ func OpenAPISpec() http.HandlerFunc {
 			{"name": "Workflows", "description": "Fixed SOP workflow definitions, runs, and human tasks"},
 			{"name": "GDPR", "description": "Data export and deletion"},
 			{"name": "Evolution", "description": "Governed shared learning controls"},
+			{"name": "Security", "description": "Secret detection, safety policies, canary tokens, and egress governance"},
 		},
 	}
 
@@ -873,48 +883,94 @@ func adminEvolutionSharedKnowledgeRevokePath() map[string]any {
 	}
 }
 
-func adminUsageAggregationPath() map[string]any {
+func adminSecretsPatternsPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
-			"tags":        []string{"Admin", "Usage"},
-			"summary":     "Aggregate token and cost usage for one tenant by day or month (admin scope required)",
-			"description": "Unreleased v2.4.0-dev endpoint. Requires tenant_id and returns time-bucketed usage for that tenant.",
-			"parameters": []map[string]any{
-				{"name": "tenant_id", "in": "query", "required": true, "description": "Tenant UUID to aggregate", "schema": map[string]any{"type": "string", "format": "uuid"}},
-				{"name": "granularity", "in": "query", "description": "Aggregation bucket", "schema": map[string]any{"type": "string", "enum": []string{"daily", "monthly"}, "default": "daily"}},
-				{"name": "from", "in": "query", "description": "Lower bound as YYYY-MM-DD or RFC3339; defaults to 30 days ago", "schema": map[string]any{"type": "string"}},
-				{"name": "to", "in": "query", "description": "Upper bound as YYYY-MM-DD or RFC3339; defaults to now", "schema": map[string]any{"type": "string"}},
-			},
-			"responses": map[string]any{
-				"200": map[string]any{
-					"description": "Time-bucketed tenant usage",
-					"content": map[string]any{
-						"application/json": map[string]any{
-							"schema": map[string]any{
-								"type": "object",
-								"properties": map[string]any{
-									"data": map[string]any{
-										"type": "array",
-										"items": map[string]any{
-											"type": "object",
-											"properties": map[string]any{
-												"date":               map[string]any{"type": "string"},
-												"input_tokens":       map[string]any{"type": "integer"},
-												"output_tokens":      map[string]any{"type": "integer"},
-												"total_tokens":       map[string]any{"type": "integer"},
-												"estimated_cost_usd": map[string]any{"type": "number", "format": "double"},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-				"400": map[string]any{"description": "Missing tenant_id or invalid granularity"},
-				"403": map[string]any{"description": "Forbidden — admin scope required"},
-				"503": map[string]any{"description": "Usage store unavailable"},
-			},
+			"tags":    []string{"Admin", "Security"},
+			"summary": "List secret leak detection patterns (security:read or admin scope required)",
+			"responses": map[string]any{"200": map[string]any{"description": "Secret patterns"}},
+		},
+		"post": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "Add a secret leak detection pattern (security:write or admin scope required)",
+			"responses": map[string]any{"201": map[string]any{"description": "Secret pattern created"}},
+		},
+	}
+}
+
+func adminCanaryTokensPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "List active canary tokens (security:read or admin scope required)",
+			"responses": map[string]any{"200": map[string]any{"description": "Canary tokens"}},
+		},
+	}
+}
+
+func adminCanaryTokenByIDPath() map[string]any {
+	return map[string]any{
+		"delete": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "Revoke a canary token by opaque ID (security:write or admin scope required)",
+			"responses": map[string]any{"204": map[string]any{"description": "Canary token revoked"}},
+		},
+	}
+}
+
+func adminSafetyRulesPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "List safety rules (security:read or admin scope required)",
+			"responses": map[string]any{"200": map[string]any{"description": "Safety rules"}},
+		},
+	}
+}
+
+func adminSafetyRuleByIDPath() map[string]any {
+	return map[string]any{
+		"put": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "Update tenant safety rule (security:write or admin scope required)",
+			"responses": map[string]any{"200": map[string]any{"description": "Safety rule updated"}},
+		},
+	}
+}
+
+func adminSafetyScanPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "Run a manual safety scan (security:write or admin scope required)",
+			"responses": map[string]any{"200": map[string]any{"description": "Safety scan result"}},
+		},
+	}
+}
+
+func adminEgressAllowlistPath() map[string]any {
+	return map[string]any{
+		"get":  map[string]any{"tags": []string{"Admin", "Security"}, "summary": "List egress allowlist rules (security:write, ops:write, or admin scope required)", "responses": map[string]any{"200": map[string]any{"description": "Egress rules"}}},
+		"post": map[string]any{"tags": []string{"Admin", "Security"}, "summary": "Create egress allowlist rule (security:write, ops:write, or admin scope required)", "responses": map[string]any{"201": map[string]any{"description": "Egress rule created"}}},
+	}
+}
+
+func adminEgressAllowlistByIDPath() map[string]any {
+	return map[string]any{
+		"delete": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "Delete egress allowlist rule (security:write, ops:write, or admin scope required)",
+			"responses": map[string]any{"204": map[string]any{"description": "Egress rule deleted"}},
+		},
+	}
+}
+
+func adminEgressBlockedLogPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":    []string{"Admin", "Security"},
+			"summary": "List blocked egress log placeholder and active rules",
+			"responses": map[string]any{"200": map[string]any{"description": "Blocked egress information"}},
 		},
 	}
 }

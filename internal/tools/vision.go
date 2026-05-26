@@ -333,8 +333,13 @@ func handleImageGenerate(ctx context.Context, args map[string]any, tctx *ToolCon
 		return toJSON(map[string]any{"error": "No image URL in response"})
 	}
 
-	// Download the image
-	imgResp, err := http.Get(imgURL)
+	// Download the image through the governed client so egress policy still
+	// applies to generated image URLs.
+	downloadReq, err := http.NewRequestWithContext(ctx, http.MethodGet, imgURL, nil)
+	if err != nil {
+		return toJSON(map[string]any{"image_url": imgURL, "error": "Invalid image URL"})
+	}
+	imgResp, err := tctx.HTTPClient.Do(downloadReq)
 	if err != nil {
 		return toJSON(map[string]any{
 			"image_url": imgURL,
