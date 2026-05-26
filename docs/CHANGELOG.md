@@ -5,7 +5,9 @@ All notable changes to HermesX are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased] - v2.4.0-dev
+
+发布状态：本段记录最新已发布基线（`v2.3.0`）之后的当前分支变更。它们在 `v2.4.0` 正式发布前不是稳定发布承诺。
 
 ### Added
 
@@ -22,9 +24,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent Chat 同 session 并发** — 同一 `tenant/session` 的请求在 handler 层串行执行，避免消息、checkpoint 和 token 统计双写
 - **Workflow Agent 默认路径** — `agent_task` 默认 executor 从旧 AIAgent 切到 `EinoAgentExecutor`，与 API 共用 `RunConversationTurnLoopSafe` 主链
 
+### Docs
+
+- **README 定位重写** — 将 HermesX 叙事收敛为 Agent-first Runtime Control Plane，补充受众、三大支柱、最小 demo、能力矩阵和发布状态分层
+- **Agent-first 架构概览** — 新增 `docs/AGENT_FIRST_ARCHITECTURE.md`，说明 runtime、control plane、workflow、governance 边界
+- **版本口径对齐** — README、OpenAPI、Enterprise Readiness 统一为当前文档/API 基线 `v2.4.0-dev`，最新已发布基线 `v2.3.0`
+
 ---
 
 ## [2.3.0] - 2026-05-20
+
+公共 README 发布状态说明引用的最新已发布基线。
 
 SaaS Cron Scheduler — 分布式定时任务执行引擎。
 

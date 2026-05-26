@@ -161,7 +161,11 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 	}
 
 	// Build the shared egress-aware transport once (M-1: avoid per-call pool).
-	a.sharedTransport = egress.NewSecureTransport(egress.NewAllowAllPolicy())
+	egressPolicy, _, egressErr := egress.NewAllowlistPolicyFromEnv(nil, nil)
+	if egressErr != nil {
+		return nil, fmt.Errorf("resolve egress policy: %w", egressErr)
+	}
+	a.sharedTransport = egress.NewSecureTransport(egressPolicy)
 
 	// Create iteration budget if not shared
 	if a.budget == nil {

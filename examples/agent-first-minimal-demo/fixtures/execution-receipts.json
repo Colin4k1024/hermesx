@@ -1,0 +1,20 @@
+{
+  "execution_receipts": [
+    {
+      "id": "rcpt_demo_001",
+      "tenant_id": "tenant_demo",
+      "session_id": "sess_agent_first_minimal_demo",
+      "user_id": "user_demo",
+      "tool_name": "read_file",
+      "input": "{\"path\":\"docs/SECURITY_MODEL.md\"}",
+      "output": "{\"bytes\":512,\"redacted\":false}",
+      "status": "success",
+      "duration_ms": 17,
+      "idempotency_id": "demo-agent-first-001/read_file/1",
+      "trace_id": "0af7651916cd43dd8448eb211c80319c",
+      "created_at": "2026-05-24T04:00:00Z"
+    }
+  ],
+  "total": 1
+}
+

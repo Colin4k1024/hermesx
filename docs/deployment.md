@@ -402,6 +402,8 @@ docker compose -f docker-compose.multi-replica.yml up -d --build
 | `HERMES_MAX_TOKENS` | `4096` | 最大响应 token |
 | `HERMES_BASE_URL` | provider default | 自定义 LLM endpoint |
 | `HERMES_DEBUG` | `false` | Debug 日志 |
+| `HERMES_ENV` | `development` | 设为 `production` 时 egress 默认改为 `deny-all` |
+| `HERMES_EGRESS_DEFAULT` | 环境推导 | 显式覆盖 egress 默认策略：`allow-all`、`deny-all`、`log-only` |
 
 ### 可观测性（v2.0.0 增强）
 

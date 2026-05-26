@@ -205,6 +205,25 @@ Agent Runtime
 }
 ```
 
+### Egress Policy
+
+HermesX routes tool HTTP traffic, workflow `service_task` calls, and workflow
+`agent_task` tool traffic through `SecureTransport`.
+
+| Environment | Default | Override |
+|-------------|---------|----------|
+| development | `allow-all` | `HERMES_EGRESS_DEFAULT=allow-all|deny-all|log-only` |
+| production | `deny-all` unless a tenant rule matches | `HERMES_EGRESS_DEFAULT=allow-all|deny-all|log-only` |
+
+Tenant allowlist rules are stored in `egress_rules` and managed through
+`/admin/v1/egress/allowlist`. Each rule matches `tenant_id`, `host_pattern`,
+optional `path_prefix`, `action`, and `priority`. `deny-all` also requires
+explicit tenant rules for LLM provider hosts; built-in provider host shortcuts
+are only convenience behavior outside production deny-all mode.
+
+Every allowed, denied, DNS-failed, and private-IP-blocked decision is logged by
+the egress audit logger with tenant, host, allowed flag, and reason.
+
 ---
 
 ## Audit Trail
@@ -225,6 +244,11 @@ Agent Runtime
 ### Execution Receipts
 
 Every tool invocation produces an `ExecutionReceipt`:
+
+For the dedicated governance contract, API examples, and idempotency semantics,
+see [Execution Receipts](EXECUTION_RECEIPTS.md). For the boundary between free
+agent chat and fixed SOP workflow execution, see
+[Workflow and Agent Runtime Boundary](WORKFLOW_AGENT_BOUNDARY.md).
 
 | Field | Purpose |
 |-------|---------|

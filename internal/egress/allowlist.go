@@ -30,6 +30,9 @@ type AllowlistPolicy struct {
 }
 
 func NewAllowlistPolicy(store RuleStore, cache RuleCache, defaultPolicy DefaultPolicy) *AllowlistPolicy {
+	if store == nil {
+		store = EmptyRuleStore{}
+	}
 	return &AllowlistPolicy{
 		store:         store,
 		cache:         cache,
@@ -39,10 +42,6 @@ func NewAllowlistPolicy(store RuleStore, cache RuleCache, defaultPolicy DefaultP
 }
 
 func (p *AllowlistPolicy) IsAllowed(ctx context.Context, tenantID string, host string, path string) (bool, error) {
-	if isBuiltinAllowed(host) {
-		return true, nil
-	}
-
 	rules, err := p.getRules(ctx, tenantID)
 	if err != nil {
 		return false, err
@@ -51,6 +50,10 @@ func (p *AllowlistPolicy) IsAllowed(ctx context.Context, tenantID string, host s
 	decision, matched := evaluateRules(rules, host, path)
 	if matched {
 		return decision == ActionAllow, nil
+	}
+
+	if p.defaultPolicy != DefaultDenyAll && isBuiltinAllowed(host) {
+		return true, nil
 	}
 
 	switch p.defaultPolicy {
