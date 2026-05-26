@@ -16,6 +16,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/config"
+	"github.com/Colin4k1024/hermesx/internal/gateway"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/state"
 	"github.com/Colin4k1024/hermesx/internal/toolsets"
@@ -442,6 +443,26 @@ func (app *App) handleSlashCommand(input string) {
 
 	case "platforms":
 		fmt.Println("Gateway platform status: (not running in gateway mode)")
+
+	case "channel":
+		if args == "" || args == "list" {
+			if status := gateway.ReadRuntimeStatus(); status != nil {
+				channels := status.ListChannels()
+				if len(channels) == 0 {
+					fmt.Println("No channels registered yet.")
+				} else {
+					fmt.Printf("%-30s %-15s %s\n", "CHANNEL ID", "PLATFORM", "PAIR AT")
+					fmt.Println(strings.Repeat("-", 70))
+					for _, ch := range channels {
+						fmt.Printf("%-30s %-15s %s\n", ch.ChannelID, ch.Platform, ch.PairAt)
+					}
+				}
+			} else {
+				fmt.Println("No channels registered yet.")
+			}
+		} else {
+			fmt.Printf("Unknown /channel subcommand: %s\n", args)
+		}
 
 	case "title":
 		if args == "" {

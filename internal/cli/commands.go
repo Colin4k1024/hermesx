@@ -103,6 +103,7 @@ var CommandRegistry = []CommandDef{
 	{Name: "usage", Description: "Show token usage for the current session", Category: "Info"},
 	{Name: "insights", Description: "Show usage insights and analytics", Category: "Info", ArgsHint: "[days]"},
 	{Name: "platforms", Description: "Show gateway/messaging platform status", Category: "Info", CLIOnly: true, Aliases: []string{"gateway"}},
+	{Name: "channel", Description: "List connected channels: /channel list", Category: "Info", GatewayConfGate: "gateway.channel"},
 	{Name: "paste", Description: "Check clipboard for an image and attach it", Category: "Info", CLIOnly: true},
 	{Name: "update", Description: "Update Hermes Agent to the latest version", Category: "Info", GatewayOnly: true},
 
