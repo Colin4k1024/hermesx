@@ -17,7 +17,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | [Architecture Overview](architecture.md) | System design and component map |
 | [Configuration](configuration.md) | All environment variables and config options |
 | [Deployment](deployment.md) | Docker, Kubernetes, and bare-metal guides |
-| [Security Model](SECURITY_MODEL.md) | Threat model, RLS, sandbox isolation |
+| [Security Model](SECURITY_MODEL.md) | Threat model, RLS + FORCE RLS, sandbox, redirect bypass guard, MCP safety gates |
 | [RBAC Matrix](RBAC_MATRIX.md) | 5 roles × 10 resources permission matrix |
 | [Skills Guide](skills-guide.md) | Skill system user guide |
 | [Workflow Engine Guide](workflow-guide.en.md) | Fixed SOP workflow usage guide |
@@ -70,7 +70,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 
 ### Enterprise SaaS Platform
 
-- **Multi-tenant isolation** — PostgreSQL Row-Level Security (RLS), per-transaction `SET LOCAL app.current_tenant`, 10 RLS-protected tables
+- **Multi-tenant isolation** — PostgreSQL Row-Level Security (RLS), per-transaction `SET LOCAL app.current_tenant`, 11 RLS-protected tables (including `FORCE ROW LEVEL SECURITY`)
 - **Auth chain** — Static Token → API Key (SHA-256 hashed) → JWT/OIDC, multi-level fallback
 - **API Key scopes** — `read` / `write` / `execute` / `admin` / `audit` / `gdpr` — six-dimensional fine-grained authorization
 - **5 roles** — `super_admin`, `admin`, `owner`, `user`, `auditor`, covering all operational paths

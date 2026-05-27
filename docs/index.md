@@ -40,7 +40,7 @@
 | 分布式调度 | SaasScheduler · gocron · Redis Lock · PG 同步 · ResultDeliverer |
 | 基础设施 | PostgreSQL（RLS）· Redis（Lua 限流 + 分布式锁）· MinIO（S3）· OTel Collector |
 | 可观测性 | Loki · Jaeger/Tempo · Prometheus · Grafana（7 面板 + 5 告警规则） |
-| 安全模型 | 认证链 · RBAC · RLS · 审计 · 沙箱 · Egress · Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏）|
+| 安全模型 | 认证链 · RBAC · RLS（FORCE RLS）· 审计 · 沙箱 · Egress（Redirect 防护 · SSRF 闭合）· Safety Layer（注入防御 · 泄漏扫描 · 流式脱敏 · MCP 采样门控）|
 
 ---
 
@@ -84,7 +84,7 @@
 
 ### 企业 SaaS 平台
 
-- **多租户隔离** — PostgreSQL 行级安全（RLS），每事务 `SET LOCAL app.current_tenant`，10 张 RLS 保护表
+- **多租户隔离** — PostgreSQL 行级安全（RLS），每事务 `SET LOCAL app.current_tenant`，11 张 RLS 保护表（含 `FORCE ROW LEVEL SECURITY`）
 - **认证链** — 静态 Token → API Key（SHA-256 哈希）→ JWT/OIDC，多层降级
 - **API Key 作用域** — `read` / `write` / `execute` / `admin` / `audit` / `gdpr` 六维细粒度授权
 - **5 种角色** — `super_admin`、`admin`、`owner`、`user`、`auditor`，覆盖所有操作路径

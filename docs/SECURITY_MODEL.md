@@ -154,10 +154,11 @@ MySQL does not provide PostgreSQL-equivalent RLS. MySQL production support is th
 | roles | tenant_isolation_roles | idx_roles_tenant |
 | cron_jobs | tenant_isolation_cron | idx_cron_tenant |
 | execution_receipts | tenant_isolation_exec_receipts | idx_exec_receipts_tenant |
+| egress_rules | tenant_isolation_egress_rules | idx_egress_rules_tenant |
+
+**FORCE RLS tables**: `execution_receipts` and `egress_rules` are configured with `FORCE ROW LEVEL SECURITY` (migrations 109–110), ensuring the policy applies even to the table owner role.
 
 ---
-
-## Tool Execution Isolation
 
 ### Sandbox Model
 
@@ -223,6 +224,19 @@ are only convenience behavior outside production deny-all mode.
 
 Every allowed, denied, DNS-failed, and private-IP-blocked decision is logged by
 the egress audit logger with tenant, host, allowed flag, and reason.
+
+**Redirect bypass protection**: `agent.go`'s `CheckRedirect` hook validates every
+redirect `Location` target via `egress.ValidateRedirectTarget` before following.
+Requests whose redirect target resolves to loopback (127.0.0.0/8), private
+(10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16), CGNAT (100.64.0.0/10), or
+link-local (169.254.0.0/16) ranges are rejected, closing the standard SSRF
+redirect-bypass vector.
+
+**MCP Sampling safety gates**: The MCP `SamplingHandler` supports an optional
+`SafetyInterceptor`. When configured via `NewSamplingHandlerWithSafety`, every
+sampling request is checked via `CheckInput` before the LLM call and
+`CheckOutput` after; blocked requests return JSON-RPC error `-32000` with a
+reason string.
 
 ---
 

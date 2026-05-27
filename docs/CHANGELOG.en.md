@@ -24,6 +24,15 @@ Release state: these entries describe current-branch changes after the latest re
 - **Agent Chat Same-Session Concurrency** — requests for the same `tenant/session` are serialized at the handler layer to avoid duplicate message, checkpoint, and token writes
 - **Workflow Agent Default Path** — `agent_task` default executor now uses `EinoAgentExecutor` instead of the legacy AIAgent path, sharing the `RunConversationTurnLoopSafe` main path with the API
 
+### Security
+
+- **BrowserBackend SecretResolver integration** — `BrowserBackend.Connect(ctx context.Context, tctx *ToolContext) error` new interface; credentials resolved via `SecretResolver` first, `os.Getenv` fallback; all 20 call sites updated; `browser_impl.go` `os` package dependency eliminated
+- **Admin DI injectable safety components** — `APIServerConfig` now accepts optional `LeakScanner`, `CanaryDetector`, and `PolicyStore` injection points; nil-guarded, backward compatible
+- **HTTP redirect bypass protection (#37)** — `agent.go CheckRedirect` hook validates redirect target via `egress.ValidateRedirectTarget`; rejects `Location` headers resolving to loopback/private/CGNAT/link-local addresses
+- **RLS FORCE hardening (#27)** — migration 109: `execution_receipts` `FORCE ROW LEVEL SECURITY`; migration 110: `egress_rules` `ENABLE + FORCE RLS` + `tenant_isolation_egress_rules` policy (USING + WITH CHECK)
+- **MCP SamplingHandler safety gates (#47)** — `NewSamplingHandlerWithSafety(client, interceptor)` checks input before and output after LLM calls via `SafetyInterceptor`; blocked requests return JSON-RPC error `-32000`
+- **Linter compliance (#44)** — `osv_check.go` init() `OSV_ENDPOINT` public-endpoint `os.Getenv` annotated with `//nolint:forbidigo`
+
 ### Docs
 
 - **README positioning** — reframed HermesX as an Agent-first Runtime Control Plane with audience, pillars, minimal demo, capability matrix, and explicit release-state separation

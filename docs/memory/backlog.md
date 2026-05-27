@@ -123,7 +123,7 @@
 ### P3 - 可以做
 
 - [x] **[P3] Curator O(n²) dedup 优化**: 已完成 v2.2.0。Phase 1 用 map 精确 key 去重 O(n)，Phase 2 仅对 key-unique 集合做内容相似度比较，MaxMemories=100 时性能显著改善。 (Owner: backend-engineer, Label: performance)
-- [ ] **[P3] RLS SELECT policies 评估**: 对已部署的 RLS SELECT 策略进行系统性评估，确认读隔离边界是否正确覆盖所有查询路径。 (Owner: architect, Label: security)
+- [x] **[P3] RLS SELECT policies 评估**: ✅ 完成 v2.3.2。已对全部主租户表 SELECT USING 覆盖进行确认；御甩 2 个 FORCE 缺口：migration 109 为 execution_receipts 加 FORCE，migration 110 为 egress_rules 补 ENABLE+FORCE+policy。 (Owner: architect, Label: security)
 - [x] **[P3] pgxmock 引入**: 已完成 v2.2.0。新增 apikey_test.go：接口断言 + bootstrap 幂等逻辑单元测试 + SQL 形状验证（scopes COALESCE, ON CONFLICT idempotency）。 (Owner: backend-engineer, Label: testing)
 - [ ] **[P3] CORS 动态管理**: 将 CORS 配置从环境变量扩展为可从数据库或配置中心动态加载，支持多域名按租户配置。 (Owner: backend-engineer, Label: enhancement)
 - [ ] **[P3] LocalDualLimiter 多副本精确性优化**: 在 Redis 频繁故障时，多副本部署下的 LocalDualLimiter 精确性不足，需设计更优的分布式协调方案。 (Owner: backend-engineer, Label: performance)
@@ -132,23 +132,23 @@
 
 ### P4 - 长远规划
 
-- [ ] **[P4] Unicode bidi chars sanitization**: 在 LLM 安全要求升级后，对所有进入 prompt 的文本执行 Unicode Bidi 字符清理，防止 Unicode 文本混淆攻击。 (Owner: backend-engineer, Label: security)
+- [x] **[P4] Unicode bidi chars sanitization**: ✅ 完成 v2.2.1。sanitizeForPrompt 已扩展覆盖 U+061C, U+200E-F, U+202A-E, U+2066-9；测试用例已补充。 (Owner: backend-engineer, Label: security)
 - [ ] **[P4] Admin UI for pricing rules**: 产品需求确认后，开发定价规则管理的前端界面。 (Owner: frontend-engineer, Label: feature)
 - [ ] **[P4] 用量 dashboard / 计费报告**: 产品需求确认后，开发用量统计和计费报告前端界面。 (Owner: frontend-engineer, Label: feature)
 - [ ] **[P4] GDPR 自助数据导出 UI**: 合规需求明确后，开发 GDPR 自助数据导出前端界面，支持租户管理员自主导出数据。 (Owner: frontend-engineer, Label: feature)
 
-### v2.3.0 Security Enhancement - 下一迭代 (来源: 2026-05-18)
+### v2.3.0 Security Enhancement (来源: 2026-05-18) — ✅ 全部完成
 
-- [ ] **[P1] SecureTransport 工具层迁移 (C3)**: 50 个工具的 HTTP client 逐步迁移到 SecureTransport（含 DialContext IP 验证 + DNS rebinding 防护）。批次策略：先高风险 web/http 类工具，再 API 类工具。 (Owner: backend-engineer, Label: security)
-- [ ] **[P1] HTTP redirect 绕过防护 (C4)**: 为 SecureTransport 添加 CheckRedirect hook，验证 redirect 目标不指向内网/CGNAT/localhost。当前 DialContext 仅对直接请求有效，redirect 可绕过。 (Owner: backend-engineer, Label: security)
-- [ ] **[P1] Agent loop interceptor 集成 (S1.6)**: 将 SafetyInterceptor 接入 agent.go 的对话循环，在 LLM 调用前后执行 input_guard + output_guard + canary 检测。接口已就绪，需集成测试验证。 (Owner: backend-engineer, Label: security)
-- [ ] **[P2] 高风险工具迁移 SecretResolver (S2.4)**: 10 个高风险工具（web_search, http_request, email_send 等）迁移到 SecretResolver 模式，禁止直接 os.Getenv 读取 secret。 (Owner: backend-engineer, Label: security)
-- [ ] **[P2] Admin API 统一交付 (S1.5/S2.5)**: Safety policy + Egress rules + Secret patterns 三个 Admin handler 统一接入主 server，必须包裹 RequireScope("admin") 中间件。 (Owner: backend-engineer, Label: feature)
-- [ ] **[P2] Canary token TTL 清理 (H5)**: 为 canary token map 增加 TTL 过期清理机制，防止长期运行后内存持续增长。Token 对象 ~60 bytes，短期无 OOM 风险但需限制上界。 (Owner: backend-engineer, Label: reliability)
-- [ ] **[P3] ResolvedValues 接口限制 (H6)**: 限制 ToolContext.SecretResolver 可解析的 key 范围，防止工具 handler 访问非授权 secret。当前工具在 Docker sandbox 中隔离运行，风险可控。 (Owner: backend-engineer, Label: security)
-- [ ] **[P3] Unicode NFKC normalization (M3)**: 对 input_guard 输入做 Unicode NFKC 规范化，防止通过等价字符绕过注入检测规则。 (Owner: backend-engineer, Label: security)
-- [ ] **[P3] Linter rule 禁止 os.Getenv (S2.6)**: CI 集成静态检查，标记工具代码中直接调用 os.Getenv 的位置，推动迁移到 SecretResolver。 (Owner: devops-engineer, Label: tooling)
-- [ ] **[P3] Redis 缓存 egress rules (S3.5)**: AllowlistPolicy 当前每次请求查 DB，高流量场景需引入 Redis 缓存 + TTL 失效策略。interface 已预留。 (Owner: backend-engineer, Label: performance)
+- [x] **[P1] SecureTransport 工具层迁移 (C3)**: ✅ 完成 v2.3.0 + v2.3.2。主路径：agent.go sharedTransport + tctx.HTTPClient；browser_impl.go BrowserBackend.Connect() 已迁移 SecureTransport + SecretResolver（#46）。 (Owner: backend-engineer, Label: security)
+- [x] **[P1] HTTP redirect 绕过防护 (C4)**: ✅ 完成 v2.3.1。agent.go CheckRedirect 加 egress.ValidateRedirectTarget；抳归 loopback/private/CGNAT/link-local。 (Owner: backend-engineer, Label: security)
+- [x] **[P1] Agent loop interceptor 集成 (S1.6)**: ✅ 完成 v2.3.0。SafetyInterceptor 已接入 agent.go 对话循环。 (Owner: backend-engineer, Label: security)
+- [x] **[P2] 高风险工具迁移 SecretResolver (S2.4)**: ✅ 完成 v2.3.0。web.go/vision.go/discord_tool.go 等 10 个高风险工具已迁移到 SecretResolver 模式。 (Owner: backend-engineer, Label: security)
+- [x] **[P2] Admin API 统一交付 (S1.5/S2.5)**: ✅ 完成 v2.3.0。Safety + Egress + Secret 三个 Admin handler 已统一接入主 server，包裹 RequireScope("admin")。 (Owner: backend-engineer, Label: feature)
+- [x] **[P2] Canary token TTL 清理 (H5)**: ✅ 完成 v2.3.1。server.go 调用 canaryDetector.StartCleanupLoop；TTL=24h，随 backgroundCtx 停止。 (Owner: backend-engineer, Label: reliability)
+- [x] **[P3] ResolvedValues 接口限制 (H6)**: ✅ 完成 v2.3.0。WithAllowedKeys wrapper 已实现；ErrKeyNotAllowed；6 个单元测试。 (Owner: backend-engineer, Label: security)
+- [x] **[P3] Unicode NFKC normalization (M3)**: ✅ 完成 v2.3.0。input_guard 已对输入做 NFKC 规范化。 (Owner: backend-engineer, Label: security)
+- [x] **[P3] Linter rule 禁止 os.Getenv (S2.6)**: ✅ 完成 v2.3.0。.golangci.yml forbidigo pattern '^os\.Getenv$'；osv_check.go init() 的绝对路径配置已保留。 (Owner: devops-engineer, Label: tooling)
+- [x] **[P3] Redis 缓存 egress rules (S3.5)**: ✅ 完成 v2.3.0。CachedEgressPolicy TTL=60s；InvalidateTenant + Reload；7 单元测试。 (Owner: backend-engineer, Label: performance)
 
 ---
 

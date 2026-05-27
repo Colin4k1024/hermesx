@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Agent Chat 同 session 并发** — 同一 `tenant/session` 的请求在 handler 层串行执行，避免消息、checkpoint 和 token 统计双写
 - **Workflow Agent 默认路径** — `agent_task` 默认 executor 从旧 AIAgent 切到 `EinoAgentExecutor`，与 API 共用 `RunConversationTurnLoopSafe` 主链
 
+### Security
+
+- **BrowserBackend SecretResolver 集成** — `BrowserBackend.Connect(ctx context.Context, tctx *ToolContext) error` 新接口；凭据优先通过 `SecretResolver` 解析，降级到 `os.Getenv`；所有 20 个调用点已更新；`browser_impl.go` 消除 `os` 包依赖
+- **Admin DI 可注入安全组件** — `APIServerConfig` 新增可选注入字段 `LeakScanner`、`CanaryDetector`、`PolicyStore`；nil-guard 保护，向后兼容
+- **HTTP redirect 绕过防护 (#37)** — `agent.go CheckRedirect` hook 新增 `egress.ValidateRedirectTarget` 校验；拒绝 Location 指向 loopback/私有/CGNAT/link-local IP 的重定向
+- **RLS FORCE 加固 (#27)** — migration 109：`execution_receipts` 补 `FORCE ROW LEVEL SECURITY`；migration 110：`egress_rules` 补 `ENABLE + FORCE RLS` + `tenant_isolation_egress_rules` 策略（USING + WITH CHECK）
+- **MCP SamplingHandler 安全门禁 (#47)** — `NewSamplingHandlerWithSafety(client, interceptor)` 在 LLM 调用前后分别执行 `interceptor.CheckInput` / `CheckOutput`；被拦截请求返回 JSON-RPC error `-32000`
+- **Linter 合规 (#44)** — `osv_check.go` init() 中的 `OSV_ENDPOINT` 公开端点 `os.Getenv` 已添加 `//nolint:forbidigo` 注解
+
 ### Docs
 
 - **README 定位重写** — 将 HermesX 叙事收敛为 Agent-first Runtime Control Plane，补充受众、三大支柱、最小 demo、能力矩阵和发布状态分层
