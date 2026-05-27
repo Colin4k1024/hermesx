@@ -64,10 +64,20 @@ type InterceptorChain struct {
 }
 
 func NewInterceptorChain(policyStore PolicyStore) *InterceptorChain {
+	return NewInterceptorChainWithCanary(policyStore, nil)
+}
+
+// NewInterceptorChainWithCanary wires a caller-owned detector into the safety
+// chain so admin token management and runtime output checks share one source of
+// truth across the process.
+func NewInterceptorChainWithCanary(policyStore PolicyStore, canary *CanaryDetector) *InterceptorChain {
+	if canary == nil {
+		canary = NewCanaryDetector()
+	}
 	return &InterceptorChain{
 		inputGuard:  NewInputGuard(),
 		outputGuard: NewOutputGuard(),
-		canary:      NewCanaryDetector(),
+		canary:      canary,
 		policyStore: policyStore,
 	}
 }

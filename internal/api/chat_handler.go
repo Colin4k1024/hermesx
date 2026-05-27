@@ -14,6 +14,8 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/safety"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	lru "github.com/hashicorp/golang-lru/v2/expirable"
@@ -28,15 +30,17 @@ type agentConversationRunner func(ctx context.Context, userMessage string, histo
 
 // chatHandler holds shared dependencies for agent chat, session, and memory endpoints.
 type chatHandler struct {
-	store           store.Store
-	llmURL          string
-	llmAPIKey       string
-	llmModel        string
-	apiMode         string
-	httpClient      *http.Client
-	egressTransport *http.Transport
-	usageStore      metering.UsageStore
-	skillsClient    objstore.ObjectStore
+	store             store.Store
+	llmURL            string
+	llmAPIKey         string
+	llmModel          string
+	apiMode           string
+	httpClient        *http.Client
+	egressTransport   *http.Transport
+	safetyInterceptor safety.SafetyInterceptor
+	leakScanner       *secrets.LeakScanner
+	usageStore        metering.UsageStore
+	skillsClient      objstore.ObjectStore
 
 	// provisioner copies tenant skills into per-user OSS namespaces on first request.
 	provisioner *skills.Provisioner
@@ -155,6 +159,14 @@ func NewChatHandler(s store.Store, skillsClient objstore.ObjectStore, provisione
 
 func (h *chatHandler) SetEgressTransport(transport *http.Transport) {
 	h.egressTransport = transport
+}
+
+func (h *chatHandler) SetSafetyInterceptor(interceptor safety.SafetyInterceptor) {
+	h.safetyInterceptor = interceptor
+}
+
+func (h *chatHandler) SetLeakScanner(scanner *secrets.LeakScanner) {
+	h.leakScanner = scanner
 }
 
 func (h *chatHandler) SetUsageStore(store metering.UsageStore) {

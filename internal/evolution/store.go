@@ -130,6 +130,56 @@ func toTenantPolicyVersionMap(meta map[string]policyMeta) map[string]int64 {
 	return out
 }
 
+// RefreshSharingPolicies reloads persisted global and tenant sharing policy
+// state. Multi-replica deployments call this after another instance mutates
+// policy so runtime decisions converge without process restarts.
+func (g *GeneStore) RefreshSharingPolicies() error {
+	if g.policyPersistence == nil {
+		return nil
+	}
+	loaded, err := g.policyPersistence.LoadState()
+	if err != nil {
+		return err
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if loaded.HasGlobal {
+		g.cfg.SharingMode = loaded.GlobalMode
+		g.sharingVersion = loaded.GlobalMeta.Version
+	}
+	g.cfg.TenantPolicies = loaded.TenantPolicies
+	g.tenantPolicyVersion = toTenantPolicyVersionMap(loaded.TenantMeta)
+	return nil
+}
+
+// StartSharingPolicyWatcher periodically refreshes persisted policy state.
+// The returned stop function is idempotent and should be called on shutdown.
+func (g *GeneStore) StartSharingPolicyWatcher(ctx context.Context, interval time.Duration) func() {
+	if interval <= 0 {
+		interval = 30 * time.Second
+	}
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				_ = g.RefreshSharingPolicies()
+			case <-ctx.Done():
+				return
+			case <-done:
+				return
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() { close(done) })
+	}
+}
+
 // QueryTop returns up to limit genes for taskClass with confidence ≥ minConfidence.
 // tenantID namespaces the query to prevent cross-tenant gene leakage (B2).
 func (g *GeneStore) QueryTop(ctx context.Context, tenantID string, taskClass TaskClass, minConfidence float64, limit int) ([]orisstore.Gene, error) {

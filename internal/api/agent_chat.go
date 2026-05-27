@@ -189,6 +189,12 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		if h.egressTransport != nil {
 			agentOpts = append(agentOpts, eino.WithHTTPTransport(h.egressTransport))
 		}
+		if h.safetyInterceptor != nil {
+			agentOpts = append(agentOpts, eino.WithSafetyInterceptor(h.safetyInterceptor))
+		}
+		if h.leakScanner != nil {
+			agentOpts = append(agentOpts, eino.WithLeakScanner(h.leakScanner))
+		}
 		runAgent = func(ctx context.Context, userMessage string, history []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error) {
 			return eino.RunConversationTurnLoopSafe(ctx, userMessage, history, callbacks, agentOpts...)
 		}

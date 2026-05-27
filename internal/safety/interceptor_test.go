@@ -23,6 +23,24 @@ func TestInputGuard_IgnorePreviousInstructions(t *testing.T) {
 	assertCategoryPresent(t, result.Matches, "instruction_override")
 }
 
+func TestNewInterceptorChainWithCanary_UsesSharedDetector(t *testing.T) {
+	canary := NewCanaryDetector()
+	ic := NewInterceptorChainWithCanary(nil, canary)
+
+	if ic.Canary() != canary {
+		t.Fatal("interceptor chain should use the injected shared canary detector")
+	}
+
+	token := canary.GenerateToken("tenant-1")
+	result, err := ic.CheckOutput(context.Background(), "tenant-1", "leaked token: "+token)
+	if err != nil {
+		t.Fatalf("CheckOutput: %v", err)
+	}
+	if len(result.Matches) == 0 {
+		t.Fatal("shared canary token was not detected by interceptor output check")
+	}
+}
+
 func TestInputGuard_RoleHijacking(t *testing.T) {
 	cases := []struct {
 		name  string

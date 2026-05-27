@@ -53,6 +53,8 @@ type defaultAgentExecutor struct {
 	httpTransport   *http.Transport
 	receiptRecorder *tools.ReceiptRecorder
 	tenantStore     store.TenantStore
+	interceptor     safety.SafetyInterceptor
+	leakScanner     *secrets.LeakScanner
 }
 
 // NewDefaultAgentExecutor creates the built-in Eino-backed workflow agent
@@ -71,6 +73,12 @@ func NewDefaultAgentExecutorWithReceipts(httpTransport *http.Transport, recorder
 // executor with receipt recording and tenant-scoped tool authorization.
 func NewDefaultAgentExecutorWithGovernance(httpTransport *http.Transport, recorder *tools.ReceiptRecorder, tenants store.TenantStore) AgentExecutor {
 	return defaultAgentExecutor{httpTransport: httpTransport, receiptRecorder: recorder, tenantStore: tenants}
+}
+
+// NewDefaultAgentExecutorWithGovernanceAndSafety creates the built-in workflow
+// agent executor using the same process-level safety chain as API chat.
+func NewDefaultAgentExecutorWithGovernanceAndSafety(httpTransport *http.Transport, recorder *tools.ReceiptRecorder, tenants store.TenantStore, interceptor safety.SafetyInterceptor, scanner *secrets.LeakScanner) AgentExecutor {
+	return defaultAgentExecutor{httpTransport: httpTransport, receiptRecorder: recorder, tenantStore: tenants, interceptor: interceptor, leakScanner: scanner}
 }
 
 func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID string, node store.WorkflowNode, payload map[string]any) (map[string]any, error) {
@@ -93,7 +101,15 @@ func (d defaultAgentExecutor) Execute(ctx context.Context, tenantID, userID stri
 		return nil, fmt.Errorf("create workflow eino client: %w", err)
 	}
 
-	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(ctx, tenantID, d.tenantStore), safety.NewInterceptorChain(safety.NewInMemoryPolicyStore()), secrets.NewLeakScanner())
+	interceptor := d.interceptor
+	if interceptor == nil {
+		interceptor = safety.NewInterceptorChain(safety.NewInMemoryPolicyStore())
+	}
+	scanner := d.leakScanner
+	if scanner == nil {
+		scanner = secrets.NewLeakScanner()
+	}
+	executor := newEinoAgentExecutorFromClient(client, defaultWorkflowToolEntries(ctx, tenantID, d.tenantStore), interceptor, scanner)
 	executor.apiKey = apiKey
 	if d.httpTransport != nil {
 		executor.WithHTTPTransport(d.httpTransport)

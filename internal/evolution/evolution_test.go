@@ -361,6 +361,52 @@ func TestGeneStore_PolicyPersistsAcrossReopen(t *testing.T) {
 	}
 }
 
+func TestGeneStore_RefreshSharingPolicies_PicksUpOtherInstanceChanges(t *testing.T) {
+	dbPath := filepath.Join(t.TempDir(), "policy_refresh.db")
+	cfg := evolution.Config{StorageMode: "sqlite", DBPath: dbPath}
+
+	instanceA, err := evolution.Open(cfg)
+	if err != nil {
+		t.Fatalf("open instanceA: %v", err)
+	}
+	defer instanceA.Close()
+	instanceB, err := evolution.Open(cfg)
+	if err != nil {
+		t.Fatalf("open instanceB: %v", err)
+	}
+	defer instanceB.Close()
+
+	if _, err := instanceA.SetSharingMode(evolution.SharingTrusted, "operator enable"); err != nil {
+		t.Fatalf("SetSharingMode: %v", err)
+	}
+	if _, err := instanceA.SetTenantSharingPolicy(evolution.TenantSharingPolicy{
+		TenantID:         "tenant-sensitive",
+		ConsumeShared:    false,
+		ContributionMode: evolution.SharingDisabled,
+		Labels:           []string{"regulated"},
+	}, "tenant opt-out"); err != nil {
+		t.Fatalf("SetTenantSharingPolicy: %v", err)
+	}
+
+	if instanceB.SharingPolicySnapshot().Mode == evolution.SharingTrusted {
+		t.Fatal("instanceB unexpectedly saw policy change before refresh")
+	}
+	if err := instanceB.RefreshSharingPolicies(); err != nil {
+		t.Fatalf("RefreshSharingPolicies: %v", err)
+	}
+
+	if got := instanceB.SharingPolicySnapshot(); got.Mode != evolution.SharingTrusted || got.Version != 1 {
+		t.Fatalf("refreshed global policy = %+v, want trusted version 1", got)
+	}
+	tenantPolicy := instanceB.EffectiveTenantSharingPolicy("tenant-sensitive")
+	if tenantPolicy.ConsumeShared {
+		t.Fatal("refreshed tenant policy should disable shared consumption")
+	}
+	if tenantPolicy.Version != 1 {
+		t.Fatalf("refreshed tenant version = %d, want 1", tenantPolicy.Version)
+	}
+}
+
 func TestGeneStore_SharingPolicyHistoryAndRollback(t *testing.T) {
 	gs := openTestStore(t)
 

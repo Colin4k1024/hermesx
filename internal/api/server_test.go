@@ -145,6 +145,24 @@ func TestNewAPIServer(t *testing.T) {
 	}
 }
 
+func TestNewAPIServer_WiresAgentSafetyDependencies(t *testing.T) {
+	srv := NewAPIServer(APIServerConfig{
+		Port:  8080,
+		Store: stubStore{},
+		DB:    nil,
+	})
+
+	if srv.AgentChat == nil {
+		t.Fatal("expected AgentChat handler")
+	}
+	if srv.AgentChat.safetyInterceptor == nil {
+		t.Fatal("expected API chat handler to receive shared safety interceptor")
+	}
+	if srv.AgentChat.leakScanner == nil {
+		t.Fatal("expected API chat handler to receive shared leak scanner")
+	}
+}
+
 // ──────────────────────────────────────────────────────────────────
 //  corsMiddleware tests
 // ──────────────────────────────────────────────────────────────────

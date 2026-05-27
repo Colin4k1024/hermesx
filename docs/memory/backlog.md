@@ -1,7 +1,7 @@
 # Backlog Snapshot
 
 **来源任务**: 2026-05-22-platform-governance-remediation
-**更新时间**: 2026-05-22
+**更新时间**: 2026-05-27
 **更新角色**: tech-lead
 
 ---
@@ -10,7 +10,7 @@
 
 | # | 事项 | 优先级 | 触发条件 | Owner | 状态 |
 |---|------|--------|----------|-------|------|
-| 1 | 多实例 evolution sharing policy 主动刷新 / watcher | P1 | 多副本部署或跨实例治理回滚上线前 | backend-engineer | 待定 |
+| 1 | 多实例 evolution sharing policy 主动刷新 / watcher | P1 | 多副本部署或跨实例治理回滚上线前 | backend-engineer | ✅ 完成 2026-05-27（`RefreshSharingPolicies` + server lifecycle watcher） |
 | 2 | 平台治理中心 Web UI（policy history / rollback / revoke 控制面） | P1 | 内部平台治理进入运营阶段 | frontend-engineer | 待定 |
 | 3 | OIDC / API key / RoleStore 统一权限 evaluator 收敛 | P1 | 下一轮权限治理整改启动时 | backend-engineer | 待定 |
 | 4 | 企业 release gate 与恢复演练 artifact 补齐 | P2 | 发布演练或 release-ready 评审前 | devops-engineer | 待定 |
@@ -191,9 +191,15 @@
 
 ### 遗留项（v2.4.0 目标）
 
-- [ ] **[P1] per-tenant EgressPolicy**：AllowAllPolicy 过渡结束，为每租户配置主机 allowlist，替换当前全放通策略。(Owner: tech-lead, Label: security)
-- [ ] **[P2] redirect 目标 IP 验证**：CheckRedirect 当前仅限制 redirect 次数，未验证 redirect 目标是否为内网/CGNAT。需在 SecureTransport 中扩展 CheckRedirect 回调，对 redirect 目标 IP 执行 IsBlockedIP 检查。(Owner: backend-engineer, Label: security)
+- [x] **[P1] per-tenant EgressPolicy**：✅ 完成 v2.4.0-dev。运行时通过 `NewAllowlistPolicyFromEnv` 使用租户 allowlist，生产环境默认 `deny-all`，开发环境保留显式 override。
+- [x] **[P2] redirect 目标 IP 验证**：✅ 完成 2026-05-27。tool HTTP client 的 CheckRedirect 现在拒绝 loopback/private/CGNAT IP literal，后续实际连接仍由 SecureTransport DialContext 做 DNS/IP 校验。
 - [ ] **[P2] 共享 Transport 连接池生产验证**：per-call `http.Client{Transport: sharedTransport}` 在开发/staging 负载下经 -race 验证安全，需在生产流量下确认无连接池泄漏。(Owner: backend-engineer, Label: reliability)
-- [ ] **[P2] Canary goroutine 双实例统一**：main.go 与 InterceptorChain 各持一个独立 CanaryDetector 实例，待 v2.4.0 统一接入 Runner 时迁移为单实例。(Owner: backend-engineer, Label: reliability)
+- [x] **[P2] Canary goroutine 双实例统一**：✅ 完成 2026-05-27。API server 内 Admin token 管理、API chat、workflow agent executor 共享同一个 `CanaryDetector` / `SafetyInterceptor`。
 - [ ] **[P3] Admin DI 完整重构**：AdminHandler struct 字段注入已完成，但 main.go 侧仍为 singleton 初始化。下一 sprint 完整迁移到 server-level DI 容器，消除测试竞态风险。(Owner: backend-engineer, Label: maintainability)
 - [ ] **[P3] WASM sandbox（ADR-006）**：工具隔离沙箱，原定 v2.3.0 但 ADR-006 推迟，待安全需求明确后重新规划。(Owner: architect, Label: security)
+
+### 2026-05-27 Batch 1 已完成
+
+- [x] **API/Workflow SafetyInterceptor 注入**：API chat 与 workflow agent executor 共用 server-level `SafetyInterceptor`、`LeakScanner` 和 `CanaryDetector`，避免 admin 控制面与运行时检测分叉。
+- [x] **Tool HTTP tenant/path 上下文注入**：Eino tool adapter 通过 tenant-aware RoundTripper 自动把 tenant 与 URL path 写入 SecureTransport context，避免工具用 `http.NewRequest` 时丢失治理上下文。
+- [x] **Evolution policy 多实例刷新**：`GeneStore.RefreshSharingPolicies` 支持主动刷新，`StartSharingPolicyWatcher` 支持周期 watcher，API server `Shutdown` 会停止 watcher。

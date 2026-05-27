@@ -111,18 +111,21 @@ func enrichToolContext(base *tools.ToolContext, entry *tools.ToolEntry) *tools.T
 		base = &tools.ToolContext{}
 	}
 	cloned := *base
-	if cloned.HTTPClient == nil {
+	if cloned.HTTPClient == nil && cloned.Extra != nil {
 		if transport, ok := cloned.Extra["egress_transport"].(*http.Transport); ok && transport != nil {
 			maxRedirects := 0
 			if entry != nil {
 				maxRedirects = entry.MaxRedirects
 			}
 			cloned.HTTPClient = &http.Client{
-				Transport: transport,
+				Transport: egress.NewTenantAwareRoundTripper(transport, cloned.TenantID),
 				Timeout:   30 * time.Second,
 				CheckRedirect: func(req *http.Request, via []*http.Request) error {
 					if maxRedirects == 0 {
 						return http.ErrUseLastResponse
+					}
+					if err := egress.ValidateRedirectTarget(req); err != nil {
+						return err
 					}
 					if len(via) >= maxRedirects {
 						return egress.ErrNotAllowed

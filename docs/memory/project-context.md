@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-19-saas-cron-scheduler
-**前任务**: 2026-05-19-eino-adk-poc（CLOSED）
-**阶段**: released（SaaS Cron Scheduler v2.4.0 — Layer 1 Pull + Layer 2 Push + backlog fixes 全部完成；build/vet/test green；QA review Go）
-**版本目标**: v2.4.0 — SaaS Distributed Cron Scheduler + Eino Phase 2
+**当前任务**: 2026-05-27-backlog-batch-1
+**前任务**: 2026-05-19-saas-cron-scheduler（RELEASED）
+**阶段**: executing（Backlog batch 1 — safety/egress/evolution watcher 已完成；全量 Go test green）
+**版本目标**: v2.5.0 — Eino Phase 2 + governance backlog closure
 
 ## Tech Stack
 
@@ -63,6 +63,8 @@
 - v2.3.0 #36+#37 原子 PR 引入回归风险（准入条件：新增失败 ≤ 5）
 - Safety audit 模式上线后需要明确日志消费方和 enforce 升级标准
 - OAuth 工具 redirect 目标域须预先注册到 tenant egress allowlist
+- CLI app 仍保留 legacy `AIAgent`，全量 Eino 替换尚未覆盖 CLI REPL。
+- MCP sampling 链路尚未接入 server-level SafetyInterceptor，本批只覆盖 API chat 与 workflow agent executor。
 
 ## 当前阶段产出（2026-05-19 SaaS Cron Scheduler — RELEASED）
 
@@ -81,9 +83,9 @@
 - Story A-F: 全部完成（scheduler + executor + delivery + migrations + tests + backlog fixes）
 
 **P1（关键路径 — Eino 全量替换）**
-1. 全量 Agent 替换：AIAgent.RunConversation → EinoAgent.RunConversationSafe（所有调用点）
-2. 集成层 SafetyInterceptor 注入：HTTP handler / MCP server 初始化时 wire WithSafety
-3. v2.3.0 遗留 R 类项（6 项）按优先级补齐
+1. 全量 Agent 替换：AIAgent.RunConversation → EinoAgent.RunConversationSafe（API / workflow / gateway 已走 Eino；CLI REPL 仍待迁移）
+2. 集成层 SafetyInterceptor 注入：HTTP handler / workflow 已完成；MCP sampling 初始化仍待接入
+3. v2.3.0 遗留 R 类项：per-tenant EgressPolicy、redirect IP 验证、Canary 单实例、evolution watcher 已完成；共享 Transport 生产验证、Admin DI 完整重构、WASM sandbox 仍待排期
 
 **P2（功能增强）**
 4. 流式 chunk 级脱敏（StreamSafe → per-chunk redaction）

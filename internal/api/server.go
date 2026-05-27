@@ -48,9 +48,10 @@ type APIServerConfig struct {
 
 // APIServer is the multi-tenant SaaS API HTTP server.
 type APIServer struct {
-	cfg       APIServerConfig
-	server    *http.Server
-	AgentChat *chatHandler
+	cfg              APIServerConfig
+	server           *http.Server
+	backgroundCancel context.CancelFunc
+	AgentChat        *chatHandler
 }
 
 // spaFallback wraps the API mux: serves index.html for root "/" and admin.html
@@ -131,6 +132,14 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		RateLimit: middleware.RateLimitMiddleware(cfg.RateLimit),
 	})
 
+	leakScanner := secrets.NewLeakScanner()
+	canaryDetector := safety.NewCanaryDetector()
+	policyStore := safety.PolicyStore(safety.NewInMemoryPolicyStore())
+	if pp, ok := cfg.Store.(pg.PoolProvider); ok && pp.Pool() != nil {
+		policyStore = safety.NewPostgresPolicyStore(pp.Pool())
+	}
+	safetyInterceptor := safety.NewInterceptorChainWithCanary(policyStore, canaryDetector)
+
 	mux := http.NewServeMux()
 
 	// Public routes — no middleware stack.
@@ -159,7 +168,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 	workflowHTTPClient := &http.Client{Transport: egressTransport, Timeout: 30 * time.Second}
 	receiptRecorder := tools.NewReceiptRecorder(cfg.Store.ExecutionReceipts())
-	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutorWithGovernance(egressTransport, receiptRecorder, cfg.Store.Tenants()))
+	workflowEngine := workflowrt.NewEngine(cfg.Store.Workflows(), workflowHTTPClient, workflowrt.NewDefaultAgentExecutorWithGovernanceAndSafety(egressTransport, receiptRecorder, cfg.Store.Tenants(), safetyInterceptor, leakScanner))
 	workflowH := NewWorkflowHandlerWithEngine(cfg.Store.Workflows(), workflowEngine)
 	api.HandleFunc("/v1/workflow-definitions", workflowH.ServeDefinitionsHTTP)
 	api.HandleFunc("/v1/workflow-definitions/", workflowH.ServeDefinitionsHTTP)
@@ -179,6 +188,8 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.
 	chatH := NewChatHandler(cfg.Store, cfg.SkillsClient, cfg.Provisioner)
 	chatH.SetEgressTransport(egressTransport)
+	chatH.SetSafetyInterceptor(safetyInterceptor)
+	chatH.SetLeakScanner(leakScanner)
 	chatH.SetUsageStore(cfg.UsageStore)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
@@ -215,12 +226,6 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	// Admin API — requires "admin" scope; uses its own sub-router with RequireScope.
 	adminOpts := []admin.AdminOption{}
-	leakScanner := secrets.NewLeakScanner()
-	canaryDetector := safety.NewCanaryDetector()
-	policyStore := safety.PolicyStore(safety.NewInMemoryPolicyStore())
-	if pp, ok := cfg.Store.(pg.PoolProvider); ok && pp.Pool() != nil {
-		policyStore = safety.NewPostgresPolicyStore(pp.Pool())
-	}
 	adminOpts = append(adminOpts,
 		admin.WithLeakScanner(leakScanner),
 		admin.WithCanaryDetector(canaryDetector),
@@ -265,9 +270,15 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		slog.Info("CORS enabled", "origins", cfg.AllowedOrigins)
 	}
 
+	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
+	if cfg.EvolutionStore != nil {
+		cfg.EvolutionStore.StartSharingPolicyWatcher(backgroundCtx, 30*time.Second)
+	}
+
 	s := &APIServer{
-		cfg:       cfg,
-		AgentChat: chatH,
+		cfg:              cfg,
+		AgentChat:        chatH,
+		backgroundCancel: backgroundCancel,
 		server: &http.Server{
 			Addr:         fmt.Sprintf("0.0.0.0:%d", cfg.Port),
 			Handler:      handler,
@@ -296,5 +307,8 @@ func (s *APIServer) Handler() http.Handler {
 // Shutdown gracefully stops the server.
 func (s *APIServer) Shutdown(ctx context.Context) error {
 	slog.Info("SaaS API server shutting down")
+	if s.backgroundCancel != nil {
+		s.backgroundCancel()
+	}
 	return s.server.Shutdown(ctx)
 }
