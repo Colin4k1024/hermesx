@@ -8,7 +8,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"os"
 	"sync"
 	"time"
 )
@@ -29,15 +28,14 @@ type BrowserSession struct {
 	pageTitle  string
 }
 
-// newBrowserbaseSession creates a new BrowserSession for the Browserbase API.
-func newBrowserbaseSession() (*BrowserSession, error) {
-	apiKey := os.Getenv("BROWSERBASE_API_KEY")
+// newBrowserbaseSessionWithCreds creates a new BrowserSession with the given credentials.
+// Credentials are resolved by the caller (BrowserbaseBackend.Connect) via SecretResolver
+// or environment variable fallback — this function does not read os.Getenv directly.
+func newBrowserbaseSessionWithCreds(apiKey, projectID string) (*BrowserSession, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf(
 			"BROWSERBASE_API_KEY is not set")
 	}
-
-	projectID := os.Getenv("BROWSERBASE_PROJECT_ID")
 
 	session := &BrowserSession{
 		apiKey:    apiKey,
@@ -480,7 +478,7 @@ func handleBrowserNavigateImpl(ctx context.Context, args map[string]any, tctx *T
 		})
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_navigate", err)
 	}
@@ -494,7 +492,7 @@ func handleBrowserNavigateImpl(ctx context.Context, args map[string]any, tctx *T
 }
 
 func handleBrowserSnapshotImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_snapshot", err)
 	}
@@ -513,7 +511,7 @@ func handleBrowserClickImpl(ctx context.Context, args map[string]any, tctx *Tool
 		return `{"error":"ref is required"}`
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_click", err)
 	}
@@ -535,7 +533,7 @@ func handleBrowserTypeImpl(ctx context.Context, args map[string]any, tctx *ToolC
 		return `{"error":"ref and text are required"}`
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_type", err)
 	}
@@ -559,7 +557,7 @@ func handleBrowserScrollImpl(ctx context.Context, args map[string]any, tctx *Too
 		amount = int(a)
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_scroll", err)
 	}
@@ -573,7 +571,7 @@ func handleBrowserScrollImpl(ctx context.Context, args map[string]any, tctx *Too
 }
 
 func handleBrowserBackImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_back", err)
 	}
@@ -592,7 +590,7 @@ func handleBrowserPressImpl(ctx context.Context, args map[string]any, tctx *Tool
 		return `{"error":"key is required"}`
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_press", err)
 	}
@@ -606,7 +604,7 @@ func handleBrowserPressImpl(ctx context.Context, args map[string]any, tctx *Tool
 }
 
 func handleBrowserGetImagesImpl(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_get_images", err)
 	}
@@ -623,7 +621,7 @@ func handleBrowserVisionImpl(ctx context.Context, args map[string]any, tctx *Too
 	// Vision requires a screenshot + multimodal LLM. For now, we take a
 	// snapshot and return it -- full vision analysis would require piping
 	// the screenshot through a vision model.
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_vision", err)
 	}
@@ -650,7 +648,7 @@ func handleBrowserConsoleImpl(ctx context.Context, args map[string]any, tctx *To
 		return `{"error":"script is required"}`
 	}
 
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserError("browser_console", err)
 	}

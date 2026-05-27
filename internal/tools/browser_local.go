@@ -2,6 +2,7 @@ package tools
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -37,7 +38,9 @@ func (b *LocalBrowserBackend) CurrentURL() string { return b.currenturl }
 func (b *LocalBrowserBackend) PageTitle() string { return b.pagetitle }
 
 // Connect discovers or launches a local Chrome and connects via CDP.
-func (b *LocalBrowserBackend) Connect() error {
+// ctx and tctx are accepted to satisfy the BrowserBackend interface;
+// LocalBrowserBackend uses CDP_URL from the environment (not a credential).
+func (b *LocalBrowserBackend) Connect(_ context.Context, _ *ToolContext) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 

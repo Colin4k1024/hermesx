@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/url"
@@ -20,7 +21,7 @@ var (
 //  2. BROWSERBASE_API_KEY set → browserbase
 //  3. BROWSER_CDP_URL set or Chrome available → local
 //  4. Error: no backend available
-func getOrCreateBackend() (BrowserBackend, error) {
+func getOrCreateBackend(ctx context.Context, tctx *ToolContext) (BrowserBackend, error) {
 	activeBackendMu.Lock()
 	defer activeBackendMu.Unlock()
 
@@ -28,12 +29,12 @@ func getOrCreateBackend() (BrowserBackend, error) {
 		return activeBackend, nil
 	}
 
-	backend, err := selectBackend()
+	backend, err := selectBackend(ctx, tctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := backend.Connect(); err != nil {
+	if err := backend.Connect(ctx, tctx); err != nil {
 		return nil, fmt.Errorf("connect %s backend: %w", backend.Name(), err)
 	}
 
@@ -41,14 +42,24 @@ func getOrCreateBackend() (BrowserBackend, error) {
 	return activeBackend, nil
 }
 
-func selectBackend() (BrowserBackend, error) {
-	// Explicit selection via env var.
-	explicit := os.Getenv("BROWSER_BACKEND")
+func selectBackend(ctx context.Context, tctx *ToolContext) (BrowserBackend, error) {
+	// resolveKey tries SecretResolver first, then falls back to os.Getenv.
+	resolveKey := func(key string) string {
+		if tctx != nil && tctx.SecretResolver != nil {
+			if v, err := tctx.SecretResolver.Resolve(ctx, key); err == nil && v != "" {
+				return v
+			}
+		}
+		return os.Getenv(key) // fallback
+	}
+
+	// Explicit selection via env var (BROWSER_BACKEND is a config selector, not a credential).
+	explicit := os.Getenv("BROWSER_BACKEND") // fallback
 	switch explicit {
 	case "local":
 		return &LocalBrowserBackend{}, nil
 	case "browserbase":
-		if os.Getenv("BROWSERBASE_API_KEY") == "" {
+		if resolveKey("BROWSERBASE_API_KEY") == "" {
 			return nil, fmt.Errorf("BROWSER_BACKEND=browserbase but BROWSERBASE_API_KEY not set")
 		}
 		return &BrowserbaseBackend{}, nil
@@ -59,12 +70,12 @@ func selectBackend() (BrowserBackend, error) {
 	}
 
 	// Auto-detect: prefer browserbase if configured, fall back to local.
-	if os.Getenv("BROWSERBASE_API_KEY") != "" {
+	if resolveKey("BROWSERBASE_API_KEY") != "" {
 		return &BrowserbaseBackend{}, nil
 	}
 
 	// Try local (Chrome/Chromium).
-	if os.Getenv("BROWSER_CDP_URL") != "" || findChromeBinary() != "" {
+	if os.Getenv("BROWSER_CDP_URL") != "" || findChromeBinary() != "" { // fallback
 		return &LocalBrowserBackend{}, nil
 	}
 

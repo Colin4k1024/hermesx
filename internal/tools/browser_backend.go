@@ -1,5 +1,7 @@
 package tools
 
+import "context"
+
 // BrowserBackend is the interface for pluggable browser automation providers.
 // Implementations handle session lifecycle and CDP-like operations.
 type BrowserBackend interface {
@@ -7,7 +9,9 @@ type BrowserBackend interface {
 	Name() string
 
 	// Connect creates or connects to a browser session.
-	Connect() error
+	// Credentials are resolved via tctx.SecretResolver when available,
+	// falling back to environment variables for backwards compatibility.
+	Connect(ctx context.Context, tctx *ToolContext) error
 
 	// Close terminates the browser session.
 	Close()

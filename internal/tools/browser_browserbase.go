@@ -1,5 +1,10 @@
 package tools
 
+import (
+	"context"
+	"os"
+)
+
 // BrowserbaseBackend wraps the existing BrowserSession to implement BrowserBackend.
 type BrowserbaseBackend struct {
 	session *BrowserSession
@@ -10,8 +15,24 @@ var _ BrowserBackend = (*BrowserbaseBackend)(nil)
 
 func (b *BrowserbaseBackend) Name() string { return "browserbase" }
 
-func (b *BrowserbaseBackend) Connect() error {
-	session, err := newBrowserbaseSession()
+func (b *BrowserbaseBackend) Connect(ctx context.Context, tctx *ToolContext) error {
+	// Resolve API key: prefer SecretResolver, fall back to environment variable.
+	apiKey := os.Getenv("BROWSERBASE_API_KEY") // fallback: use SecretResolver when available
+	if tctx != nil && tctx.SecretResolver != nil {
+		if k, err := tctx.SecretResolver.Resolve(ctx, "BROWSERBASE_API_KEY"); err == nil && k != "" {
+			apiKey = k
+		}
+	}
+
+	// Resolve project ID: prefer SecretResolver, fall back to environment variable.
+	projectID := os.Getenv("BROWSERBASE_PROJECT_ID") // fallback: use SecretResolver when available
+	if tctx != nil && tctx.SecretResolver != nil {
+		if id, err := tctx.SecretResolver.Resolve(ctx, "BROWSERBASE_PROJECT_ID"); err == nil && id != "" {
+			projectID = id
+		}
+	}
+
+	session, err := newBrowserbaseSessionWithCreds(apiKey, projectID)
 	if err != nil {
 		return err
 	}

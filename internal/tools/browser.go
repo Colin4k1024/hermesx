@@ -265,7 +265,7 @@ func browserStubResponse(tool string) string {
 }
 
 func handleBrowserNavigate(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_navigate")
 	}
@@ -281,7 +281,7 @@ func handleBrowserNavigate(ctx context.Context, args map[string]any, tctx *ToolC
 }
 
 func handleBrowserSnapshot(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_snapshot")
 	}
@@ -293,7 +293,7 @@ func handleBrowserSnapshot(ctx context.Context, args map[string]any, tctx *ToolC
 }
 
 func handleBrowserClick(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_click")
 	}
@@ -306,7 +306,7 @@ func handleBrowserClick(ctx context.Context, args map[string]any, tctx *ToolCont
 }
 
 func handleBrowserType(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_type")
 	}
@@ -321,7 +321,7 @@ func handleBrowserType(ctx context.Context, args map[string]any, tctx *ToolConte
 }
 
 func handleBrowserScroll(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_scroll")
 	}
@@ -338,7 +338,7 @@ func handleBrowserScroll(ctx context.Context, args map[string]any, tctx *ToolCon
 }
 
 func handleBrowserBack(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_back")
 	}
@@ -350,7 +350,7 @@ func handleBrowserBack(ctx context.Context, args map[string]any, tctx *ToolConte
 }
 
 func handleBrowserPress(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_press")
 	}
@@ -363,7 +363,7 @@ func handleBrowserPress(ctx context.Context, args map[string]any, tctx *ToolCont
 }
 
 func handleBrowserGetImages(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_get_images")
 	}
@@ -375,7 +375,7 @@ func handleBrowserGetImages(ctx context.Context, args map[string]any, tctx *Tool
 }
 
 func handleBrowserVision(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_vision")
 	}
@@ -387,7 +387,7 @@ func handleBrowserVision(ctx context.Context, args map[string]any, tctx *ToolCon
 }
 
 func handleBrowserConsole(ctx context.Context, args map[string]any, tctx *ToolContext) string {
-	backend, err := getOrCreateBackend()
+	backend, err := getOrCreateBackend(ctx, tctx)
 	if err != nil {
 		return browserStubResponse("browser_console")
 	}

@@ -44,6 +44,13 @@ type APIServerConfig struct {
 	UsageStore            metering.UsageStore   // optional; enables usage_records-backed usage APIs
 	EvolutionStore        *evolution.GeneStore  // optional; enables evolution sharing governance APIs
 	TenantOpts            []TenantHandlerOption // optional; wired into TenantHandler on creation
+
+	// Optional safety dependencies. When nil, safe production defaults are constructed
+	// automatically inside NewAPIServer. Inject mocks here in tests to avoid
+	// requiring a live PostgreSQL store for unit-level API server tests.
+	LeakScanner    *secrets.LeakScanner   // nil → secrets.NewLeakScanner()
+	CanaryDetector *safety.CanaryDetector // nil → safety.NewCanaryDetector()
+	PolicyStore    safety.PolicyStore     // nil → pg-backed when pool available, else in-memory
 }
 
 // APIServer is the multi-tenant SaaS API HTTP server.
@@ -132,11 +139,20 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		RateLimit: middleware.RateLimitMiddleware(cfg.RateLimit),
 	})
 
-	leakScanner := secrets.NewLeakScanner()
-	canaryDetector := safety.NewCanaryDetector()
-	policyStore := safety.PolicyStore(safety.NewInMemoryPolicyStore())
-	if pp, ok := cfg.Store.(pg.PoolProvider); ok && pp.Pool() != nil {
-		policyStore = safety.NewPostgresPolicyStore(pp.Pool())
+	leakScanner := cfg.LeakScanner
+	if leakScanner == nil {
+		leakScanner = secrets.NewLeakScanner()
+	}
+	canaryDetector := cfg.CanaryDetector
+	if canaryDetector == nil {
+		canaryDetector = safety.NewCanaryDetector()
+	}
+	policyStore := cfg.PolicyStore
+	if policyStore == nil {
+		policyStore = safety.PolicyStore(safety.NewInMemoryPolicyStore())
+		if pp, ok := cfg.Store.(pg.PoolProvider); ok && pp.Pool() != nil {
+			policyStore = safety.NewPostgresPolicyStore(pp.Pool())
+		}
 	}
 	safetyInterceptor := safety.NewInterceptorChainWithCanary(policyStore, canaryDetector)
 
@@ -274,6 +290,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	if cfg.EvolutionStore != nil {
 		cfg.EvolutionStore.StartSharingPolicyWatcher(backgroundCtx, 30*time.Second)
 	}
+	// Start canary token TTL cleanup — evicts tokens older than 24 h so the
+	// in-memory map does not grow without bound in long-running deployments.
+	// The loop is stopped automatically when backgroundCtx is cancelled by
+	// APIServer.Shutdown, which calls s.backgroundCancel() before draining.
+	canaryDetector.StartCleanupLoop(backgroundCtx, 24*time.Hour)
 
 	s := &APIServer{
 		cfg:              cfg,

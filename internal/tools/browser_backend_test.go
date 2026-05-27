@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"context"
 	"testing"
 )
 
@@ -49,13 +50,13 @@ func TestSelectBackend_Explicit(t *testing.T) {
 				t.Setenv("BROWSER_CDP_URL", tt.envCDPURL)
 			}
 
-			backend, err := selectBackend()
+			backend, err := selectBackend(context.Background(), nil)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("selectBackend() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("selectBackend(context.Background(), nil) error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && backend.Name() != tt.wantName {
-				t.Errorf("selectBackend().Name() = %q, want %q", backend.Name(), tt.wantName)
+				t.Errorf("selectBackend(context.Background(), nil).Name() = %q, want %q", backend.Name(), tt.wantName)
 			}
 		})
 	}
@@ -95,13 +96,13 @@ func TestSelectBackend_AutoDetect(t *testing.T) {
 				t.Setenv("BROWSER_CDP_URL", "")
 			}
 
-			backend, err := selectBackend()
+			backend, err := selectBackend(context.Background(), nil)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("selectBackend() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("selectBackend(context.Background(), nil) error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !tt.wantErr && backend.Name() != tt.wantName {
-				t.Errorf("selectBackend().Name() = %q, want %q", backend.Name(), tt.wantName)
+				t.Errorf("selectBackend(context.Background(), nil).Name() = %q, want %q", backend.Name(), tt.wantName)
 			}
 		})
 	}
