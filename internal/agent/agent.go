@@ -797,6 +797,11 @@ func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Me
 			if maxRedirects == 0 {
 				return http.ErrUseLastResponse
 			}
+			// Reject redirects whose Location target is a blocked IP literal
+			// (loopback, private, CGNAT, link-local) before the dial happens.
+			if err := egress.ValidateRedirectTarget(req); err != nil {
+				return err
+			}
 			if len(via) >= maxRedirects {
 				// M-2: limit exceeded must return ErrNotAllowed, not ErrUseLastResponse.
 				return egress.ErrNotAllowed

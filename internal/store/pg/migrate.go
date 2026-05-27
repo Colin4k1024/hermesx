@@ -688,6 +688,20 @@ var migrations = []migration{
 		ON egress_rules (tenant_id, priority DESC);
 	CREATE INDEX IF NOT EXISTS idx_egress_rules_tenant_host
 		ON egress_rules (tenant_id, host_pattern)`},
+
+	// v2.3.0 P3-S1 fix: execution_receipts missing FORCE RLS (defense-in-depth; #27).
+	{109, `ALTER TABLE execution_receipts FORCE ROW LEVEL SECURITY`},
+
+	// v2.3.0 P3-S1 fix: egress_rules RLS — tenant isolation for allowlist table (#27).
+	{110, `ALTER TABLE egress_rules ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE egress_rules FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'egress_rules' AND policyname = 'tenant_isolation_egress_rules') THEN
+			CREATE POLICY tenant_isolation_egress_rules ON egress_rules
+				USING (tenant_id::text = current_setting('app.current_tenant', true))
+				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

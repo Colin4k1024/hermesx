@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/safety"
 )
 
 // SamplingHandler handles MCP sampling/createMessage requests from MCP servers.
@@ -18,6 +19,7 @@ type SamplingHandler struct {
 	llmClient    *llm.Client
 	maxRPM       int
 	maxLoopDepth int
+	interceptor  safety.SafetyInterceptor // optional; nil disables safety checks
 
 	mu         sync.Mutex
 	callCounts map[string]int // per-server call counts for rate limiting
@@ -36,6 +38,16 @@ func NewSamplingHandler(client *llm.Client) *SamplingHandler {
 		lastReset:    time.Now(),
 		depths:       make(map[string]int),
 	}
+}
+
+// NewSamplingHandlerWithSafety creates a SamplingHandler that gates every
+// request through the provided SafetyInterceptor: input is checked before the
+// LLM call and output is checked after. Use this when the MCP sampling path
+// must participate in the platform-wide safety chain.
+func NewSamplingHandlerWithSafety(client *llm.Client, interceptor safety.SafetyInterceptor) *SamplingHandler {
+	h := NewSamplingHandler(client)
+	h.interceptor = interceptor
+	return h
 }
 
 // mcpSamplingRequest represents the params of a sampling/createMessage request.
@@ -102,6 +114,23 @@ func (h *SamplingHandler) HandleRequest(ctx context.Context, serverName string, 
 		return h.errorResponse(id, -32602, "sampling request must include at least one message")
 	}
 
+	// Safety: input check before calling the LLM.
+	if h.interceptor != nil {
+		sampled := make([]safety.Message, len(req.Messages))
+		for i, m := range req.Messages {
+			sampled[i] = safety.Message{Role: m.Role, Content: m.Content.Text}
+		}
+		sr, serr := h.interceptor.CheckInput(ctx, serverName, sampled)
+		if serr != nil {
+			slog.Error("MCP sampling input safety check failed", "server", serverName, "error", serr)
+			return h.errorResponse(id, -32603, fmt.Sprintf("safety check error: %v", serr))
+		}
+		if !sr.Allowed {
+			slog.Warn("MCP sampling input blocked", "server", serverName, "reason", sr.Reason)
+			return h.errorResponse(id, -32000, sr.Reason)
+		}
+	}
+
 	// Convert MCP messages to LLM messages
 	messages := mcpMessagesToLLM(req.Messages, req.SystemPrompt)
 
@@ -125,6 +154,19 @@ func (h *SamplingHandler) HandleRequest(ctx context.Context, serverName string, 
 	if err != nil {
 		slog.Error("MCP sampling LLM call failed", "server", serverName, "error", err)
 		return h.errorResponse(id, -32603, fmt.Sprintf("LLM call failed: %v", err))
+	}
+
+	// Safety: output check after LLM response.
+	if h.interceptor != nil {
+		sr, serr := h.interceptor.CheckOutput(ctx, serverName, resp.Content)
+		if serr != nil {
+			slog.Error("MCP sampling output safety check failed", "server", serverName, "error", serr)
+			return h.errorResponse(id, -32603, fmt.Sprintf("output safety check error: %v", serr))
+		}
+		if !sr.Allowed {
+			slog.Warn("MCP sampling output blocked", "server", serverName, "reason", sr.Reason)
+			return h.errorResponse(id, -32000, sr.Reason)
+		}
 	}
 
 	// Convert response back to MCP format

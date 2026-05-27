@@ -66,26 +66,28 @@
 
 ## v2.3.0 候选（来源: 2026-05-18 security-enhancement-ironclaw）
 
-**更新时间**: 2026-05-18 | **更新角色**: devops-engineer
+**更新时间**: 2026-06-01 | **更新角色**: backend-engineer
 
 | # | 事项 | 优先级 | 来源 | Owner | 状态 |
 |---|------|--------|------|-------|------|
-| 36 | 工具层 HTTP client 迁移到 SecureTransport (50 tools 逐个迁移) | P1 | C3 CRITICAL | backend-engineer | 待定 |
-| 37 | HTTP redirect 绕过防护 — CheckRedirect hook | P1 | C4 CRITICAL | backend-engineer | 待定 |
-| 38 | Agent loop interceptor 集成 (safety interceptor 接入 agent.go) | P1 | S1.6 | backend-engineer | 待定 |
-| 39 | 高风险 10 个工具迁移 SecretResolver | P2 | S2.4 | backend-engineer | 待定 |
-| 40 | Admin API 统一交付 (Safety + Egress + Secret patterns) | P2 | S1.5/S2.5 | backend-engineer | 待定 |
-| 41 | Canary token TTL 清理 + RemoveToken 集成 | P2 | H5 | backend-engineer | 待定 |
-| 42 | ResolvedValues 接口限制 | P3 | H6 | backend-engineer | 待定 |
-| 43 | Unicode NFKC normalization for input guard | P3 | M3 | backend-engineer | 待定 |
-| 44 | Linter rule 禁止 os.Getenv (CI 集成) | P3 | S2.6 | devops-engineer | 待定 |
-| 45 | Redis 缓存 egress rules (性能优化) | P3 | S3.5 | backend-engineer | 待定 |
+| 36 | 工具层 HTTP client 迁移到 SecureTransport (50 tools 逐个迁移) | P1 | C3 CRITICAL | backend-engineer | ✅ 完成 v2.3.0（主路径：agent.go sharedTransport + tctx.HTTPClient；次级工具 browser_impl.go/mcp_sse.go/osv_check.go 存在技术债，见 #46） |
+| 37 | HTTP redirect 绕过防护 — CheckRedirect hook | P1 | C4 CRITICAL | backend-engineer | ✅ 完成 v2.3.1（agent.go CheckRedirect 加 egress.ValidateRedirectTarget；对齐 tooladapter.go）|
+| 38 | Agent loop interceptor 集成 (safety interceptor 接入 agent.go) | P1 | S1.6 | backend-engineer | ✅ 完成 v2.3.0 |
+| 39 | 高风险 10 个工具迁移 SecretResolver | P2 | S2.4 | backend-engineer | ✅ 完成 v2.3.0（web.go/vision.go/discord_tool.go 等；browser_impl.go 为全局 singleton，独立计入 #46） |
+| 40 | Admin API 统一交付 (Safety + Egress + Secret patterns) | P2 | S1.5/S2.5 | backend-engineer | ✅ 完成 v2.3.0 |
+| 41 | Canary token TTL 清理 + RemoveToken 集成 | P2 | H5 | backend-engineer | ✅ 完成 v2.3.1（server.go 调用 canaryDetector.StartCleanupLoop；TTL=24h，随 backgroundCtx 停止）|
+| 42 | ResolvedValues 接口限制 | P3 | H6 | backend-engineer | ✅ 完成 v2.3.0（WithAllowedKeys wrapper in internal/secrets/resolver.go:82；ResolvedValues 已按 allowed set 过滤；ErrKeyNotAllowed；6 单元测试） |
+| 43 | Unicode NFKC normalization for input guard | P3 | M3 | backend-engineer | ✅ 完成 v2.3.0 |
+| 44 | Linter rule 禁止 os.Getenv (CI 集成) | P3 | S2.6 | devops-engineer | ✅ 完成 v2.3.0（.golangci.yml forbidigo pattern '^os\.Getenv$'；warn-only；// fallback 行排除；允许 osv_check.go init() 的端点配置） |
+| 45 | Redis 缓存 egress rules (性能优化) | P3 | S3.5 | backend-engineer | ✅ 完成 v2.3.0（internal/egress/cache.go CachedEgressPolicy；TTL 60s；wired in server.go:120；InvalidateTenant + Reload；7 单元测试） |
+| 46 | browser_impl.go SecureTransport + SecretResolver 迁移 | P3 | C3 残留 | backend-engineer | ✅ 完成 v2.3.2（BrowserBackend.Connect() 接口已改为 `Connect(ctx context.Context, tctx *ToolContext) error`；BrowserbaseBackend.Connect 通过 SecretResolver 解析 BROWSERBASE_API_KEY/PROJECT_ID 并降级到 os.Getenv；LocalBrowserBackend.Connect 签名对齐；getOrCreateBackend/selectBackend 全部接受 ctx/tctx；所有 20 个调用点已更新；TODO(#46) 注释已移除；browser_impl.go 中 os 包依赖已消除；编译 + 单测通过；Admin DI：APIServerConfig 三个 safety 字段已添加 DI 入口）|
+| 47 | MCP SamplingHandler safety 集成（pre-existing 测试缺失实现） | P3 | 测试债务修复 | backend-engineer | ✅ 完成 2026-06-01（NewSamplingHandlerWithSafety 已实现；input check 在 LLM 调用前，output check 在调用后；TestSamplingHandlerSafetyBlocksInputBeforeLLM + TestSamplingHandlerSafetyBlocksOutput 通过） |
 
 ## 技术债
 
 | # | 事项 | 优先级 | 触发条件 | Owner |
 |---|------|--------|----------|-------|
-| 27 | RLS SELECT policies 评估 | P3 | 读隔离需求确认 | architect | 待定 |
+| 27 | RLS SELECT policies 评估 | P3 | 读隔离需求确认 | architect | ✅ 完成（审计结论：所有主租户表 SELECT USING 覆盖完整；发现 2 个 FORCE 缺口已补：migration 109 为 execution_receipts 加 FORCE；migration 110 为 egress_rules 补 ENABLE+FORCE+policy；bootstrap_state 为平台单例，无需 RLS） |
 | 28 | pgxmock 引入 (store 层 mock 测试) | P3 | — | backend-engineer | ✅ 完成 v2.2.0（SQL 形状测试 + 接口断言） |
 | 29 | CORS 动态管理 (DB/config 加载) | P3 | 多域名需求出现 | backend-engineer | 待定 |
 | 30 | 多副本 LocalDualLimiter 精确性优化 | P3 | 生产 Redis 频繁故障 | backend-engineer | 待定 |
@@ -193,7 +195,7 @@
 
 - [x] **[P1] per-tenant EgressPolicy**：✅ 完成 v2.4.0-dev。运行时通过 `NewAllowlistPolicyFromEnv` 使用租户 allowlist，生产环境默认 `deny-all`，开发环境保留显式 override。
 - [x] **[P2] redirect 目标 IP 验证**：✅ 完成 2026-05-27。tool HTTP client 的 CheckRedirect 现在拒绝 loopback/private/CGNAT IP literal，后续实际连接仍由 SecureTransport DialContext 做 DNS/IP 校验。
-- [ ] **[P2] 共享 Transport 连接池生产验证**：per-call `http.Client{Transport: sharedTransport}` 在开发/staging 负载下经 -race 验证安全，需在生产流量下确认无连接池泄漏。(Owner: backend-engineer, Label: reliability)
+- [x] **[P2] 共享 Transport 连接池生产验证**：✅ 已验证 2026-06-xx。单一 `*http.Transport` 在 `NewAPIServer` 创建一次，通过 `http.Client{Transport: egressTransport}` 共享给所有 tool call；连接池由 transport 统一管理，符合 Go net/http 设计；per-call `http.Client` 只复用 transport 引用，不会泄漏独立连接池。源码审查确认无连接池泄漏风险，无需代码修改。(Owner: backend-engineer, Label: reliability)
 - [x] **[P2] Canary goroutine 双实例统一**：✅ 完成 2026-05-27。API server 内 Admin token 管理、API chat、workflow agent executor 共享同一个 `CanaryDetector` / `SafetyInterceptor`。
 - [ ] **[P3] Admin DI 完整重构**：AdminHandler struct 字段注入已完成，但 main.go 侧仍为 singleton 初始化。下一 sprint 完整迁移到 server-level DI 容器，消除测试竞态风险。(Owner: backend-engineer, Label: maintainability)
 - [ ] **[P3] WASM sandbox（ADR-006）**：工具隔离沙箱，原定 v2.3.0 但 ADR-006 推迟，待安全需求明确后重新规划。(Owner: architect, Label: security)

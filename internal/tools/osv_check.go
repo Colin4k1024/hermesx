@@ -16,6 +16,8 @@ import (
 var osvEndpoint = "https://api.osv.dev/v1/query"
 
 func init() {
+	// OSV_ENDPOINT is a public API endpoint override for testing; not a credential.
+	//nolint:forbidigo // public endpoint configuration, not a secret key
 	if ep := os.Getenv("OSV_ENDPOINT"); ep != "" {
 		osvEndpoint = ep
 	}
