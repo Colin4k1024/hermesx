@@ -47,8 +47,8 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req chatReq
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON: "+err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid JSON request body", http.StatusBadRequest)
 		return
 	}
 
@@ -126,8 +126,10 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.provisioner != nil && userID != "" {
 		cacheKey := tenantID + "/" + userID
 		if _, alreadyDone := h.provisionedUsers.Load(cacheKey); !alreadyDone {
+			bgCtx, bgCancel := context.WithTimeout(context.Background(), 30*time.Second)
 			go func() {
-				if err := h.provisioner.ProvisionUserSkills(ctx, tenantID, userID); err != nil {
+				defer bgCancel()
+				if err := h.provisioner.ProvisionUserSkills(bgCtx, tenantID, userID); err != nil {
 					slog.Warn("user_skill_provision_failed", "tenant", tenantID, "user", userID, "error", err)
 					return
 				}
@@ -165,8 +167,8 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			llmClient, err = llm.NewClientWithParams(h.llmModel, h.llmURL, h.llmAPIKey, "")
 		}
 		if err != nil || llmClient == nil {
-			slog.Error("llm_client_create_failed", "tenant", tenantID, "error", err)
-			http.Error(w, fmt.Sprintf("LLM client creation failed: %v", err), http.StatusInternalServerError)
+			slog.Error("llm_client_creation_failed", "tenant", tenantID, "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 			return
 		}
 		agentOpts := []eino.Option{
@@ -292,7 +294,8 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		close(heartDone)
 
 		if err != nil {
-			errEvt, _ := json.Marshal(map[string]string{"error": err.Error()})
+			slog.Error("agent_stream_failed", "tenant", tenantID, "session", sessionID, "error", err)
+			errEvt, _ := json.Marshal(map[string]string{"error": "agent execution failed"})
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errEvt)
 			rc.Flush()
 			fmt.Fprintf(w, "data: [DONE]\n\n")
@@ -324,7 +327,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	result, err := runAgent(ctx, userMessage, history, nil)
 	if err != nil {
 		slog.Error("agent_run_failed", "tenant", tenantID, "session", sessionID, "error", err)
-		http.Error(w, fmt.Sprintf("agent error: %v", err), http.StatusBadGateway)
+		http.Error(w, "agent execution failed", http.StatusBadGateway)
 		return
 	}
 
@@ -465,7 +468,10 @@ func (h *chatHandler) lockAgentSession(tenantID, sessionID string) func() {
 	actual, _ := h.sessionLocks.LoadOrStore(key, &sync.Mutex{})
 	mu := actual.(*sync.Mutex)
 	mu.Lock()
-	return mu.Unlock
+	return func() {
+		mu.Unlock()
+		h.sessionLocks.Delete(key)
+	}
 }
 
 // SSE chunk types matching OpenAI chat.completion.chunk format.

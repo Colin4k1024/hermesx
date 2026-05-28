@@ -15,8 +15,8 @@ func (h *AdminHandler) setSandboxPolicy(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var policy store.SandboxPolicy
-	if err := json.NewDecoder(r.Body).Decode(&policy); err != nil {
-		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&policy); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 

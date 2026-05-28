@@ -3,6 +3,7 @@ package egress
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 )
@@ -79,7 +80,8 @@ func NewDenyAllPolicy() EgressPolicy { return &denyAllPolicy{} }
 
 type logOnlyPolicy struct{}
 
-func (l *logOnlyPolicy) IsAllowed(_ context.Context, _, _, _ string) (bool, error) {
+func (l *logOnlyPolicy) IsAllowed(_ context.Context, tenantID, host, path string) (bool, error) {
+	slog.Info("egress log-only: allowing request", "tenant_id", tenantID, "host", host, "path", path)
 	return true, nil
 }
 

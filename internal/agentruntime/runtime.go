@@ -194,12 +194,16 @@ func NewLegacy(opts ...agent.AgentOption) (*LegacyRuntime, error) {
 	return &LegacyRuntime{agent: ag}, nil
 }
 
-func (r *LegacyRuntime) RunConversation(_ context.Context, userMessage string, history []llm.Message) (*agent.ConversationResult, error) {
-	return r.agent.RunConversation(userMessage, history)
+func (r *LegacyRuntime) RunConversation(ctx context.Context, userMessage string, history []llm.Message) (*agent.ConversationResult, error) {
+	return r.agent.RunConversationWithContext(ctx, userMessage, history)
 }
 
-func (r *LegacyRuntime) Chat(_ context.Context, message string) (string, error) {
-	return r.agent.Chat(message)
+func (r *LegacyRuntime) Chat(ctx context.Context, message string) (string, error) {
+	result, err := r.RunConversation(ctx, message, nil)
+	if err != nil {
+		return "", err
+	}
+	return result.FinalResponse, nil
 }
 
 func (r *LegacyRuntime) SessionID() string { return r.agent.SessionID() }
@@ -363,11 +367,9 @@ func formatSkillAsUserMessage(entry *skills.SkillEntry) string {
 	return sb.String()
 }
 
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
+func firstNonEmpty(a, b string) string {
+	if a != "" {
+		return a
 	}
-	return ""
+	return b
 }

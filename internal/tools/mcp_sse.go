@@ -218,7 +218,10 @@ func (t *sseTransportV2) Send(req jsonRPCRequest) error {
 		return fmt.Errorf("marshal request: %w", err)
 	}
 
-	httpReq, err := http.NewRequestWithContext(t.ctx, "POST", t.postURL, strings.NewReader(string(data)))
+	ctx, cancel := context.WithTimeout(t.ctx, 30*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", t.postURL, strings.NewReader(string(data)))
 	if err != nil {
 		return fmt.Errorf("create post request: %w", err)
 	}

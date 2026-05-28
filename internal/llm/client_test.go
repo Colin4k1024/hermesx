@@ -37,7 +37,7 @@ func TestNewClientWithModeAnthropic(t *testing.T) {
 	if c.transport == nil {
 		t.Error("Expected transport to be initialized")
 	}
-	if !strings.HasPrefix(c.transport.Name(), "anthropic") {
+	if !strings.Contains(c.transport.Name(), "anthropic") {
 		t.Errorf("Expected anthropic transport, got '%s'", c.transport.Name())
 	}
 }
@@ -206,7 +206,7 @@ func TestNewClientWithMode_OpenAI(t *testing.T) {
 	if c.transport == nil {
 		t.Error("Expected transport to be initialized")
 	}
-	if !strings.HasPrefix(c.transport.Name(), "openai") {
+	if !strings.Contains(c.transport.Name(), "openai") {
 		t.Errorf("Expected openai transport, got '%s'", c.transport.Name())
 	}
 }

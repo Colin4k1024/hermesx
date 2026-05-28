@@ -118,14 +118,18 @@ func (sc *StreamConsumer) flushLocked() error {
 		return nil
 	}
 
-	// Send outside the lock would be better for concurrency, but
-	// we keep it simple here. The adapter.Send should be non-blocking
-	// or have its own timeout.
-	_, err := sc.adapter.Send(context.Background(), sc.chatID, text, sc.metadata)
+	// Snap adapter+chat under the lock, then release before network I/O.
+	adapter := sc.adapter
+	chatID := sc.chatID
+	metadata := sc.metadata
+	sc.mu.Unlock()
+
+	_, err := adapter.Send(context.Background(), chatID, text, metadata)
+	sc.mu.Lock()
 	if err != nil {
 		slog.Warn("StreamConsumer flush failed",
-			"chat_id", sc.chatID,
-			"platform", sc.adapter.Platform(),
+			"chat_id", chatID,
+			"platform", adapter.Platform(),
 			"error", err,
 		)
 	}

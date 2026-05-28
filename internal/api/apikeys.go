@@ -54,7 +54,7 @@ type createKeyResponse struct {
 
 func (h *APIKeyHandler) create(w http.ResponseWriter, r *http.Request) {
 	var req createKeyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}

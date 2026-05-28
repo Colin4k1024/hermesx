@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -52,7 +53,10 @@ func (s *pgSessionStore) Get(ctx context.Context, tenantID, sessionID string) (*
 			if errors.Is(scanErr, context.DeadlineExceeded) {
 				return scanErr
 			}
-			return nil // not found
+			if errors.Is(scanErr, pgx.ErrNoRows) {
+				return nil
+			}
+			return fmt.Errorf("scan session: %w", scanErr)
 		}
 		// Assign nullable string fields after scan (NULL → empty string, not error).
 		// pgx returns NOT NULL columns as plain string, NULL columns as nil.

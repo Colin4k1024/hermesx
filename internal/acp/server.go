@@ -170,8 +170,9 @@ func (s *ACPServer) handleChat(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req ChatRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		slog.Error("acp chat decode request failed", "error", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Message == "" {
@@ -189,7 +190,8 @@ func (s *ACPServer) handleChat(w http.ResponseWriter, r *http.Request) {
 		if req.SessionID != "" {
 			s.events.Publish(req.SessionID, "error", map[string]string{"message": err.Error()})
 		}
-		writeError(w, http.StatusInternalServerError, "chat error: "+err.Error())
+		slog.Error("acp chat failed", "error", err)
+		writeError(w, http.StatusInternalServerError, "chat failed")
 		return
 	}
 
@@ -229,7 +231,8 @@ func (s *ACPServer) handleStatus(w http.ResponseWriter, _ *http.Request) {
 func (s *ACPServer) handleTool(w http.ResponseWriter, r *http.Request) {
 	var req ToolRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeError(w, http.StatusBadRequest, "invalid request body: "+err.Error())
+		slog.Error("acp tool decode request failed", "error", err)
+		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
 	if req.Tool == "" {
@@ -278,7 +281,7 @@ func (s *ACPServer) handleToolsList(w http.ResponseWriter, _ *http.Request) {
 
 func (s *ACPServer) handleSessionCreate(w http.ResponseWriter, r *http.Request) {
 	var req SessionCreateRequest
-	json.NewDecoder(r.Body).Decode(&req) // allow empty body
+	json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req) // allow empty body
 
 	model := req.Model
 	if model == "" {

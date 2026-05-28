@@ -88,6 +88,9 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 			allowed[o] = true
 		}
 	}
+	if allowAll {
+		slog.Warn("CORS configured with allow-all origins combined with credentials — any origin can make credentialed requests; restrict AllowedOrigins in production")
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
 		// Always add Vary: Origin so caches don't serve a cached CORS response to a different origin.
@@ -134,6 +137,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		RequestID: middleware.RequestIDMiddleware,
 		Auth:      middleware.AuthMiddleware(cfg.AuthChain, false, cfg.Store.AuditLogs()),
 		Tenant:    middleware.TenantMiddleware,
+		Logging:   middleware.LoggingMiddleware,
 		Audit:     middleware.AuditMiddleware(cfg.Store.AuditLogs()),
 		RBAC:      middleware.RBACMiddleware(cfg.RBAC),
 		RateLimit: middleware.RateLimitMiddleware(cfg.RateLimit),

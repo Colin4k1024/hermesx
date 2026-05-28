@@ -12,9 +12,14 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/cloudwego/eino v0.9.0-beta.1
+	github.com/cloudwego/eino-ext/components/model/agenticclaude v0.1.0-beta.1
+	github.com/cloudwego/eino-ext/components/model/agenticgemini v0.2.0-beta.1
+	github.com/cloudwego/eino-ext/components/model/agenticopenai v0.2.0-beta.1
 	github.com/coreos/go-oidc/v3 v3.18.0
 	github.com/creack/pty v1.1.24
 	github.com/eino-contrib/jsonschema v1.0.3
+	github.com/go-co-op/gocron-redis-lock/v2 v2.2.1
+	github.com/go-co-op/gocron/v2 v2.21.2
 	github.com/go-jose/go-jose/v4 v4.1.4
 	github.com/go-sql-driver/mysql v1.10.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
@@ -39,6 +44,7 @@ require (
 	golang.org/x/crypto v0.51.0
 	golang.org/x/sys v0.45.0
 	golang.org/x/text v0.37.0
+	google.golang.org/genai v1.36.0
 	google.golang.org/grpc v1.80.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.34.4
@@ -85,16 +91,11 @@ require (
 	github.com/clipperhouse/stringish v0.1.1 // indirect
 	github.com/clipperhouse/uax29/v2 v2.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
-	github.com/cloudwego/eino-ext/components/model/agenticclaude v0.1.0-beta.1 // indirect
-	github.com/cloudwego/eino-ext/components/model/agenticgemini v0.2.0-beta.1 // indirect
-	github.com/cloudwego/eino-ext/components/model/agenticopenai v0.2.0-beta.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
-	github.com/go-co-op/gocron-redis-lock/v2 v2.2.1 // indirect
-	github.com/go-co-op/gocron/v2 v2.21.2 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
@@ -176,7 +177,6 @@ require (
 	golang.org/x/sync v0.20.0 // indirect
 	golang.org/x/time v0.6.0 // indirect
 	google.golang.org/api v0.197.0 // indirect
-	google.golang.org/genai v1.36.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260401024825-9d38bb4040a9 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect

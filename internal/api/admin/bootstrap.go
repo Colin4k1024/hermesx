@@ -107,15 +107,19 @@ func (h *BootstrapHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req bootstrapRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 	if req.Name == "" {
 		req.Name = "initial-admin-key"
 	}
 
-	rawKey := generateAdminRawKey()
+	rawKey, keyGenErr := generateAdminRawKey()
+	if keyGenErr != nil {
+		http.Error(w, "failed to generate key", http.StatusInternalServerError)
+		return
+	}
 	prefix := rawKey[:8]
 
 	key := &store.APIKey{

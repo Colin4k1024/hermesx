@@ -72,6 +72,7 @@ type SaasScheduler struct {
 	started    bool
 	ctx        context.Context    // lifecycle context, cancelled on Stop
 	cancelFunc context.CancelFunc // cancels ctx
+	wg         sync.WaitGroup
 }
 
 // New creates a SaasScheduler. Call Start to begin execution.
@@ -138,12 +139,13 @@ func (s *SaasScheduler) Start(ctx context.Context) error {
 }
 
 // Stop gracefully shuts down the scheduler. Order: stop gocron first (drains running tasks),
-// then cancel the lifecycle context.
+// then cancel the lifecycle context, then wait for pollLoop to exit.
 func (s *SaasScheduler) Stop() error {
 	err := s.sched.Shutdown()
 	if s.cancelFunc != nil {
 		s.cancelFunc()
 	}
+	s.wg.Wait()
 	return err
 }
 

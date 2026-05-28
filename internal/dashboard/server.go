@@ -89,7 +89,8 @@ func (d *Dashboard) handleSessions(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := d.GetSessions()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("dashboard get sessions failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(data)
@@ -107,12 +108,13 @@ func (d *Dashboard) handleConfig(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		var data map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&data); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&data); err != nil {
 			http.Error(w, "invalid JSON", http.StatusBadRequest)
 			return
 		}
 		if err := d.SaveConfig(data); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("dashboard save config failed", "error", err)
+			http.Error(w, "operation failed", http.StatusInternalServerError)
 			return
 		}
 		json.NewEncoder(w).Encode(map[string]string{"status": "saved"})
@@ -125,7 +127,8 @@ func (d *Dashboard) handleConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := d.GetConfig()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("dashboard get config failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(data)
@@ -139,7 +142,8 @@ func (d *Dashboard) handleSkills(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := d.GetSkills()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("dashboard get skills failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(data)
@@ -153,7 +157,8 @@ func (d *Dashboard) handleGateways(w http.ResponseWriter, r *http.Request) {
 	}
 	data, err := d.GetGateways()
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("dashboard get gateways failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 	json.NewEncoder(w).Encode(data)

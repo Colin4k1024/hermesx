@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -42,6 +43,10 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 		return nil, fmt.Errorf("pg parse config: %w", err)
 	}
 	poolCfg.ConnConfig.Tracer = &observability.PGXTracer{}
+	poolCfg.MaxConns = 25
+	poolCfg.MinConns = 5
+	poolCfg.MaxConnLifetime = 5 * time.Minute
+	poolCfg.MaxConnIdleTime = 1 * time.Minute
 
 	// AfterRelease hook: clear tenant context to prevent RLS variable leakage on connection reuse.
 	poolCfg.AfterRelease = func(conn *pgx.Conn) bool {

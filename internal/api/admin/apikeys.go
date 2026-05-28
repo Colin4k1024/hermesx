@@ -45,8 +45,8 @@ func (h *AdminHandler) createAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req createAdminKeyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid body: "+err.Error(), http.StatusBadRequest)
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
 	if req.Name == "" {
@@ -59,7 +59,11 @@ func (h *AdminHandler) createAPIKey(w http.ResponseWriter, r *http.Request) {
 		roles = []string{"user"}
 	}
 
-	rawKey := generateAdminRawKey()
+	rawKey, err := generateAdminRawKey()
+	if err != nil {
+		http.Error(w, "failed to generate key", http.StatusInternalServerError)
+		return
+	}
 	prefix := rawKey[:8]
 
 	key := &store.APIKey{
@@ -167,7 +171,11 @@ func (h *AdminHandler) rotateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Atomic rotation: create new + revoke old in a single transaction.
-	rawKey := generateAdminRawKey()
+	rawKey, err := generateAdminRawKey()
+	if err != nil {
+		http.Error(w, "failed to generate key", http.StatusInternalServerError)
+		return
+	}
 	prefix := rawKey[:8]
 
 	newKey := &store.APIKey{
@@ -284,10 +292,10 @@ func (h *AdminHandler) rotateKeyAtomic(ctx context.Context, newKey *store.APIKey
 }
 
 // generateAdminRawKey produces a 32-byte random key with "hk_" prefix encoded as hex.
-func generateAdminRawKey() string {
+func generateAdminRawKey() (string, error) {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		panic("crypto/rand failed: " + err.Error())
+		return "", fmt.Errorf("crypto/rand failed: %w", err)
 	}
-	return "hk_" + hex.EncodeToString(b)
+	return "hk_" + hex.EncodeToString(b), nil
 }

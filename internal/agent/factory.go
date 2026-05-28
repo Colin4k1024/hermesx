@@ -125,15 +125,16 @@ func (f *AgentFactory) Run(ctx context.Context, req ChatRequest) (*ChatResult, e
 		return nil, fmt.Errorf("agent run: %w", err)
 	}
 
-	// Persist assistant response
 	if result.FinalResponse != "" {
-		f.store.Messages().Append(ctx, tenantID, sessionID, &store.Message{
+		if _, appendErr := f.store.Messages().Append(ctx, tenantID, sessionID, &store.Message{
 			SessionID: sessionID,
 			Role:      "assistant",
 			Content:   result.FinalResponse,
 			Reasoning: result.LastReasoning,
 			Timestamp: time.Now(),
-		})
+		}); appendErr != nil {
+			slog.Error("persist assistant_response_failed", "tenant", tenantID, "session", sessionID, "error", appendErr)
+		}
 	}
 
 	// Update token counts

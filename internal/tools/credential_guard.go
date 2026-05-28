@@ -10,16 +10,22 @@ var credentialDirs = []string{
 	".docker",
 	".azure",
 	".config/gh",
+	".config/gcloud",
 	".aws",
 	".kube",
 	".ssh",
 	".gnupg",
+	".terraform.d",
+	"Library/Application Support",
 }
 
 var credentialFiles = []string{
 	".netrc",
 	".npmrc",
 	".pypirc",
+	".git-credentials",
+	".gitconfig",
+	".vault-token",
 }
 
 // IsCredentialPath checks if a path points to a sensitive credential location.

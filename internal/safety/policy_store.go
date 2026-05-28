@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"regexp"
 	"sync"
 	"time"
@@ -73,6 +74,8 @@ func (ps *PostgresPolicyStore) GetPolicy(ctx context.Context, tenantID string) (
 				if s.Regex != "" {
 					if r, err := regexp.Compile(s.Regex); err == nil {
 						ip.Regex = r
+					} else {
+						slog.Warn("safety policy: skipping input pattern with invalid regex", "tenant_id", tid, "regex", s.Regex, "error", err)
 					}
 				}
 				policy.InputPatterns = append(policy.InputPatterns, ip)
@@ -88,6 +91,8 @@ func (ps *PostgresPolicyStore) GetPolicy(ctx context.Context, tenantID string) (
 				if s.Regex != "" {
 					if r, err := regexp.Compile(s.Regex); err == nil {
 						or.Regex = r
+					} else {
+						slog.Warn("safety policy: skipping output rule with invalid regex", "tenant_id", tid, "regex", s.Regex, "error", err)
 					}
 				}
 				policy.OutputRules = append(policy.OutputRules, or)
@@ -166,6 +171,8 @@ func (ps *PostgresPolicyStore) ListPolicies(ctx context.Context) ([]Policy, erro
 					if s.Regex != "" {
 						if r, err := regexp.Compile(s.Regex); err == nil {
 							ip.Regex = r
+						} else {
+							slog.Warn("safety policy: skipping input pattern with invalid regex", "tenant_id", tid, "regex", s.Regex, "error", err)
 						}
 					}
 					p.InputPatterns = append(p.InputPatterns, ip)
@@ -181,6 +188,8 @@ func (ps *PostgresPolicyStore) ListPolicies(ctx context.Context) ([]Policy, erro
 					if s.Regex != "" {
 						if r, err := regexp.Compile(s.Regex); err == nil {
 							or.Regex = r
+						} else {
+							slog.Warn("safety policy: skipping output rule with invalid regex", "tenant_id", tid, "regex", s.Regex, "error", err)
 						}
 					}
 					p.OutputRules = append(p.OutputRules, or)

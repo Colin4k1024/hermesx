@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	openai "github.com/sashabaranov/go-openai"
@@ -22,6 +24,7 @@ type OpenAITransport struct {
 func NewOpenAITransport(model, baseURL, apiKey string) *OpenAITransport {
 	cfg := openai.DefaultConfig(apiKey)
 	cfg.BaseURL = baseURL
+	cfg.HTTPClient = &http.Client{Timeout: 300 * time.Second}
 	return &OpenAITransport{
 		client:  openai.NewClientWithConfig(cfg),
 		model:   model,

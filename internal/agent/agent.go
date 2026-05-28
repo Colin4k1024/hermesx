@@ -107,7 +107,9 @@ type AIAgent struct {
 	// Runtime counters
 	apiCallCount int
 	lastActivity time.Time
-	heartbeatCh  chan struct{}
+	// Heartbeat support
+	heartbeatOnce sync.Once
+	heartbeatCh   chan struct{}
 
 	// Compression cooldown
 	lastCompressionFailure time.Time
@@ -245,6 +247,12 @@ func (a *AIAgent) RunConversation(userMessage string, history []llm.Message) (*C
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	return a.RunConversationWithContext(ctx, userMessage, history)
+}
+
+// RunConversationWithContext runs a full conversation turn with an externally-provided context,
+// allowing callers to cancel in-progress conversations (e.g. when an HTTP client disconnects).
+func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage string, history []llm.Message) (*ConversationResult, error) {
 
 	// Create session in DB
 	if a.sessionDB != nil {
@@ -658,16 +666,16 @@ func (a *AIAgent) consumeSteer() string {
 
 // Heartbeat returns a channel that receives a signal on each LLM call or tool execution.
 func (a *AIAgent) Heartbeat() <-chan struct{} {
-	if a.heartbeatCh == nil {
+	a.heartbeatOnce.Do(func() {
 		a.heartbeatCh = make(chan struct{}, 1)
-	}
+	})
 	return a.heartbeatCh
 }
 
 func (a *AIAgent) fireHeartbeat() {
-	if a.heartbeatCh == nil {
-		return
-	}
+	a.heartbeatOnce.Do(func() {
+		a.heartbeatCh = make(chan struct{}, 1)
+	})
 	select {
 	case a.heartbeatCh <- struct{}{}:
 	default:

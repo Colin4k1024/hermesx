@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -34,7 +36,10 @@ func NewBedrockTransport(model, region string) (*BedrockTransport, error) {
 		region = "us-east-1"
 	}
 
-	cfg, err := awsconfig.LoadDefaultConfig(context.Background(), awsconfig.WithRegion(region))
+	cfg, err := awsconfig.LoadDefaultConfig(context.Background(),
+		awsconfig.WithRegion(region),
+		awsconfig.WithHTTPClient(&http.Client{Timeout: 300 * time.Second}),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)
 	}

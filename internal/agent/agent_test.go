@@ -174,8 +174,7 @@ func TestTruncate(t *testing.T) {
 
 func TestBuildSystemPromptWithOverride(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	a := &AIAgent{
 		ephemeralSystemPrompt: "Custom system prompt override",
@@ -189,8 +188,7 @@ func TestBuildSystemPromptWithOverride(t *testing.T) {
 
 func TestBuildSystemPromptDefault(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 	os.MkdirAll(tmpDir+"/skills", 0755)
 
 	a := &AIAgent{
@@ -431,8 +429,7 @@ func TestIsOversizedResult(t *testing.T) {
 
 func TestSaveOversizedResult(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	longResult := strings.Repeat("data-", 30000) // 150K chars
 	saved := SaveOversizedResult("test_tool", longResult)
@@ -450,8 +447,7 @@ func TestSaveOversizedResult(t *testing.T) {
 
 func TestSaveOversizedResult_SmallInput(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	// Small results still get saved (the function does not check size threshold)
 	smallResult := "small output"
@@ -823,8 +819,7 @@ func TestInferProviderFromBaseURL(t *testing.T) {
 
 func TestLoadContextReferences_EmptyDir(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	refs := LoadContextReferences(tmpDir)
 	if len(refs) != 0 {
@@ -834,8 +829,7 @@ func TestLoadContextReferences_EmptyDir(t *testing.T) {
 
 func TestLoadContextReferences_WithSOUL(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", t.TempDir()) // different from workspace
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", t.TempDir()) // different from workspace
 
 	os.WriteFile(filepath.Join(tmpDir, "SOUL.md"), []byte("You are helpful"), 0644)
 
@@ -853,8 +847,7 @@ func TestLoadContextReferences_WithSOUL(t *testing.T) {
 
 func TestLoadContextReferences_WithREADME(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", t.TempDir())
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", t.TempDir())
 
 	// No SOUL.md, AGENTS.md, etc. but has README.md
 	os.WriteFile(filepath.Join(tmpDir, "README.md"), []byte("# My Project\nDescription"), 0644)
@@ -953,8 +946,7 @@ func TestGetUsageInsights_NilDB(t *testing.T) {
 
 func TestGetUsageInsights_DefaultDays(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	db, err := state.NewSessionDB(filepath.Join(tmpDir, "insights.db"))
 	if err != nil {
@@ -980,8 +972,7 @@ func TestGetUsageInsights_DefaultDays(t *testing.T) {
 
 func TestGetUsageInsights_WithData(t *testing.T) {
 	tmpDir := t.TempDir()
-	os.Setenv("HERMES_HOME", tmpDir)
-	defer os.Unsetenv("HERMES_HOME")
+	t.Setenv("HERMES_HOME", tmpDir)
 
 	db, err := state.NewSessionDB(filepath.Join(tmpDir, "insights2.db"))
 	if err != nil {
@@ -1005,12 +996,11 @@ func TestCredentialPool_LoadFromEnv(t *testing.T) {
 	pool := NewCredentialPool()
 
 	// Set up a known env var
-	os.Setenv("OPENAI_API_KEY", "test-env-openai-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "test-env-openai-key")
 
 	// Clear other vars to avoid interference
-	os.Unsetenv("OPENROUTER_API_KEY")
-	os.Unsetenv("ANTHROPIC_API_KEY")
+	t.Setenv("OPENROUTER_API_KEY", "")
+	t.Setenv("ANTHROPIC_API_KEY", "")
 
 	pool.LoadFromEnv()
 
@@ -1033,8 +1023,7 @@ func TestCredentialPool_LoadFromEnv_SkipExisting(t *testing.T) {
 		Priority: 0,
 	})
 
-	os.Setenv("OPENAI_API_KEY", "env-key")
-	defer os.Unsetenv("OPENAI_API_KEY")
+	t.Setenv("OPENAI_API_KEY", "env-key")
 
 	pool.LoadFromEnv()
 

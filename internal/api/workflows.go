@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"strings"
@@ -95,7 +96,7 @@ func (h *WorkflowHandler) createDefinition(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var req workflowDefinitionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
@@ -104,7 +105,7 @@ func (h *WorkflowHandler) createDefinition(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := workflowrt.ValidateGraph(&req.Graph); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid workflow graph", http.StatusBadRequest)
 		return
 	}
 	graphJSON, _ := json.Marshal(req.Graph)
@@ -141,7 +142,7 @@ func (h *WorkflowHandler) updateDefinition(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	var req workflowDefinitionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
@@ -150,7 +151,7 @@ func (h *WorkflowHandler) updateDefinition(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	if err := workflowrt.ValidateGraph(&req.Graph); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid workflow graph", http.StatusBadRequest)
 		return
 	}
 	graphJSON, _ := json.Marshal(req.Graph)
@@ -179,7 +180,7 @@ func (h *WorkflowHandler) publishDefinition(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	if _, err := workflowrt.ParseGraph(def.GraphJSON); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid graph for publish", http.StatusBadRequest)
 		return
 	}
 	version := &store.WorkflowVersion{
@@ -241,7 +242,7 @@ func (h *WorkflowHandler) startRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var req startWorkflowRunRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
@@ -255,7 +256,8 @@ func (h *WorkflowHandler) startRun(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "published workflow version not found", http.StatusConflict)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error("workflow start failed", "error", err)
+		http.Error(w, "start workflow failed", http.StatusConflict)
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"run": run, "steps": steps})
@@ -274,6 +276,9 @@ func (h *WorkflowHandler) listRuns(w http.ResponseWriter, r *http.Request) {
 		Status:       r.URL.Query().Get("status"),
 	}
 	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+		if n > 100 {
+			n = 100
+		}
 		opts.Limit = n
 	}
 	if n, err := strconv.Atoi(r.URL.Query().Get("offset")); err == nil && n >= 0 {
@@ -342,7 +347,8 @@ func (h *WorkflowHandler) retryRun(w http.ResponseWriter, r *http.Request, id st
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusConflict)
+		slog.Error("workflow retry failed", "error", err)
+		http.Error(w, "retry failed", http.StatusConflict)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": run, "steps": steps})
@@ -382,7 +388,7 @@ func (h *WorkflowHandler) completeTask(w http.ResponseWriter, r *http.Request, s
 		return
 	}
 	var req store.HumanTaskOutcome
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
@@ -392,7 +398,8 @@ func (h *WorkflowHandler) completeTask(w http.ResponseWriter, r *http.Request, s
 	}
 	run, steps, err := h.engine.CompleteHumanTask(r.Context(), tenantID, stepID, req)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusConflict)
+		slog.Error("complete human task failed", "error", err)
+		http.Error(w, "task completion failed", http.StatusConflict)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"run": run, "steps": steps})

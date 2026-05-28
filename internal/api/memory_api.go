@@ -38,7 +38,7 @@ func (h *chatHandler) handleListMemories(w http.ResponseWriter, r *http.Request)
 	ctx := r.Context()
 	raw, err := h.store.Memories().List(ctx, ac.TenantID, userID)
 	if err != nil {
-		http.Error(w, "failed to query memories: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to query memories", http.StatusInternalServerError)
 		return
 	}
 
@@ -87,7 +87,7 @@ func (h *chatHandler) handleDeleteMemory(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := h.store.Memories().Delete(r.Context(), ac.TenantID, userID, key); err != nil {
-		http.Error(w, "failed to delete memory: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "failed to delete memory", http.StatusInternalServerError)
 		return
 	}
 

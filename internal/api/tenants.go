@@ -82,7 +82,7 @@ func (h *TenantHandler) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var t store.Tenant
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&t); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}
@@ -150,7 +150,7 @@ func (h *TenantHandler) update(w http.ResponseWriter, r *http.Request, id string
 		return
 	}
 	var t store.Tenant
-	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&t); err != nil {
 		http.Error(w, "invalid body", http.StatusBadRequest)
 		return
 	}

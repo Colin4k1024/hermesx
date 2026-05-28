@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -139,6 +140,7 @@ func newClientInternal(model, baseURL, apiKey, provider string, mode APIMode) (*
 	}
 
 	t := newDefaultTransport(provider, baseURL, apiKey, model, mode)
+	t = NewRetryTransport(t)
 	if os.Getenv("HERMES_CIRCUIT_BREAKER_DISABLED") != "true" {
 		t = NewResilientTransport(t, model)
 	}
@@ -412,6 +414,7 @@ func newDefaultTransport(provider, baseURL, apiKey, model string, mode APIMode) 
 	default:
 		cfg := openai.DefaultConfig(apiKey)
 		cfg.BaseURL = baseURL
+		cfg.HTTPClient = &http.Client{Timeout: 300 * time.Second}
 		return &openaiTransportImpl{
 			client: openai.NewClientWithConfig(cfg),
 			model:  model,

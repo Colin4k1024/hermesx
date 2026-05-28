@@ -13,11 +13,10 @@ const safeStreamBufferThreshold = 64
 // `threshold` bytes which might contain a partial secret), and retain the
 // tail for the next round. On Flush, redact and emit everything remaining.
 type safeStreamWriter struct {
-	buf      strings.Builder
-	emitted  int
-	hook     *RedactionHook
-	cb       *StreamCallbacks
-	allParts []string
+	buf     strings.Builder
+	emitted int
+	hook    *RedactionHook
+	cb      *StreamCallbacks
 }
 
 func newSafeStreamWriter(hook *RedactionHook, cb *StreamCallbacks) *safeStreamWriter {
@@ -26,7 +25,6 @@ func newSafeStreamWriter(hook *RedactionHook, cb *StreamCallbacks) *safeStreamWr
 
 func (w *safeStreamWriter) Write(chunk string) {
 	w.buf.WriteString(chunk)
-	w.allParts = append(w.allParts, chunk)
 
 	if w.buf.Len()-w.emitted >= safeStreamBufferThreshold*2 {
 		w.emitSafePrefix()

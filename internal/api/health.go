@@ -44,7 +44,7 @@ func (h *HealthHandler) ReadyHandler() http.HandlerFunc {
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel()
 			if err := h.db.Ping(ctx); err != nil {
-				checks["database"] = "unhealthy: " + err.Error()
+				checks["database"] = "unhealthy"
 				healthy = false
 			} else {
 				checks["database"] = "ok"
@@ -55,7 +55,7 @@ func (h *HealthHandler) ReadyHandler() http.HandlerFunc {
 			ctx2, cancel2 := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel2()
 			if err := h.redis.Ping(ctx2); err != nil {
-				checks["redis"] = "unhealthy: " + err.Error()
+				checks["redis"] = "unhealthy"
 				healthy = false
 			} else {
 				checks["redis"] = "ok"
@@ -66,7 +66,7 @@ func (h *HealthHandler) ReadyHandler() http.HandlerFunc {
 			ctx3, cancel3 := context.WithTimeout(r.Context(), 2*time.Second)
 			defer cancel3()
 			if err := h.minio.Ping(ctx3); err != nil {
-				checks["minio"] = "unhealthy: " + err.Error()
+				checks["minio"] = "unhealthy"
 				healthy = false
 			} else {
 				checks["minio"] = "ok"

@@ -2,6 +2,8 @@ package pg
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -46,7 +48,10 @@ func (u *pgUserStore) IsApproved(ctx context.Context, tenantID, platform, userID
 		`SELECT approved_at FROM users WHERE tenant_id = $1 AND external_id = $2`,
 		tenantID, externalID).Scan(&approvedAt)
 	if err != nil {
-		return false, nil
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check user approved: %w", err)
 	}
 	return approvedAt != nil, nil
 }
@@ -84,8 +89,10 @@ func (u *pgUserStore) ListApproved(ctx context.Context, tenantID, platform strin
 	var ids []string
 	for rows.Next() {
 		var eid string
-		rows.Scan(&eid)
+		if err := rows.Scan(&eid); err != nil {
+			return nil, fmt.Errorf("scan approved user: %w", err)
+		}
 		ids = append(ids, eid[len(prefix):])
 	}
-	return ids, nil
+	return ids, rows.Err()
 }

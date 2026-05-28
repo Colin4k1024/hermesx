@@ -367,12 +367,14 @@ func startBackground(command, workDir string) string {
 	// Monitor in background
 	go func() {
 		err := cmd.Wait()
+		processMu.Lock()
 		proc.Done = true
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				proc.ExitCode = exitErr.ExitCode()
 			}
 		}
+		processMu.Unlock()
 		slog.Debug("Background process completed", "id", id, "exit_code", proc.ExitCode)
 	}()
 

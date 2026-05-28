@@ -3,6 +3,8 @@ package mysql
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -41,7 +43,10 @@ func (u *myUserStore) IsApproved(ctx context.Context, tenantID, platform, userID
 		`SELECT approved_at FROM users WHERE tenant_id = ? AND external_id = ?`,
 		tenantID, externalID).Scan(&approvedAt)
 	if err != nil {
-		return false, nil
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, nil
+		}
+		return false, fmt.Errorf("check user approved: %w", err)
 	}
 	return approvedAt != nil, nil
 }

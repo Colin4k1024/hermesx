@@ -256,6 +256,8 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 	a.EmitMessage(event)
 
 	// Wait for response
+	timer := time.NewTimer(300 * time.Second)
+	defer timer.Stop()
 	select {
 	case response := <-responseCh:
 		w.Header().Set("Content-Type", "application/json")
@@ -270,7 +272,7 @@ func (a *APIServerAdapter) handleChatCompletions(w http.ResponseWriter, r *http.
 				FinishReason: "stop",
 			}},
 		})
-	case <-time.After(300 * time.Second):
+	case <-timer.C:
 		http.Error(w, "timeout", http.StatusGatewayTimeout)
 	case <-r.Context().Done():
 		return

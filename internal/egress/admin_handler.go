@@ -2,6 +2,7 @@ package egress
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 )
@@ -50,7 +51,8 @@ func (h *AdminHandler) deleteRuleV1(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteRule(r.Context(), id, tenantID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("delete egress rule failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -75,7 +77,8 @@ func (h *AdminHandler) blockedLog(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.URL.Query().Get("tenant_id")
 	rules, err := h.store.ListRules(r.Context(), tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("list egress rules for blocked log failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -90,7 +93,8 @@ func (h *AdminHandler) listRules(w http.ResponseWriter, r *http.Request) {
 	tenantID := r.URL.Query().Get("tenant_id")
 	rules, err := h.store.ListRules(r.Context(), tenantID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("list egress rules failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -107,7 +111,7 @@ type createRuleRequest struct {
 
 func (h *AdminHandler) createRule(w http.ResponseWriter, r *http.Request) {
 	var req createRuleRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -137,7 +141,8 @@ func (h *AdminHandler) createRule(w http.ResponseWriter, r *http.Request) {
 
 	id, err := h.store.CreateRule(r.Context(), rule)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("create egress rule failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 
@@ -164,7 +169,8 @@ func (h *AdminHandler) deleteRule(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.store.DeleteRule(r.Context(), id, tenantID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("delete egress rule failed", "error", err)
+		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 

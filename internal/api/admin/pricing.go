@@ -42,7 +42,7 @@ func (h *AdminHandler) upsertPricingRule(w http.ResponseWriter, r *http.Request)
 		OutputPer1K    float64 `json:"output_per_1k"`
 		CacheReadPer1K float64 `json:"cache_read_per_1k"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&body); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}

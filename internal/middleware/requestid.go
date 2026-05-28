@@ -5,9 +5,14 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"net/http"
+	"regexp"
 )
 
 type requestIDKey struct{}
+
+var validRequestID = regexp.MustCompile(`^[a-zA-Z0-9_\-]+$`)
+
+const maxRequestIDLen = 64
 
 // RequestIDFromContext extracts the request ID from context.
 func RequestIDFromContext(ctx context.Context) string {
@@ -16,11 +21,11 @@ func RequestIDFromContext(ctx context.Context) string {
 }
 
 // RequestIDMiddleware injects a unique request ID into the context and response header.
-// Reuses X-Request-ID from the client if present.
+// Reuses X-Request-ID from the client if present and valid.
 func RequestIDMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		id := r.Header.Get("X-Request-ID")
-		if id == "" {
+		if id == "" || len(id) > maxRequestIDLen || !validRequestID.MatchString(id) {
 			id = generateID()
 		}
 		w.Header().Set("X-Request-ID", id)
@@ -31,6 +36,8 @@ func RequestIDMiddleware(next http.Handler) http.Handler {
 
 func generateID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	if _, err := rand.Read(b); err != nil {
+		return "fallback-" + hex.EncodeToString(b)
+	}
 	return hex.EncodeToString(b)
 }

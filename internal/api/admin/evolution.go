@@ -3,6 +3,7 @@ package admin
 import (
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -68,7 +69,8 @@ func (h *AdminHandler) listEvolutionSharingPolicyHistory(w http.ResponseWriter, 
 	limit, offset := parseHistoryWindow(r)
 	entries, err := h.evolutionStore.ListSharingPolicyHistory(limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("list sharing policy history failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, map[string]any{"entries": entries, "limit": limit, "offset": offset})
@@ -80,7 +82,7 @@ func (h *AdminHandler) updateEvolutionSharingPolicy(w http.ResponseWriter, r *ht
 		return
 	}
 	var req sharingPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -91,7 +93,8 @@ func (h *AdminHandler) updateEvolutionSharingPolicy(w http.ResponseWriter, r *ht
 	before := h.evolutionStore.SharingPolicySnapshot()
 	after, err := h.evolutionStore.SetSharingMode(req.Mode, req.Reason)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("update sharing policy failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 
@@ -109,7 +112,7 @@ func (h *AdminHandler) rollbackEvolutionSharingPolicy(w http.ResponseWriter, r *
 		return
 	}
 	var req policyRollbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -126,9 +129,11 @@ func (h *AdminHandler) rollbackEvolutionSharingPolicy(w http.ResponseWriter, r *
 	if err != nil {
 		switch {
 		case errors.Is(err, evolution.ErrPolicyVersionNotFound):
-			http.Error(w, err.Error(), http.StatusNotFound)
+			slog.Error("policy version not found for rollback", "error", err)
+			http.Error(w, "policy version not found", http.StatusNotFound)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("rollback sharing policy failed", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -167,7 +172,8 @@ func (h *AdminHandler) listEvolutionTenantSharingPolicyHistory(w http.ResponseWr
 	limit, offset := parseHistoryWindow(r)
 	entries, err := h.evolutionStore.ListTenantSharingPolicyHistory(tenantID, limit, offset)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("list tenant sharing policy history failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, map[string]any{"entries": entries, "limit": limit, "offset": offset})
@@ -184,7 +190,7 @@ func (h *AdminHandler) updateEvolutionTenantSharingPolicy(w http.ResponseWriter,
 		return
 	}
 	var req tenantSharingPolicyRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -200,7 +206,8 @@ func (h *AdminHandler) updateEvolutionTenantSharingPolicy(w http.ResponseWriter,
 		Labels:           req.Labels,
 	}, req.Reason)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		slog.Error("update tenant sharing policy failed", "error", err)
+		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}
 	h.appendGovernanceAudit(r, "admin.evolution.tenant_sharing_policy.update", map[string]any{
@@ -223,7 +230,7 @@ func (h *AdminHandler) rollbackEvolutionTenantSharingPolicy(w http.ResponseWrite
 		return
 	}
 	var req policyRollbackRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -240,9 +247,11 @@ func (h *AdminHandler) rollbackEvolutionTenantSharingPolicy(w http.ResponseWrite
 	if err != nil {
 		switch {
 		case errors.Is(err, evolution.ErrPolicyVersionNotFound):
-			http.Error(w, err.Error(), http.StatusNotFound)
+			slog.Error("tenant policy version not found for rollback", "error", err)
+			http.Error(w, "policy version not found", http.StatusNotFound)
 		default:
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			slog.Error("rollback tenant sharing policy failed", "error", err)
+			http.Error(w, "internal server error", http.StatusInternalServerError)
 		}
 		return
 	}
@@ -262,7 +271,7 @@ func (h *AdminHandler) revokeEvolutionSharedKnowledge(w http.ResponseWriter, r *
 		return
 	}
 	var req sharedKnowledgeRevokeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
 		http.Error(w, "invalid JSON body", http.StatusBadRequest)
 		return
 	}
@@ -293,7 +302,8 @@ func (h *AdminHandler) revokeEvolutionSharedKnowledge(w http.ResponseWriter, r *
 
 	deleted, err := h.evolutionStore.RevokeShared(r.Context(), criteria)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		slog.Error("revoke shared knowledge failed", "error", err)
+		http.Error(w, "revoke failed", http.StatusBadRequest)
 		return
 	}
 	h.appendGovernanceAudit(r, "admin.evolution.shared_knowledge.revoke", map[string]any{
