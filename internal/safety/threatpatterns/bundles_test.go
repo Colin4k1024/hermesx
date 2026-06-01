@@ -1,4 +1,3 @@
-package threatpatterns
 package threatpatterns_test
 
 import (

@@ -1,4 +1,3 @@
-package threatpatterns
 // Package threatpatterns provides named, versioned collections of threat
 // detection patterns that can be loaded into a safety.PatternRegistry.
 //

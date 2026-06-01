@@ -1,4 +1,3 @@
-package env
 // Package env provides a secrets.SecretSource backed by environment variables.
 //
 // Usage:

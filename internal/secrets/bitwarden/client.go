@@ -1,4 +1,3 @@
-package bitwarden
 // Package bitwarden provides a secrets.SecretSource backed by
 // Bitwarden Secrets Manager (https://bitwarden.com/products/secrets-manager/).
 //

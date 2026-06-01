@@ -1,4 +1,3 @@
-package bitwarden
 package bitwarden_test
 
 import (

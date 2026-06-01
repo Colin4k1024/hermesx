@@ -1,4 +1,3 @@
-package env
 package env_test
 
 import (

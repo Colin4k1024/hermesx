@@ -1,4 +1,3 @@
-package secrets
 package secrets_test
 
 import (
