@@ -111,6 +111,6 @@ func TestChain_Name(t *testing.T) {
 // errSource returns a non-ErrNotFound error to test propagation.
 type errSource struct{ err error }
 
-func (e *errSource) Name() string                              { return "err_source" }
+func (e *errSource) Name() string                                    { return "err_source" }
 func (e *errSource) Get(_ context.Context, _ string) (string, error) { return "", e.err }
-func (e *errSource) List(_ context.Context) ([]string, error)  { return nil, e.err }
+func (e *errSource) List(_ context.Context) ([]string, error)        { return nil, e.err }

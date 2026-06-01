@@ -38,8 +38,8 @@ func (m *mockClient) GetSecret(_ context.Context, id string) (string, error) {
 
 func newMock(kvs ...string) *mockClient {
 	m := &mockClient{
-		values:  map[string]string{},
-		getErr:  map[string]error{},
+		values: map[string]string{},
+		getErr: map[string]error{},
 	}
 	// kvs: id, key, value, id, key, value, …
 	for i := 0; i+2 < len(kvs); i += 3 {
