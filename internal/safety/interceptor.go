@@ -208,3 +208,87 @@ func (ic *InterceptorChain) resolvePolicy(ctx context.Context, tenantID string) 
 	}
 	return pol, nil
 }
+
+// ScanPoint labels an additional pipeline stage that should be safety-checked.
+// It is used only for log annotation and does not affect the action taken.
+type ScanPoint string
+
+const (
+	ScanPointToolOutput    ScanPoint = "tool_output"
+	ScanPointSkillContent  ScanPoint = "skill_content"
+	ScanPointMemoryContent ScanPoint = "memory_content"
+)
+
+// scanContent is the shared implementation for additional scan points.
+// It applies the output guard and canary detector, honours the tenant policy,
+// and labels every log entry with the supplied scanPoint.
+func (ic *InterceptorChain) scanContent(ctx context.Context, tenantID string, point ScanPoint, content string) (*SafetyResult, error) {
+	policy, err := ic.resolvePolicy(ctx, tenantID)
+	if err != nil {
+		slog.Warn("safety: failed to resolve policy, using default",
+			"tenant_id", tenantID, "scan_point", point, "error", err)
+		p := DefaultPolicy()
+		policy = &p
+	}
+
+	if policy.Mode == ModeDisabled {
+		return &SafetyResult{Allowed: true, Action: ActionAllow}, nil
+	}
+
+	var allMatches []PatternMatch
+
+	outputMatches := ic.outputGuard.Scan(content, policy.OutputRules)
+	allMatches = append(allMatches, outputMatches...)
+
+	canaryMatches := ic.canary.Detect(content)
+	allMatches = append(allMatches, canaryMatches...)
+
+	if len(allMatches) == 0 {
+		return &SafetyResult{Allowed: true, Action: ActionAllow}, nil
+	}
+
+	result := &SafetyResult{
+		Matches: allMatches,
+		Reason:  string(point) + " safety violation detected",
+	}
+
+	switch policy.Mode {
+	case ModeEnforce:
+		result.Allowed = false
+		result.Action = ActionBlock
+	case ModeLogOnly:
+		result.Allowed = true
+		result.Action = ActionLog
+		slog.Warn("safety: scan point violation (log_only)",
+			"tenant_id", tenantID,
+			"scan_point", point,
+			"match_count", len(allMatches),
+		)
+	default:
+		result.Allowed = true
+		result.Action = ActionLog
+	}
+
+	return result, nil
+}
+
+// ScanToolOutput checks the content returned by a tool invocation for safety
+// violations (prompt leakage, indirect injection, canary tokens). Used by the
+// agent loop after every tool call.
+func (ic *InterceptorChain) ScanToolOutput(ctx context.Context, tenantID, toolName, content string) (*SafetyResult, error) {
+	_ = toolName // reserved for future per-tool policy lookups
+	return ic.scanContent(ctx, tenantID, ScanPointToolOutput, content)
+}
+
+// ScanSkillContent checks a skill's SKILL.md body before it is installed into
+// a tenant namespace. Malicious skills could embed indirect injection payloads.
+func (ic *InterceptorChain) ScanSkillContent(ctx context.Context, tenantID, skillName, content string) (*SafetyResult, error) {
+	_ = skillName // reserved for audit log enrichment
+	return ic.scanContent(ctx, tenantID, ScanPointSkillContent, content)
+}
+
+// ScanMemoryContent checks recalled memory fragments before they are injected
+// into the context window. Memory can be a vector for stored injection attacks.
+func (ic *InterceptorChain) ScanMemoryContent(ctx context.Context, tenantID, content string) (*SafetyResult, error) {
+	return ic.scanContent(ctx, tenantID, ScanPointMemoryContent, content)
+}

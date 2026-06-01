@@ -1,8 +1,11 @@
 package safety
 
 import (
+	"log/slog"
 	"regexp"
 	"sync"
+
+	"github.com/Colin4k1024/hermesx/internal/safety/threatpatterns"
 )
 
 type PatternEntry struct {
@@ -47,6 +50,29 @@ func (pr *PatternRegistry) Add(entries ...PatternEntry) {
 	pr.mu.Lock()
 	defer pr.mu.Unlock()
 	pr.patterns = append(pr.patterns, entries...)
+}
+
+// LoadBundle compiles and appends all patterns from a threatpatterns.Bundle.
+// Patterns whose Regex fails to compile are skipped with a warning log.
+// Returns the number of patterns successfully loaded.
+func (pr *PatternRegistry) LoadBundle(b threatpatterns.Bundle) int {
+	var compiled []PatternEntry
+	for _, p := range b.Patterns {
+		re, err := regexp.Compile(p.Regex)
+		if err != nil {
+			slog.Warn("threatpatterns: skipping pattern with invalid regex",
+				"bundle", b.Name, "pattern", p.Name, "error", err)
+			continue
+		}
+		compiled = append(compiled, PatternEntry{
+			Name:     p.Name,
+			Category: p.Category,
+			Regex:    re,
+			Severity: p.Severity,
+		})
+	}
+	pr.Add(compiled...)
+	return len(compiled)
 }
 
 func (pr *PatternRegistry) loadDefaults() {

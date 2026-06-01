@@ -4,6 +4,8 @@ import (
 	"context"
 	"strings"
 	"testing"
+
+	"github.com/Colin4k1024/hermesx/internal/safety/threatpatterns"
 )
 
 func TestInputGuard_IgnorePreviousInstructions(t *testing.T) {
@@ -422,4 +424,200 @@ func assertCategoryPresent(t *testing.T, matches []PatternMatch, category string
 		categories = append(categories, m.Category)
 	}
 	t.Fatalf("expected category %q in matches, got: %v", category, categories)
+}
+
+// ---- Scan-point extension tests ----
+
+func TestScanToolOutput_Clean(t *testing.T) {
+	ic := NewInterceptorChain(nil)
+	result, err := ic.ScanToolOutput(context.Background(), "tenant-1", "web_search", "Paris is the capital of France.")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("clean tool output should be allowed")
+	}
+}
+
+func TestScanToolOutput_CanaryDetected(t *testing.T) {
+	canary := NewCanaryDetector()
+	ic := NewInterceptorChainWithCanary(nil, canary)
+	token := canary.GenerateToken("tenant-2")
+
+	result, err := ic.ScanToolOutput(context.Background(), "tenant-2", "web_search", "leaked "+token)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.Matches) == 0 {
+		t.Fatal("expected canary match in tool output")
+	}
+}
+
+func TestScanSkillContent_Clean(t *testing.T) {
+	ic := NewInterceptorChain(nil)
+	result, err := ic.ScanSkillContent(context.Background(), "tenant-1", "my-skill", "# My Skill\n\nThis skill does X.")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("clean skill content should be allowed")
+	}
+}
+
+func TestScanMemoryContent_Clean(t *testing.T) {
+	ic := NewInterceptorChain(nil)
+	result, err := ic.ScanMemoryContent(context.Background(), "tenant-1", "user prefers concise responses")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("clean memory content should be allowed")
+	}
+}
+
+func TestScanPoints_EnforceMode_Blocks(t *testing.T) {
+	store := NewInMemoryPolicyStore()
+	_ = store.UpsertPolicy(context.Background(), &Policy{
+		TenantID: "tenant-enforce",
+		Mode:     ModeEnforce,
+	})
+
+	canary := NewCanaryDetector()
+	ic := NewInterceptorChainWithCanary(store, canary)
+	token := canary.GenerateToken("tenant-enforce")
+
+	cases := []struct {
+		name string
+		fn   func() (*SafetyResult, error)
+	}{
+		{"ScanToolOutput", func() (*SafetyResult, error) {
+			return ic.ScanToolOutput(context.Background(), "tenant-enforce", "tool", "leaked "+token)
+		}},
+		{"ScanSkillContent", func() (*SafetyResult, error) {
+			return ic.ScanSkillContent(context.Background(), "tenant-enforce", "skill", "leaked "+token)
+		}},
+		{"ScanMemoryContent", func() (*SafetyResult, error) {
+			return ic.ScanMemoryContent(context.Background(), "tenant-enforce", "leaked "+token)
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := tc.fn()
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if result.Allowed {
+				t.Fatal("expected block in enforce mode with canary match")
+			}
+			if result.Action != ActionBlock {
+				t.Fatalf("expected ActionBlock, got %v", result.Action)
+			}
+		})
+	}
+}
+
+func TestScanPoints_DisabledMode_AlwaysAllows(t *testing.T) {
+	store := NewInMemoryPolicyStore()
+	_ = store.UpsertPolicy(context.Background(), &Policy{
+		TenantID: "tenant-disabled",
+		Mode:     ModeDisabled,
+	})
+
+	canary := NewCanaryDetector()
+	ic := NewInterceptorChainWithCanary(store, canary)
+	token := canary.GenerateToken("tenant-disabled")
+
+	result, err := ic.ScanToolOutput(context.Background(), "tenant-disabled", "tool", "leaked "+token)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("disabled mode should always allow regardless of matches")
+	}
+}
+
+func TestScanPoints_LogOnlyMode_AllowsWithMatches(t *testing.T) {
+	store := NewInMemoryPolicyStore()
+	_ = store.UpsertPolicy(context.Background(), &Policy{
+		TenantID: "tenant-logonly",
+		Mode:     ModeLogOnly,
+	})
+
+	canary := NewCanaryDetector()
+	ic := NewInterceptorChainWithCanary(store, canary)
+	token := canary.GenerateToken("tenant-logonly")
+
+	result, err := ic.ScanMemoryContent(context.Background(), "tenant-logonly", "injected "+token)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !result.Allowed {
+		t.Fatal("log_only mode should allow despite matches")
+	}
+	if result.Action != ActionLog {
+		t.Fatalf("expected ActionLog, got %v", result.Action)
+	}
+	if len(result.Matches) == 0 {
+		t.Fatal("expected matches even in log_only mode")
+	}
+}
+
+// ---- PatternRegistry.LoadBundle tests ----
+
+func TestPatternRegistry_LoadBundle(t *testing.T) {
+	registry := NewPatternRegistry()
+	before := len(registry.Patterns())
+
+	loaded := registry.LoadBundle(testPromptInjectionBundle())
+
+	if loaded == 0 {
+		t.Fatal("LoadBundle: expected at least one pattern loaded")
+	}
+	if len(registry.Patterns()) != before+loaded {
+		t.Fatalf("LoadBundle: pattern count mismatch; before=%d loaded=%d after=%d",
+			before, loaded, len(registry.Patterns()))
+	}
+}
+
+func TestPatternRegistry_LoadBundle_InvalidRegex(t *testing.T) {
+	registry := NewPatternRegistry()
+	before := len(registry.Patterns())
+
+	loaded := registry.LoadBundle(testBundleWithInvalidRegex())
+	if loaded != 0 {
+		t.Fatalf("expected 0 loaded patterns for all-invalid bundle, got %d", loaded)
+	}
+	if len(registry.Patterns()) != before {
+		t.Fatal("invalid-regex patterns should not be added to registry")
+	}
+}
+
+// helpers used by LoadBundle tests
+
+func testPromptInjectionBundle() threatpatterns.Bundle {
+	entries := DefaultPatternRegistry().Patterns()
+	// Build a minimal bundle from the first entry returned by the default registry.
+	first := entries[0]
+	return threatpatterns.Bundle{
+		Name:    "test_bundle",
+		Version: "0.1.0",
+		Patterns: []threatpatterns.Pattern{
+			{
+				Name:     first.Name,
+				Category: first.Category,
+				Regex:    first.Regex.String(),
+				Severity: first.Severity,
+			},
+		},
+	}
+}
+
+func testBundleWithInvalidRegex() threatpatterns.Bundle {
+	return threatpatterns.Bundle{
+		Name:    "invalid_bundle",
+		Version: "0.1.0",
+		Patterns: []threatpatterns.Pattern{
+			{Name: "bad", Category: "test", Regex: `[invalid(`, Severity: 5},
+		},
+	}
 }
