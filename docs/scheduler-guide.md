@@ -90,7 +90,7 @@ env:
 
 ### 数据库表自动迁移
 
-Scheduler 依赖的表在 `hermes saas-api` 启动时自动创建（migration 100-106）：
+Scheduler 依赖的表在 `hermesx saas-api` 启动时自动创建（migration 100-106）：
 
 - `cron_jobs` — 定时任务定义
 - `cron_job_runs` — 执行记录（含幂等唯一约束）

@@ -6,7 +6,7 @@
 
 | 依赖 | 版本 | 说明 |
 |------|------|------|
-| Go | 1.22+ | 编译 hermes 二进制 |
+| Go | 1.25+ | 编译 hermesx 二进制 |
 | PostgreSQL | 16+ | 多租户数据存储 |
 | Docker + Docker Compose | 最新版 | 可选，一键启动基础设施 |
 
@@ -19,7 +19,7 @@
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 ```
 
 ### 2. 配置向导（可选）
@@ -58,7 +58,7 @@ git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
 
 # 2. 构建二进制
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 
 # 3. 启动基础设施（PostgreSQL 16 + Redis 7 + MinIO）
 docker compose -f docker-compose.dev.yml up -d postgres redis minio
@@ -102,7 +102,7 @@ createdb hermes
 ### 2. 构建并启动
 
 ```bash
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 
 export DATABASE_URL="postgres://$(whoami)@127.0.0.1:5432/hermes?sslmode=disable"
 export HERMES_ACP_TOKEN="your-secret-admin-token"
@@ -323,4 +323,5 @@ v2.0.0 吸收上游 hermes-agent v2026.4.30 后，SaaS 模式自动获得以下 
 - [配置指南](configuration.md) — 所有环境变量
 - [部署指南](deployment.md) — Docker Compose / Helm / Kind（含 v2.0.0 生产检查清单）
 - [架构概览](architecture.md) — 系统设计与数据流
-- [企业加固](enterprise-hardening.md) — Phase 1-5 加固全记录
+- [企业就绪度](ENTERPRISE_READINESS.md) — 企业能力、证据和后续验证项
+- [安全模型](SECURITY_MODEL.md) — 安全边界、认证、隔离和审计

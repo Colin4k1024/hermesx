@@ -109,7 +109,7 @@ MinIO Bucket: hermes-skills
 2. **Soul creation**: Generates a default `SOUL.md` personality file at `{tenant-id}/_soul/SOUL.md`
 3. **Manifest write**: Creates `.manifest.json` recording each skill's SHA-256 hash and source
 
-**Full sync on service startup**: When `hermes saas-api` starts, it iterates through all tenants for incremental sync:
+**Full sync on service startup**: When `hermesx saas-api` starts, it iterates through all tenants for incremental sync:
 - Newly added built-in skills are automatically installed
 - Updated built-in skills are overwritten (unless the user has modified them)
 - User-modified skills (`user_modified: true`) are not overwritten

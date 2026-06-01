@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: 💬 Discussion
-    url: https://github.com/MLT-OSS/hermesx/discussions
+    url: https://github.com/Colin4k1024/hermesx/discussions
     about: For general questions, ideas, and community discussion.
   - name: 📝 Contributing Guide
-    url: https://github.com/MLT-OSS/hermesx/blob/main/CONTRIBUTING.md
+    url: https://github.com/Colin4k1024/hermesx/blob/main/CONTRIBUTING.md
     about: Read this before submitting a PR.

@@ -4,12 +4,12 @@
 
 ## 两种运行模式
 
-Hermes 支持两种独立的运行模式：
+HermesX 支持两种独立的运行模式：
 
 | 模式 | 命令 | 用途 | 存储 |
 |------|------|------|------|
-| CLI 模式 | `hermes` | 本地交互式 Agent | SQLite / 文件系统 |
-| SaaS 模式 | `hermes saas-api` | 多租户 HTTP API 服务 | PostgreSQL |
+| CLI 模式 | `hermesx` | 本地交互式 Agent | SQLite / 文件系统 |
+| SaaS 模式 | `hermesx saas-api` | 多租户 HTTP API 服务 | PostgreSQL |
 
 两种模式共享 LLM 集成层和 Skills 系统，但网络层、存储层和认证体系完全独立。
 
@@ -264,9 +264,9 @@ LLM 调用通过 `Transport` 接口抽象，支持多种提供商：
 
 ```
 hermesx/
-├── cmd/hermes/
+├── cmd/hermesx/
 │   ├── main.go           # CLI 入口
-│   └── saas.go           # SaaS API 入口（hermes saas-api）
+│   └── saas.go           # SaaS API 入口（hermesx saas-api）
 ├── internal/
 │   ├── api/              # HTTP handlers 和路由
 │   │   ├── server.go     # APIServer、路由注册、中间件组装

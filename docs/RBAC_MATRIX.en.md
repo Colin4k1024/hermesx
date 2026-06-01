@@ -129,7 +129,7 @@
 
 ## Route-to-Role Mapping
 
-Current enforcement in `cmd/hermes/saas.go`:
+Current enforcement in `cmd/hermesx/saas.go`:
 
 ```
 Default role: user (all routes accessible unless overridden)

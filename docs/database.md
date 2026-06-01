@@ -374,7 +374,7 @@ Hermes 使用内嵌的 Go 代码管理数据库迁移，定义在 `internal/stor
 - **版本跟踪**：`schema_version` 表记录已应用的迁移版本和时间
 - **幂等执行**：使用 `IF NOT EXISTS` 和 `ADD COLUMN IF NOT EXISTS`
 - **顺序保证**：迁移按版本号升序执行
-- **启动自动执行**：每次 `hermes saas-api` 启动时自动检查并执行
+- **启动自动执行**：每次 `hermesx saas-api` 启动时自动检查并执行
 
 ### 当前版本
 

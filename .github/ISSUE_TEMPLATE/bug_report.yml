@@ -9,7 +9,7 @@ body:
         Thanks for reporting a bug! Please fill out the sections below so we can reproduce and fix it quickly.
 
         **Before submitting**, please:
-        - Search [existing issues](https://github.com/MLT-OSS/hermesx/issues) to avoid duplicates
+        - Search [existing issues](https://github.com/Colin4k1024/hermesx/issues) to avoid duplicates
         - Build the latest `main` branch and confirm the bug still exists
 
   - type: textarea
@@ -29,7 +29,7 @@ body:
       description: Minimal steps to trigger the bug. The more specific, the faster we can fix it.
       placeholder: |
         1. Build: `go build -o hermesx ./cmd/hermesx/`
-        2. Run: `./hermes chat "..."`
+        2. Run: `./hermesx chat "..."`
         3. Agent calls tool X
         4. Error appears: ...
     validations:
@@ -111,22 +111,22 @@ body:
     attributes:
       label: Go Version
       description: "Output of `go version`"
-      placeholder: "go1.22.0 darwin/arm64"
+      placeholder: "go1.25.0 darwin/arm64"
     validations:
       required: true
 
   - type: input
     id: hermes-version
     attributes:
-      label: Hermes Version
-      description: "Output of `./hermes version`, or the commit hash you built from"
+      label: HermesX Version
+      description: "Output of `./hermesx version`, or the commit hash you built from"
       placeholder: "dev (commit 1a75f00)"
 
   - type: textarea
     id: doctor-output
     attributes:
-      label: Output of `./hermes doctor`
-      description: Run `./hermes doctor` and paste the full output. This will be auto-formatted.
+      label: Output of `./hermesx doctor`
+      description: Run `./hermesx doctor` and paste the full output. This will be auto-formatted.
       render: shell
 
   - type: textarea

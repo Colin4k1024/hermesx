@@ -76,9 +76,8 @@ Fixes #
 - [ ] SKILL.md follows the standard format (YAML frontmatter + Markdown body)
 - [ ] Skill is broadly useful to most users
 - [ ] No external dependencies beyond what's already available
-- [ ] Tested end-to-end: `./hermes chat "Use the X skill to do Y"`
+- [ ] Tested end-to-end: `./hermesx chat "Use the X skill to do Y"`
 
 ## Screenshots / Logs
 
 <!-- If applicable, add screenshots, terminal output, or test results showing the change in action. -->
-

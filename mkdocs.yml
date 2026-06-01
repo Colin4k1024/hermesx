@@ -41,6 +41,7 @@ plugins:
             ADR-003 WebUI Vue3 增量: ADR-003 WebUI Vue3 Incremental
             ADR-004 WebUI 多页面 Vite: ADR-004 WebUI Multipage Vite
             ADR-005 WebUI 引导端点: ADR-005 WebUI Bootstrap Endpoint
+            开源治理: Community
             更新日志: Changelog
 
 extra:
@@ -106,4 +107,5 @@ nav:
     - ADR-003 WebUI Vue3 增量: adr/ADR-003-hermesx-webui-vue3-incremental.md
     - ADR-004 WebUI 多页面 Vite: adr/ADR-004-hermesx-webui-multipage-vite.md
     - ADR-005 WebUI 引导端点: adr/ADR-005-hermesx-webui-bootstrap-endpoint.md
+  - 开源治理: community.md
   - 更新日志: CHANGELOG.md

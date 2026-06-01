@@ -90,7 +90,7 @@ env:
 
 ### Database Table Auto-Migration
 
-Tables required by the Scheduler are automatically created when `hermes saas-api` starts (migrations 100-106):
+Tables required by the Scheduler are automatically created when `hermesx saas-api` starts (migrations 100-106):
 
 - `cron_jobs` — Cron job definitions
 - `cron_job_runs` — Execution records (with idempotent unique constraint)

@@ -6,7 +6,7 @@
 
 | Dependency | Version | Notes |
 |------------|---------|-------|
-| Go | 1.22+ | To compile the hermesx binary |
+| Go | 1.25+ | To compile the hermesx binary |
 | PostgreSQL | 16+ | Multi-tenant data store |
 | Docker + Docker Compose | Latest | Optional, one-command infrastructure |
 
@@ -19,7 +19,7 @@ No Docker required — compile and run directly. Best for quick validation and l
 ```bash
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 ```
 
 ### 2. Configuration wizard (optional)
@@ -58,7 +58,7 @@ git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
 
 # 2. Build the binary
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 
 # 3. Start infrastructure (PostgreSQL 16 + Redis 7 + MinIO)
 docker compose -f docker-compose.dev.yml up -d postgres redis minio
@@ -102,7 +102,7 @@ createdb hermes
 ### 2. Build and start
 
 ```bash
-go build -o hermesx ./cmd/hermes/
+go build -o hermesx ./cmd/hermesx/
 
 export DATABASE_URL="postgres://$(whoami)@127.0.0.1:5432/hermes?sslmode=disable"
 export HERMES_ACP_TOKEN="your-secret-admin-token"

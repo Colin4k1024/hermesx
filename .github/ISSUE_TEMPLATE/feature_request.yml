@@ -8,8 +8,8 @@ body:
       value: |
         Thanks for the suggestion! Before submitting, please:
 
-        - Search [existing issues](https://github.com/MLT-OSS/hermesx/issues) — someone may have already proposed this
-        - Check whether the feature exists in the [Python original](https://github.com/NousResearch/hermesx) but is missing from the Go rewrite (if so, use the "Gap from Python Original" template instead)
+        - Search [existing issues](https://github.com/Colin4k1024/hermesx/issues) — someone may have already proposed this
+        - Check the current [README](https://github.com/Colin4k1024/hermesx/blob/main/README.md), [roadmap](https://github.com/Colin4k1024/hermesx/blob/main/ROADMAP.md), and [changelog](https://github.com/Colin4k1024/hermesx/blob/main/docs/CHANGELOG.en.md) so the request is aligned with the public project direction
 
   - type: textarea
     id: problem
@@ -17,7 +17,7 @@ body:
       label: Problem or Use Case
       description: What problem does this solve? What are you trying to do that you can't today?
       placeholder: |
-        I'm trying to use Hermes with [provider/platform/workflow] but currently
+        I'm trying to use HermesX with [provider/platform/workflow] but currently
         there's no way to...
     validations:
       required: true
@@ -28,7 +28,7 @@ body:
       label: Proposed Solution
       description: How do you think this should work? Be as specific as you can — CLI flags, config options, API design.
       placeholder: |
-        Add a `--foo` flag to `hermes chat` that enables...
+        Add a `--foo` flag to `hermesx chat` that enables...
         Or: Add a new tool `bar_tool` that...
     validations:
       required: true

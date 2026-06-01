@@ -638,5 +638,6 @@ Migrations 仅前向。回滚步骤:
 - [配置指南](configuration.md) — 所有环境变量
 - [可观测性](observability.md) — 监控和追踪
 - [架构概览](architecture.md) — 系统设计
-- [企业加固](enterprise-hardening.md) — 安全与合规
+- [企业就绪度](ENTERPRISE_READINESS.md) — 企业能力、证据和验证项
+- [安全模型](SECURITY_MODEL.md) — 安全与合规边界
 - [Changelog v2.0.0](CHANGELOG.md) — v2.0.0 变更记录（含上游吸收）

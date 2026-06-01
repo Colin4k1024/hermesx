@@ -4,12 +4,12 @@
 
 ## Two Run Modes
 
-Hermes supports two independent run modes:
+HermesX supports two independent run modes:
 
 | Mode | Command | Use Case | Storage |
 |------|---------|----------|---------|
-| CLI Mode | `hermes` | Local interactive Agent | SQLite / filesystem |
-| SaaS Mode | `hermes saas-api` | Multi-tenant HTTP API service | PostgreSQL |
+| CLI Mode | `hermesx` | Local interactive Agent | SQLite / filesystem |
+| SaaS Mode | `hermesx saas-api` | Multi-tenant HTTP API service | PostgreSQL |
 
 Both modes share the LLM integration layer and Skills system, but have completely independent networking, storage, and authentication systems.
 
@@ -264,9 +264,9 @@ A complete `/v1/chat/completions` request traverses the following path:
 
 ```
 hermesx/
-├── cmd/hermes/
+├── cmd/hermesx/
 │   ├── main.go           # CLI entry point
-│   └── saas.go           # SaaS API entry point (hermes saas-api)
+│   └── saas.go           # SaaS API entry point (hermesx saas-api)
 ├── internal/
 │   ├── api/              # HTTP handlers and routing
 │   │   ├── server.go     # APIServer, route registration, middleware assembly

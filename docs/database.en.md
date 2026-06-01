@@ -374,7 +374,7 @@ Startup → Create schema_version table → Read current version → Execute new
 - **Version tracking**: `schema_version` table records applied migration versions and timestamps
 - **Idempotent execution**: Uses `IF NOT EXISTS` and `ADD COLUMN IF NOT EXISTS`
 - **Sequential guarantee**: Migrations execute in ascending version order
-- **Auto-execute on startup**: Automatically checked and executed each time `hermes saas-api` starts
+- **Auto-execute on startup**: Automatically checked and executed each time `hermesx saas-api` starts
 
 ### Current Version
 

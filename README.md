@@ -118,6 +118,11 @@ Counts are intentionally small and evidence-oriented. The full API contract is a
 | [Enterprise readiness](docs/ENTERPRISE_READINESS.en.md) | Evidence-based enterprise readiness matrix |
 | [Deployment guide](docs/deployment.en.md) | Docker, Kubernetes, HA, backup, alerting |
 | [Changelog](docs/CHANGELOG.en.md) | Released vs unreleased change history |
+| [Contributing](CONTRIBUTING.md) | Contribution workflow, checks, and project structure |
+| [Security policy](SECURITY.md) | Private vulnerability reporting and supported versions |
+| [Support](SUPPORT.md) | Where to ask for setup help, bugs, and feature requests |
+| [Governance](GOVERNANCE.md) | Lightweight maintainer-led project governance |
+| [Roadmap](ROADMAP.md) | Near-term direction and non-goals |
 
 ### When To Use HermesX
 
@@ -249,6 +254,11 @@ docker compose -f docker-compose.prod.yml up -d
 | [企业就绪度](docs/ENTERPRISE_READINESS.md) | 基于证据的企业能力矩阵 |
 | [部署指南](docs/deployment.md) | Docker、Kubernetes、高可用、备份、告警 |
 | [Changelog](docs/CHANGELOG.md) | 已发布与未发布变更 |
+| [贡献指南](CONTRIBUTING.md) | 贡献流程、检查项和项目结构 |
+| [安全政策](SECURITY.md) | 私密漏洞上报和支持版本 |
+| [支持入口](SUPPORT.md) | 安装帮助、缺陷报告和功能请求入口 |
+| [治理说明](GOVERNANCE.md) | 轻量维护者主导治理模型 |
+| [路线图](ROADMAP.md) | 近期方向和非目标 |
 
 ### 何时使用 HermesX
 

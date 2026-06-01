@@ -109,7 +109,7 @@ MinIO Bucket: hermes-skills
 2. **Soul 创建**：生成默认 `SOUL.md` 人格文件到 `{tenant-id}/_soul/SOUL.md`
 3. **清单写入**：创建 `.manifest.json` 记录每个技能的 SHA-256 hash 和来源
 
-**服务启动时全量同步**：`hermes saas-api` 启动时遍历所有租户，执行增量同步：
+**服务启动时全量同步**：`hermesx saas-api` 启动时遍历所有租户，执行增量同步：
 - 新增的内置技能会自动安装
 - 已更新的内置技能会覆盖（除非用户已修改）
 - 用户修改过的技能（`user_modified: true`）不会被覆盖

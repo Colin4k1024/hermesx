@@ -9,9 +9,9 @@ body:
         Sorry you're having trouble! Please fill out the details below.
 
         **Quick checks first:**
-        - Ensure you have Go 1.22+ installed: `go version`
+        - Ensure you have Go 1.25+ installed: `go version`
         - Try building from latest main: `git pull && go build ./cmd/hermesx/`
-        - Run diagnostics: `./hermes doctor`
+        - Run diagnostics: `./hermesx doctor`
 
   - type: textarea
     id: description
@@ -29,7 +29,7 @@ body:
       label: Steps Taken
       description: What did you do? Include the exact commands you ran.
       placeholder: |
-        1. Cloned the repo: `git clone https://github.com/MLT-OSS/hermesx.git`
+        1. Cloned the repo: `git clone https://github.com/Colin4k1024/hermesx.git`
         2. Ran: `go build -o hermesx ./cmd/hermesx/`
         3. Got error: ...
     validations:
@@ -61,14 +61,14 @@ body:
     attributes:
       label: Go Version
       description: "Output of `go version`"
-      placeholder: "go1.22.0 linux/amd64"
+      placeholder: "go1.25.0 linux/amd64"
     validations:
       required: true
 
   - type: textarea
     id: doctor-output
     attributes:
-      label: Output of `./hermes doctor`
+      label: Output of `./hermesx doctor`
       description: If you got far enough to build, paste the output. This will be auto-formatted.
       render: shell
 
