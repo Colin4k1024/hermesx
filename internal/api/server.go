@@ -13,6 +13,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
+	"github.com/Colin4k1024/hermesx/internal/mcpcatalog"
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
@@ -43,6 +44,7 @@ type APIServerConfig struct {
 	Provisioner           *skills.Provisioner   // optional; nil disables per-user skill provisioning
 	UsageStore            metering.UsageStore   // optional; enables usage_records-backed usage APIs
 	EvolutionStore        *evolution.GeneStore  // optional; enables evolution sharing governance APIs
+	MCPCatalogStore       mcpcatalog.Store      // optional; nil creates an empty in-memory catalog
 	TenantOpts            []TenantHandlerOption // optional; wired into TenantHandler on creation
 
 	// Optional safety dependencies. When nil, safe production defaults are constructed
@@ -158,6 +160,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 			policyStore = safety.NewPostgresPolicyStore(pp.Pool())
 		}
 	}
+	mcpCatalogStore := cfg.MCPCatalogStore
+	if mcpCatalogStore == nil {
+		mcpCatalogStore = mcpcatalog.NewMemoryStore()
+	}
 	safetyInterceptor := safety.NewInterceptorChainWithCanary(policyStore, canaryDetector)
 
 	mux := http.NewServeMux()
@@ -250,6 +256,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		admin.WithLeakScanner(leakScanner),
 		admin.WithCanaryDetector(canaryDetector),
 		admin.WithPolicyStore(policyStore),
+		admin.WithMCPCatalog(mcpCatalogStore),
 	)
 	if cfg.UsageStore != nil {
 		adminOpts = append(adminOpts, admin.WithUsageStore(cfg.UsageStore))

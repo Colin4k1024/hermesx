@@ -359,3 +359,97 @@ func (p *Provisioner) SyncAllTenants(ctx context.Context, tenantStore store.Tena
 	slog.Info("tenant sync complete", "total", total, "failed", failed)
 	return nil
 }
+
+// SyncBundle uploads the skills defined in a BundleManifest to the tenant's OSS namespace.
+//
+// Shadowing semantics: if a skill is already recorded as UserModified in the
+// tenant manifest, SyncBundle leaves it untouched so the tenant's customisation
+// is preserved. This mirrors the behaviour of ProvisionSkills for individual
+// bundled skills but adds bundle-level policy awareness.
+//
+// If the bundle policy's AllowTenantOverride is false, even user-modified skills
+// are overwritten during sync, enforcing the bundle version as the ground truth.
+//
+// bundleRoot is the filesystem directory that contains bundle.yaml and the skill
+// sub-directories referenced by the manifest.
+func (p *Provisioner) SyncBundle(ctx context.Context, tenantID string, manifest *BundleManifest, bundleRoot string) error {
+	if err := validateTenantID(tenantID); err != nil {
+		return err
+	}
+	if manifest == nil {
+		return fmt.Errorf("nil bundle manifest")
+	}
+	if manifest.Name == "" {
+		return fmt.Errorf("bundle manifest is missing name")
+	}
+
+	m, err := loadManifest(ctx, p.minio, tenantID)
+	if err != nil {
+		return fmt.Errorf("load tenant manifest: %w", err)
+	}
+
+	source := "bundle:" + manifest.Name
+	now := time.Now()
+	var uploaded, shadowed, missing int
+
+	for _, ref := range manifest.Skills {
+		skillDir := filepath.Join(bundleRoot, ref.Name)
+		skillMDPath := filepath.Join(skillDir, "SKILL.md")
+
+		if _, err := os.Stat(skillMDPath); os.IsNotExist(err) {
+			if ref.Required {
+				return fmt.Errorf("required skill %q not found in bundle root %q", ref.Name, bundleRoot)
+			}
+			slog.Debug("optional skill missing from bundle root, skipping", "skill", ref.Name, "bundle", manifest.Name)
+			missing++
+			continue
+		}
+
+		// Resolve OSS key: tenant/{skillName}/SKILL.md
+		key := tenantID + "/" + ref.Name + "/SKILL.md"
+
+		// Shadowing: skip user-modified skills unless the bundle policy forbids it.
+		if existing, ok := m.Skills[ref.Name]; ok && existing.UserModified {
+			if manifest.Policy.AllowTenantOverride {
+				slog.Debug("skill is user-modified and tenant override is allowed, preserving",
+					"tenant", tenantID, "skill", ref.Name)
+				shadowed++
+				continue
+			}
+			slog.Debug("skill is user-modified but bundle policy forbids override, syncing",
+				"tenant", tenantID, "skill", ref.Name)
+		}
+
+		data, err := os.ReadFile(skillMDPath)
+		if err != nil {
+			slog.Warn("read bundle skill failed", "skill", ref.Name, "error", err)
+			continue
+		}
+		if err := p.minio.PutObject(ctx, key, data); err != nil {
+			slog.Warn("upload bundle skill failed", "key", key, "error", err)
+			continue
+		}
+
+		m.Skills[ref.Name] = TenantSkillMeta{
+			Source:       source,
+			UserModified: false,
+			InstalledAt:  now,
+		}
+		uploaded++
+	}
+
+	if uploaded > 0 {
+		if merr := saveManifest(ctx, p.minio, tenantID, m); merr != nil {
+			slog.Warn("save manifest failed after bundle sync", "tenant", tenantID, "bundle", manifest.Name, "error", merr)
+		}
+	}
+
+	slog.Info("bundle sync complete",
+		"tenant", tenantID,
+		"bundle", manifest.Name,
+		"uploaded", uploaded,
+		"shadowed", shadowed,
+		"missing", missing,
+	)
+	return nil
+}

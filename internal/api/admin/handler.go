@@ -6,6 +6,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
+	"github.com/Colin4k1024/hermesx/internal/mcpcatalog"
 	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/safety"
@@ -24,6 +25,7 @@ type AdminHandler struct {
 	pricingCache   *metering.PricingStore
 	usageStore     metering.UsageStore
 	evolutionStore *evolution.GeneStore
+	mcpCatalog     mcpcatalog.Store
 	egressHandler  *egress.AdminHandler
 	policyStore    safety.PolicyStore
 	canaryDetector *safety.CanaryDetector
@@ -62,6 +64,11 @@ func WithUsageStore(us metering.UsageStore) AdminOption {
 // WithEvolutionStore enables evolution sharing governance endpoints.
 func WithEvolutionStore(gs *evolution.GeneStore) AdminOption {
 	return func(h *AdminHandler) { h.evolutionStore = gs }
+}
+
+// WithMCPCatalog enables MCP catalog governance endpoints.
+func WithMCPCatalog(store mcpcatalog.Store) AdminOption {
+	return func(h *AdminHandler) { h.mcpCatalog = store }
 }
 
 // WithEgressHandler registers the egress admin handler so its routes are
@@ -142,6 +149,13 @@ func (h *AdminHandler) Handler() http.Handler {
 	handle("GET /admin/v1/safety/rules", []string{"security:read"}, h.listSafetyRules)
 	handle("PUT /admin/v1/safety/rules/{id}", []string{"security:write"}, h.updateSafetyRule)
 	handle("POST /admin/v1/safety/scan", []string{"security:write"}, h.safetyManualScan)
+
+	// Governed MCP catalog endpoints.
+	handle("GET /admin/v1/mcp-catalog", []string{"security:read", "ops:read"}, h.listMCPCatalogItems)
+	handle("GET /admin/v1/mcp-catalog/{id}", []string{"security:read", "ops:read"}, h.getMCPCatalogItem)
+	handle("PUT /admin/v1/mcp-catalog/{id}", []string{"security:write", "ops:write"}, h.upsertMCPCatalogItem)
+	handle("GET /admin/v1/mcp-catalog/tenants/{id}", []string{"security:read", "tenant:read"}, h.listMCPTenantPolicies)
+	handle("PUT /admin/v1/mcp-catalog/tenants/{id}/items/{itemID}", []string{"security:write", "tenant:write"}, h.setMCPTenantPolicy)
 
 	// Egress allowlist management endpoints (delegated to egress.AdminHandler).
 	if h.egressHandler != nil {
