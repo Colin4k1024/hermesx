@@ -39,35 +39,18 @@ HermesX is not just a chat loop. It combines an agent runtime, a SaaS control pl
 
 ### Architecture
 
-```mermaid
-flowchart TB
-    entry["Entry Layer\nCLI, REST API, Web UI, messaging adapters, MCP"]
-    runtime["Runtime Layer\nAgent loop, tools, skills, memory, model routing"]
-    governance["Governance Layer\nAuth chain, tenant context, RBAC, scopes, audit, safety"]
-    execution["Execution Layer\nLocal process, Docker sandbox, K8s Job sandbox (Unreleased)"]
-    workflow["Workflow Layer\nDefinitions, versions, runs, human tasks, retries"]
-    operations["Operations Layer\nPostgreSQL RLS, Redis, object storage, metrics, traces, backup"]
-
-    entry --> governance
-    governance --> runtime
-    runtime --> execution
-    runtime --> workflow
-    workflow --> execution
-    governance --> operations
-    runtime --> operations
-    workflow --> operations
-```
+[![HermesX technical architecture](docs/diagrams/technical-architecture.png)](docs/diagrams/technical-architecture.drawio)
 
 Detailed one-page overview: [docs/AGENT_FIRST_ARCHITECTURE.md](docs/AGENT_FIRST_ARCHITECTURE.md).
 
-Architecture diagrams are also available in [docs/diagrams/](docs/diagrams/):
+Architecture diagrams are maintained as draw.io source files in [docs/diagrams/](docs/diagrams/):
 
-| Diagram | File |
-|---------|------|
-| Technical architecture | [technical-architecture.png](docs/diagrams/technical-architecture.png) |
-| Product architecture | [product-architecture.png](docs/diagrams/product-architecture.png) |
-| Application architecture | [application-architecture.png](docs/diagrams/application-architecture.png) |
-| Data architecture | [data-architecture.png](docs/diagrams/data-architecture.png) |
+| Diagram | Preview | Editable source |
+|---------|---------|-----------------|
+| Technical architecture | [PNG](docs/diagrams/technical-architecture.png) | [draw.io](docs/diagrams/technical-architecture.drawio) |
+| Product architecture | [PNG](docs/diagrams/product-architecture.png) | [draw.io](docs/diagrams/product-architecture.drawio) |
+| Application architecture | [PNG](docs/diagrams/application-architecture.png) | [draw.io](docs/diagrams/application-architecture.drawio) |
+| Data architecture | [PNG](docs/diagrams/data-architecture.png) | [draw.io](docs/diagrams/data-architecture.drawio) |
 
 ### Minimal Demo
 
@@ -187,35 +170,18 @@ HermesX 不只是一个聊天循环。它把 Agent Runtime、SaaS 控制平面�
 
 ### 架构
 
-```mermaid
-flowchart TB
-    entry["入口层\nCLI、REST API、Web UI、消息平台、MCP"]
-    runtime["运行时层\nAgent 循环、工具、技能、记忆、模型路由"]
-    governance["治理层\n认证链、租户上下文、RBAC、Scope、审计、安全"]
-    execution["执行层\n本地进程、Docker 沙箱、K8s Job 沙箱（未发布）"]
-    workflow["工作流层\n定义、版本、实例、人工任务、重试"]
-    operations["运维层\nPostgreSQL RLS、Redis、对象存储、指标、链路、备份"]
-
-    entry --> governance
-    governance --> runtime
-    runtime --> execution
-    runtime --> workflow
-    workflow --> execution
-    governance --> operations
-    runtime --> operations
-    workflow --> operations
-```
+[![HermesX 技术架构图](docs/diagrams/technical-architecture.png)](docs/diagrams/technical-architecture.drawio)
 
 一页架构说明见 [docs/AGENT_FIRST_ARCHITECTURE.md](docs/AGENT_FIRST_ARCHITECTURE.md)。
 
-架构图位于 [docs/diagrams/](docs/diagrams/)：
+架构图统一以 draw.io 源文件维护，位于 [docs/diagrams/](docs/diagrams/)：
 
-| 图 | 文件 |
-|----|------|
-| 技术架构 | [technical-architecture.png](docs/diagrams/technical-architecture.png) |
-| 产品架构 | [product-architecture.png](docs/diagrams/product-architecture.png) |
-| 应用架构 | [application-architecture.png](docs/diagrams/application-architecture.png) |
-| 数据架构 | [data-architecture.png](docs/diagrams/data-architecture.png) |
+| 图 | 预览图 | 可编辑源文件 |
+|----|--------|--------------|
+| 技术架构 | [PNG](docs/diagrams/technical-architecture.png) | [draw.io](docs/diagrams/technical-architecture.drawio) |
+| 产品架构 | [PNG](docs/diagrams/product-architecture.png) | [draw.io](docs/diagrams/product-architecture.drawio) |
+| 应用架构 | [PNG](docs/diagrams/application-architecture.png) | [draw.io](docs/diagrams/application-architecture.drawio) |
+| 数据架构 | [PNG](docs/diagrams/data-architecture.png) | [draw.io](docs/diagrams/data-architecture.drawio) |
 
 ### 最小演示
 
