@@ -162,6 +162,7 @@ Scopes provide fine-grained access within a role:
 | `billing:read` / `billing:write` | Pricing and usage controls |
 | `usage:read` / `usage:read:all` | Tenant usage and cross-tenant aggregate usage |
 | `audit:read` | Audit logs and execution receipts |
+| `channel:read` / `channel:write` | Trusted channel app configuration and channel binding governance |
 | `security:read` / `security:write` | Secrets, safety, egress, and sharing security controls |
 | `ops:read` / `ops:write` | Runtime and sandbox operations |
 | `sharing:read` / `sharing:write` | Evolution shared learning policy and rollback |
@@ -185,3 +186,4 @@ Keys with empty scopes (pre-scope migration):
 2. **Admin callers**: May specify `tenant_id` in request body for cross-tenant operations
 3. **Body-supplied tenant_id**: Only honored when `AuthContext.HasRole("admin")` or `HasRole("super_admin")`
 4. **X-Tenant-ID header**: NEVER trusted for tenant derivation (ignored by middleware)
+5. **Channel OAuth callers**: Public `/auth/channel/*` routes never accept `tenant_id`; tenant is resolved from `channel_apps.platform + app_key`

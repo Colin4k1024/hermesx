@@ -12,8 +12,10 @@ type AuthContext struct {
 	TenantID   string   // derived from credential, not from header
 	Roles      []string // e.g. ["user"], ["admin"], ["operator"]
 	Scopes     []string // fine-grained scopes; empty = legacy (role-only check)
-	AuthMethod string   // "static_token", "jwt", "api_key"
+	AuthMethod string   // "static_token", "jwt", "api_key", "channel_session"
 	ACRLevel   string   // OIDC acr claim value; empty if not provided
+	SessionID  string   // browser session id for cookie-backed channel login
+	CSRFHash   string   // expected CSRF token hash for cookie-backed unsafe requests
 }
 
 type contextKey struct{}

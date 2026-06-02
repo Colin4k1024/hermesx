@@ -42,6 +42,9 @@ type Runner struct {
 	// Pairing store for DM authorization.
 	pairing *PairingStore
 
+	// Channel identity resolver upgrades verified channel users to SaaS users.
+	identityResolver *GatewayIdentityResolver
+
 	// Runtime status tracker.
 	status *RuntimeStatus
 
@@ -146,6 +149,13 @@ func NewRunner(gwCfg *GatewayConfig, pgPool *pgxpool.Pool, storeBackend store.St
 // Connect and disconnect events will be fired for each platform adapter.
 func (r *Runner) WithLifecycleHooks(lh *LifecycleHooks) *Runner {
 	r.lifecycleHooks = lh
+	return r
+}
+
+// WithIdentityResolver enables SaaS channel binding resolution before local
+// pairing fallback. Unbound channel users receive a one-time login link.
+func (r *Runner) WithIdentityResolver(resolver *GatewayIdentityResolver) *Runner {
+	r.identityResolver = resolver
 	return r
 }
 
@@ -299,9 +309,29 @@ func (r *Runner) ConnectedPlatforms() []Platform {
 
 func (r *Runner) handleMessage(event *MessageEvent) {
 	source := &event.Source
+	channelResolved := false
+	if r.identityResolver != nil {
+		result := r.identityResolver.Resolve(r.ctx, event)
+		switch result.Status {
+		case GatewayIdentityBound:
+			channelResolved = true
+		case GatewayIdentityUnbound:
+			adapter := r.GetAdapter(source.Platform)
+			if adapter != nil && result.Message != "" {
+				_, _ = adapter.Send(r.ctx, source.ChatID, result.Message, map[string]string{"source": "channel_binding"})
+			}
+			return
+		case GatewayIdentityRejected:
+			adapter := r.GetAdapter(source.Platform)
+			if adapter != nil && result.Message != "" {
+				_, _ = adapter.Send(r.ctx, source.ChatID, result.Message, map[string]string{"source": "channel_binding"})
+			}
+			return
+		}
+	}
 
 	// Check user authorization via pairing store.
-	if !r.pairing.IsUserAllowed(source.Platform, source.UserID) {
+	if !channelResolved && !r.pairing.IsUserAllowed(source.Platform, source.UserID) {
 		slog.Info("unauthorized_message_rejected",
 			"platform", source.Platform,
 			"user_id", source.UserID,

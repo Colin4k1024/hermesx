@@ -3,7 +3,6 @@ package platforms
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,6 +18,7 @@ type FeishuAdapter struct {
 	BasePlatformAdapter
 	appID       string
 	appSecret   string
+	verifyToken string
 	tenantToken string
 	webhookPort int
 	server      *http.Server
@@ -26,14 +26,19 @@ type FeishuAdapter struct {
 	cancel      context.CancelFunc
 }
 
-func NewFeishuAdapter(appID, appSecret string, webhookPort int) *FeishuAdapter {
+func NewFeishuAdapter(appID, appSecret string, webhookPort int, verificationToken ...string) *FeishuAdapter {
 	if webhookPort == 0 {
 		webhookPort = 8076
+	}
+	verifyToken := ""
+	if len(verificationToken) > 0 {
+		verifyToken = verificationToken[0]
 	}
 	return &FeishuAdapter{
 		BasePlatformAdapter: NewBasePlatformAdapter(gateway.PlatformFeishu),
 		appID:               appID,
 		appSecret:           appSecret,
+		verifyToken:         verifyToken,
 		webhookPort:         webhookPort,
 	}
 }
@@ -197,6 +202,14 @@ func (f *FeishuAdapter) handleEvent(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
+	if f.verifyToken == "" {
+		http.Error(w, "feishu verification token required", http.StatusUnauthorized)
+		return
+	}
+	if payload.Header.Token != f.verifyToken {
+		http.Error(w, "invalid feishu verification token", http.StatusUnauthorized)
+		return
+	}
 
 	// URL verification challenge
 	if payload.Challenge != "" {
@@ -224,11 +237,9 @@ func (f *FeishuAdapter) handleEvent(w http.ResponseWriter, r *http.Request) {
 			ChatType: "group",
 			UserID:   payload.Event.Sender.SenderID.OpenID,
 		},
+		Metadata: map[string]string{"app_key": f.appID},
 	}
 
 	f.EmitMessage(event)
 	w.WriteHeader(http.StatusOK)
 }
-
-// feishu uses sha256 for verification (unused but kept for completeness)
-var _ = sha256.New

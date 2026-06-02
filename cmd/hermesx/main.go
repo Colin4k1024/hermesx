@@ -16,6 +16,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/acp"
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/batch"
+	"github.com/Colin4k1024/hermesx/internal/channel"
 	"github.com/Colin4k1024/hermesx/internal/cli"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/cron"
@@ -481,6 +482,22 @@ func runGateway() error {
 	}
 
 	runner := gateway.NewRunner(gwCfg, pgPool, gwDataStore)
+	if gwDataStore != nil {
+		channelHashSecret := os.Getenv("HERMES_CHANNEL_HASH_SECRET")
+		channelPublicURL := os.Getenv("SAAS_PUBLIC_URL")
+		if channelStores, ok := gwDataStore.(store.ChannelStoreProvider); ok && channelHashSecret != "" && channelPublicURL != "" {
+			runner.WithIdentityResolver(gateway.NewGatewayIdentityResolver(gateway.GatewayIdentityResolverConfig{
+				Apps:       channelStores.ChannelApps(),
+				Identities: channelStores.ChannelIdentities(),
+				AuditLogs:  gwDataStore.AuditLogs(),
+				Challenges: channel.NewChallengeStore(10 * time.Minute),
+				HashSecret: channelHashSecret,
+				PublicURL:  channelPublicURL,
+				ReturnTo:   "/",
+			}))
+			slog.Info("gateway channel identity resolver enabled")
+		}
+	}
 
 	// Register API server adapter.
 	if apiPortStr := os.Getenv("HERMES_API_PORT"); apiPortStr != "" {

@@ -24,6 +24,11 @@ func OpenAPISpec() http.HandlerFunc {
 			"/health/ready": pathItem("get", "Kubernetes readiness probe (checks DB connectivity)", "200"),
 			"/metrics":      pathItem("get", "Prometheus metrics endpoint", "200"),
 
+			// Public channel OAuth entrypoints.
+			"/auth/channel/{platform}/start":    channelOAuthStartPath(),
+			"/auth/channel/{platform}/callback": channelOAuthCallbackPath(),
+			"/auth/logout":                      channelLogoutPath(),
+
 			// User-facing API (Bearer auth required).
 			"/v1/chat/completions": chatPath(),
 			"/v1/agent/chat":       agentChatPath(),
@@ -49,10 +54,12 @@ func OpenAPISpec() http.HandlerFunc {
 			"/v1/workflow-tasks":                    workflowTasksPath(),
 			"/v1/workflow-tasks/{id}/complete":      workflowTaskCompletePath(),
 
-			"/v1/usage":         pathItem("get", "Usage summary for billing (usage_records-backed when configured)", "200"),
-			"/v1/usage/details": pathItem("get", "Usage records for one tenant-scoped session", "200"),
-			"/v1/me":            pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
-			"/v1/openapi":       pathItem("get", "This OpenAPI specification", "200"),
+			"/v1/usage":                 pathItem("get", "Usage summary for billing (usage_records-backed when configured)", "200"),
+			"/v1/usage/details":         pathItem("get", "Usage records for one tenant-scoped session", "200"),
+			"/v1/me":                    pathItem("get", "Current identity, tenant, roles, and scopes", "200"),
+			"/v1/channel-bindings":      channelBindingsPath(),
+			"/v1/channel-bindings/{id}": channelBindingByIDPath(),
+			"/v1/openapi":               pathItem("get", "This OpenAPI specification", "200"),
 
 			"/v1/gdpr/export":        pathItem("get", "GDPR data export for current tenant", "200"),
 			"/v1/gdpr/data":          pathItem("delete", "GDPR data deletion for current tenant", "200"),
@@ -73,6 +80,10 @@ func OpenAPISpec() http.HandlerFunc {
 			"/admin/v1/pricing-rules":                                  pricingRulesPath(),
 			"/admin/v1/pricing-rules/{model}":                          pricingRuleByModelPath(),
 			"/admin/v1/audit-logs":                                     adminAuditLogsPath(),
+			"/admin/v1/channel-apps":                                   adminChannelAppsPath(),
+			"/admin/v1/channel-apps/{id}":                              adminChannelAppByIDPath(),
+			"/admin/v1/channel-bindings":                               adminChannelBindingsPath(),
+			"/admin/v1/channel-bindings/{id}":                          adminChannelBindingByIDPath(),
 			"/admin/v1/usage":                                          adminUsageAggregationPath(),
 			"/admin/v1/usage/tenants":                                  adminTenantUsagePath(),
 			"/admin/v1/evolution/sharing-policy":                       adminEvolutionSharingPolicyPath(),
@@ -100,6 +111,12 @@ func OpenAPISpec() http.HandlerFunc {
 					"bearerFormat": "API Key (hk_*) | JWT | Static Token",
 					"description":  "Auth chain: Static Token → API Key → OIDC/JWT. Tenant derived from credential, never headers.",
 				},
+				"CookieAuth": map[string]any{
+					"type":        "apiKey",
+					"in":          "cookie",
+					"name":        "hx_session",
+					"description": "Opaque HttpOnly channel browser session. Unsafe methods require X-Hermes-CSRF matching the hx_csrf cookie.",
+				},
 			},
 			"schemas": schemas(),
 		},
@@ -112,6 +129,7 @@ func OpenAPISpec() http.HandlerFunc {
 			{"name": "Sessions", "description": "Conversation session management"},
 			{"name": "Memory", "description": "Per-user key-value memory"},
 			{"name": "Bootstrap", "description": "One-time platform admin key creation"},
+			{"name": "Channel Auth", "description": "Trusted Feishu, Weixin, and WeCom login plus channel binding lifecycle"},
 			{"name": "Admin", "description": "Tenant, API key, usage, security, and pricing management (domain scope or explicit admin scope required)"},
 			{"name": "Audit", "description": "Audit logs and execution receipts (audit scope required)"},
 			{"name": "Workflows", "description": "Fixed SOP workflow definitions, runs, and human tasks"},
@@ -134,6 +152,180 @@ func pathItem(method, summary, status string) map[string]any {
 			"responses": map[string]any{
 				status: map[string]any{"description": "Success"},
 			},
+		},
+	}
+}
+
+func channelOAuthStartPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":     []string{"Channel Auth"},
+			"summary":  "Start trusted channel OAuth login",
+			"security": []map[string]any{},
+			"parameters": []map[string]any{
+				{"name": "platform", "in": "path", "required": true, "schema": map[string]any{"type": "string", "enum": []string{"feishu", "weixin", "wecom"}}},
+				{"name": "app_key", "in": "query", "required": true, "schema": map[string]any{"type": "string"}, "description": "Provider app key configured in channel_apps"},
+				{"name": "challenge", "in": "query", "required": true, "schema": map[string]any{"type": "string"}, "description": "Short-lived single-use gateway binding challenge"},
+				{"name": "return_to", "in": "query", "schema": map[string]any{"type": "string"}, "description": "Relative SaaS path only"},
+			},
+			"responses": map[string]any{
+				"302": map[string]any{"description": "Redirect to provider OAuth"},
+				"400": map[string]any{"description": "Invalid or expired challenge"},
+				"404": map[string]any{"description": "Channel app or tenant not found"},
+			},
+		},
+	}
+}
+
+func channelOAuthCallbackPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":     []string{"Channel Auth"},
+			"summary":  "Complete trusted channel OAuth login",
+			"security": []map[string]any{},
+			"parameters": []map[string]any{
+				{"name": "platform", "in": "path", "required": true, "schema": map[string]any{"type": "string", "enum": []string{"feishu", "weixin", "wecom"}}},
+				{"name": "code", "in": "query", "required": true, "schema": map[string]any{"type": "string"}},
+				{"name": "state", "in": "query", "required": true, "schema": map[string]any{"type": "string"}},
+			},
+			"responses": map[string]any{
+				"302": map[string]any{"description": "Sets hx_session/hx_csrf cookies and redirects back to SaaS"},
+				"401": map[string]any{"description": "Provider authentication failed"},
+				"403": map[string]any{"description": "Provider user does not match the gateway challenge"},
+			},
+		},
+	}
+}
+
+func channelLogoutPath() map[string]any {
+	return map[string]any{
+		"post": map[string]any{
+			"tags":     []string{"Channel Auth"},
+			"summary":  "Revoke current browser channel session",
+			"security": []map[string]any{{"CookieAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "X-Hermes-CSRF", "in": "header", "required": true, "schema": map[string]any{"type": "string"}},
+			},
+			"responses": map[string]any{
+				"204": map[string]any{"description": "Session revoked and cookies cleared"},
+				"401": map[string]any{"description": "Channel session required"},
+				"403": map[string]any{"description": "Missing or invalid CSRF token"},
+			},
+		},
+	}
+}
+
+func channelBindingsPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":     []string{"Channel Auth"},
+			"summary":  "List current user's trusted channel bindings",
+			"security": []map[string]any{{"BearerAuth": []string{}}, {"CookieAuth": []string{}}},
+			"responses": map[string]any{
+				"200": map[string]any{"description": "Current user channel bindings"},
+			},
+		},
+	}
+}
+
+func channelBindingByIDPath() map[string]any {
+	return map[string]any{
+		"delete": map[string]any{
+			"tags":     []string{"Channel Auth"},
+			"summary":  "Revoke one of the current user's trusted channel bindings",
+			"security": []map[string]any{{"BearerAuth": []string{}}, {"CookieAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "X-Hermes-CSRF", "in": "header", "required": false, "schema": map[string]any{"type": "string"}, "description": "Required for cookie auth only"},
+			},
+			"responses": map[string]any{
+				"204": map[string]any{"description": "Binding revoked"},
+				"403": map[string]any{"description": "Binding belongs to a different user"},
+				"404": map[string]any{"description": "Binding not found"},
+			},
+		},
+	}
+}
+
+func adminChannelAppsPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":     []string{"Admin", "Channel Auth"},
+			"summary":  "List tenant channel apps",
+			"security": []map[string]any{{"BearerAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer", "default": 50}},
+				{"name": "offset", "in": "query", "schema": map[string]any{"type": "integer", "default": 0}},
+			},
+			"responses": map[string]any{"200": map[string]any{"description": "Channel app list"}},
+		},
+		"post": map[string]any{
+			"tags":        []string{"Admin", "Channel Auth"},
+			"summary":     "Create tenant channel app",
+			"security":    []map[string]any{{"BearerAuth": []string{}}},
+			"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/ChannelAppRequest"}}}},
+			"responses": map[string]any{
+				"201": map[string]any{"description": "Channel app created"},
+				"400": map[string]any{"description": "Missing tenant_id/platform/app_key"},
+			},
+		},
+	}
+}
+
+func adminChannelAppByIDPath() map[string]any {
+	return map[string]any{
+		"patch": map[string]any{
+			"tags":     []string{"Admin", "Channel Auth"},
+			"summary":  "Update tenant channel app",
+			"security": []map[string]any{{"BearerAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+			},
+			"requestBody": map[string]any{"required": true, "content": map[string]any{"application/json": map[string]any{"schema": map[string]any{"$ref": "#/components/schemas/ChannelAppRequest"}}}},
+			"responses":   map[string]any{"200": map[string]any{"description": "Channel app updated"}},
+		},
+		"delete": map[string]any{
+			"tags":     []string{"Admin", "Channel Auth"},
+			"summary":  "Disable and soft-delete tenant channel app",
+			"security": []map[string]any{{"BearerAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+			},
+			"responses": map[string]any{"204": map[string]any{"description": "Channel app deleted"}},
+		},
+	}
+}
+
+func adminChannelBindingsPath() map[string]any {
+	return map[string]any{
+		"get": map[string]any{
+			"tags":     []string{"Admin", "Channel Auth"},
+			"summary":  "List tenant channel bindings",
+			"security": []map[string]any{{"BearerAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "limit", "in": "query", "schema": map[string]any{"type": "integer", "default": 50}},
+				{"name": "offset", "in": "query", "schema": map[string]any{"type": "integer", "default": 0}},
+			},
+			"responses": map[string]any{"200": map[string]any{"description": "Channel binding list"}},
+		},
+	}
+}
+
+func adminChannelBindingByIDPath() map[string]any {
+	return map[string]any{
+		"delete": map[string]any{
+			"tags":     []string{"Admin", "Channel Auth"},
+			"summary":  "Admin revoke tenant channel binding",
+			"security": []map[string]any{{"BearerAuth": []string{}}},
+			"parameters": []map[string]any{
+				{"name": "id", "in": "path", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+				{"name": "tenant_id", "in": "query", "required": true, "schema": map[string]any{"type": "string", "format": "uuid"}},
+			},
+			"responses": map[string]any{"204": map[string]any{"description": "Binding revoked and browser sessions for the user revoked"}},
 		},
 	}
 }
@@ -1022,6 +1214,19 @@ func schemas() map[string]any {
 			"properties": map[string]any{
 				"name":      map[string]any{"type": "string", "description": "Display name for the bootstrap admin key"},
 				"tenant_id": map[string]any{"type": "string", "format": "uuid", "description": "Platform root tenant ID"},
+			},
+		},
+		"ChannelAppRequest": map[string]any{
+			"type":     "object",
+			"required": []string{"tenant_id", "platform", "app_key"},
+			"properties": map[string]any{
+				"tenant_id":          map[string]any{"type": "string", "format": "uuid"},
+				"platform":           map[string]any{"type": "string", "enum": []string{"feishu", "weixin", "wecom"}},
+				"app_key":            map[string]any{"type": "string", "description": "feishu/weixin app_id or wecom corp_id:agent_id"},
+				"app_secret_ref":     map[string]any{"type": "string", "description": "Secret reference only; raw values are resolved out of DB"},
+				"oauth_secret_ref":   map[string]any{"type": "string", "description": "Optional OAuth-specific secret reference"},
+				"webhook_secret_ref": map[string]any{"type": "string", "description": "Webhook token/signature secret reference"},
+				"enabled":            map[string]any{"type": "boolean", "default": true},
 			},
 		},
 		"EvolutionSharingPolicyUpdate": map[string]any{

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/channel"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
@@ -159,6 +160,14 @@ type weixinXMLMessage struct {
 }
 
 func (w *WeixinAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) {
+	signature := r.URL.Query().Get("signature")
+	timestamp := r.URL.Query().Get("timestamp")
+	nonce := r.URL.Query().Get("nonce")
+	if w.token == "" || !channel.VerifyWeixinSignature(w.token, timestamp, nonce, signature) {
+		http.Error(rw, "invalid signature", http.StatusUnauthorized)
+		return
+	}
+
 	// URL verification (GET)
 	if r.Method == http.MethodGet {
 		echostr := r.URL.Query().Get("echostr")
@@ -198,6 +207,7 @@ func (w *WeixinAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) 
 			ChatType: "dm",
 			UserID:   msg.FromUserName,
 		},
+		Metadata: map[string]string{"app_key": w.appID},
 	}
 
 	w.EmitMessage(event)

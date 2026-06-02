@@ -74,6 +74,53 @@ type User struct {
 	Metadata    map[string]any `json:"metadata,omitempty"`
 }
 
+// ChannelApp binds a provider application (Feishu, Weixin, WeCom) to one tenant.
+// Secret fields store references only; raw provider secrets are resolved out of band.
+type ChannelApp struct {
+	ID               string     `json:"id" db:"id"`
+	TenantID         string     `json:"tenant_id" db:"tenant_id"`
+	Platform         string     `json:"platform" db:"platform"`
+	AppKey           string     `json:"app_key" db:"app_key"`
+	AppSecretRef     string     `json:"app_secret_ref,omitempty" db:"app_secret_ref"`
+	OAuthSecretRef   string     `json:"oauth_secret_ref,omitempty" db:"oauth_secret_ref"`
+	WebhookSecretRef string     `json:"webhook_secret_ref,omitempty" db:"webhook_secret_ref"`
+	Enabled          bool       `json:"enabled" db:"enabled"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
+	DeletedAt        *time.Time `json:"deleted_at,omitempty" db:"deleted_at"`
+}
+
+// ChannelIdentity records a verified channel principal bound to a HermesX user.
+// ProviderUserHash is a keyed hash of the provider user id, never the raw openid/userid.
+type ChannelIdentity struct {
+	ID                  string     `json:"id" db:"id"`
+	TenantID            string     `json:"tenant_id" db:"tenant_id"`
+	ChannelAppID        string     `json:"channel_app_id" db:"channel_app_id"`
+	Platform            string     `json:"platform" db:"platform"`
+	ProviderUserHash    string     `json:"provider_user_hash" db:"provider_user_hash"`
+	ProviderDisplayName string     `json:"provider_display_name,omitempty" db:"provider_display_name"`
+	UserID              string     `json:"user_id" db:"user_id"`
+	CreatedAt           time.Time  `json:"created_at" db:"created_at"`
+	LastLoginAt         *time.Time `json:"last_login_at,omitempty" db:"last_login_at"`
+	RevokedAt           *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
+}
+
+// BrowserSession is an opaque, cookie-backed SaaS browser session.
+// TokenHash and CSRFTokenHash store hashes only; raw values are returned once.
+type BrowserSession struct {
+	ID            string     `json:"id" db:"id"`
+	TenantID      string     `json:"tenant_id" db:"tenant_id"`
+	UserID        string     `json:"user_id" db:"user_id"`
+	TokenHash     string     `json:"token_hash" db:"token_hash"`
+	CSRFTokenHash string     `json:"csrf_token_hash" db:"csrf_token_hash"`
+	UserAgent     string     `json:"user_agent,omitempty" db:"user_agent"`
+	SourceIP      string     `json:"source_ip,omitempty" db:"source_ip"`
+	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	LastSeenAt    *time.Time `json:"last_seen_at,omitempty" db:"last_seen_at"`
+	ExpiresAt     time.Time  `json:"expires_at" db:"expires_at"`
+	RevokedAt     *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
+}
+
 // TokenDelta represents incremental token count updates.
 type TokenDelta struct {
 	Input      int

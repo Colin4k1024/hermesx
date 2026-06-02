@@ -64,6 +64,42 @@ type UserStore interface {
 	ListApproved(ctx context.Context, tenantID, platform string) ([]string, error)
 }
 
+// ChannelAppStore manages tenant-bound channel application configurations.
+type ChannelAppStore interface {
+	Create(ctx context.Context, app *ChannelApp) error
+	GetByID(ctx context.Context, tenantID, id string) (*ChannelApp, error)
+	GetByPlatformAppKey(ctx context.Context, platform, appKey string) (*ChannelApp, error)
+	List(ctx context.Context, tenantID string, opts ListOptions) ([]*ChannelApp, int, error)
+	Update(ctx context.Context, app *ChannelApp) error
+	Delete(ctx context.Context, tenantID, id string) error
+}
+
+// ChannelIdentityStore manages verified channel-to-user bindings.
+type ChannelIdentityStore interface {
+	Upsert(ctx context.Context, identity *ChannelIdentity) error
+	GetByID(ctx context.Context, tenantID, id string) (*ChannelIdentity, error)
+	GetByProviderHash(ctx context.Context, channelAppID, providerUserHash string) (*ChannelIdentity, error)
+	ListByUser(ctx context.Context, tenantID, userID string) ([]*ChannelIdentity, error)
+	List(ctx context.Context, tenantID string, opts ListOptions) ([]*ChannelIdentity, int, error)
+	Revoke(ctx context.Context, tenantID, id string) error
+}
+
+// BrowserSessionStore manages opaque browser login sessions.
+type BrowserSessionStore interface {
+	Create(ctx context.Context, session *BrowserSession) error
+	GetByHash(ctx context.Context, tokenHash string) (*BrowserSession, error)
+	Touch(ctx context.Context, id string) error
+	Revoke(ctx context.Context, id string) error
+	RevokeByUser(ctx context.Context, tenantID, userID string) error
+}
+
+// ChannelStoreProvider is implemented by stores that support channel login.
+type ChannelStoreProvider interface {
+	ChannelApps() ChannelAppStore
+	ChannelIdentities() ChannelIdentityStore
+	BrowserSessions() BrowserSessionStore
+}
+
 // TenantStore manages tenant CRUD operations.
 type TenantStore interface {
 	Create(ctx context.Context, t *Tenant) error

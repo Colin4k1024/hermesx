@@ -87,6 +87,15 @@ Request
 - **Lifecycle**: Create → Active → Revoked (soft delete, never hard delete)
 - **Expiry**: Optional `expires_at` field; expired keys rejected at auth time
 
+### Trusted Channel Login Security
+
+- Public `/auth/channel/*` routes do not accept `tenant_id`; tenant is derived from `channel_apps.platform + app_key`.
+- `channel_apps` stores provider secret references only. Raw secrets are resolved through `secrets.SecretResolver`.
+- Provider openid/userid values are HMAC-hashed with `HERMES_CHANNEL_HASH_SECRET` before storage or lookup.
+- OAuth `state` and gateway binding challenges are random, short-lived, and single-use.
+- Browser login uses an opaque `hx_session` HttpOnly cookie. Unsafe methods require `X-Hermes-CSRF` matching the `hx_csrf` cookie.
+- Feishu, Weixin, and WeCom webhooks must pass provider token/signature validation before creating `MessageEvent`.
+
 ---
 
 ## Tenant Isolation
@@ -254,6 +263,12 @@ reason string.
 | GDPR delete | admin | tenant | tables_affected |
 | Tenant created | platform | tenant | plan, config |
 | Sandbox policy changed | admin | tenant | old/new policy |
+| Channel login started | user | channel_app | platform, app_id |
+| Channel login succeeded | user | browser_session | platform |
+| Channel binding created | user | channel_identity | platform |
+| Channel binding revoked | user/admin | channel_identity | binding_id |
+| Gateway unbound message | provider user | channel_app | platform, app_id |
+| Channel auth failed | provider user | channel_auth | reason |
 
 ### Execution Receipts
 

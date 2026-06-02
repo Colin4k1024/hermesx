@@ -33,6 +33,9 @@ type MySQLStore struct {
 	executionReceipts *myExecutionReceiptStore
 	workflows         *myWorkflowStore
 	checkpoints       *myAgentCheckpointStore
+	channelApps       *myChannelAppStore
+	channelIdentities *myChannelIdentityStore
+	browserSessions   *myBrowserSessionStore
 }
 
 // New opens a MySQL connection pool, pings to verify, and wires all sub-stores.
@@ -66,6 +69,9 @@ func New(ctx context.Context, dsn string) (*MySQLStore, error) {
 	s.executionReceipts = &myExecutionReceiptStore{db: db}
 	s.workflows = &myWorkflowStore{db: db}
 	s.checkpoints = &myAgentCheckpointStore{db: db}
+	s.channelApps = &myChannelAppStore{db: db}
+	s.channelIdentities = &myChannelIdentityStore{db: db}
+	s.browserSessions = &myBrowserSessionStore{db: db}
 	return s, nil
 }
 
@@ -83,6 +89,9 @@ func (s *MySQLStore) PricingRules() store.PricingRuleStore           { return s.
 func (s *MySQLStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
 func (s *MySQLStore) Workflows() store.WorkflowStore                 { return s.workflows }
 func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
+func (s *MySQLStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }
+func (s *MySQLStore) ChannelIdentities() store.ChannelIdentityStore  { return s.channelIdentities }
+func (s *MySQLStore) BrowserSessions() store.BrowserSessionStore     { return s.browserSessions }
 
 // DB exposes the underlying SQL pool for integrations that need a shared
 // transactional backend, such as usage metering.

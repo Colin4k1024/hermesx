@@ -11,6 +11,7 @@ import (
 
 	"github.com/Colin4k1024/hermesx/internal/api/admin"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/channel"
 	"github.com/Colin4k1024/hermesx/internal/egress"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/mcpcatalog"
@@ -53,6 +54,13 @@ type APIServerConfig struct {
 	LeakScanner    *secrets.LeakScanner   // nil → secrets.NewLeakScanner()
 	CanaryDetector *safety.CanaryDetector // nil → safety.NewCanaryDetector()
 	PolicyStore    safety.PolicyStore     // nil → pg-backed when pool available, else in-memory
+
+	ChannelHashSecret   string // required to enable trusted channel login
+	ChannelPublicURL    string // external base URL used for OAuth redirects; empty derives from request
+	ChannelCookieSecure bool   // secure cookie flag; enable in production behind TLS
+	ChannelChallenges   *channel.ChallengeStore
+	ChannelProviders    *channel.ProviderRegistry
+	ChannelSecrets      secrets.SecretResolver
 }
 
 // APIServer is the multi-tenant SaaS API HTTP server.
@@ -100,8 +108,8 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 		if origin != "" && (allowAll || allowed[origin]) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session-Id, X-Hermes-User-Id")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session-Id, X-Hermes-User-Id, X-Hermes-CSRF")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Hermes-Session-Id, X-Request-ID")
 		}
 		if r.Method == "OPTIONS" {
@@ -141,6 +149,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		Tenant:    middleware.TenantMiddleware,
 		Logging:   middleware.LoggingMiddleware,
 		Audit:     middleware.AuditMiddleware(cfg.Store.AuditLogs()),
+		CSRF:      middleware.CSRFMiddleware,
 		RBAC:      middleware.RBACMiddleware(cfg.RBAC),
 		RateLimit: middleware.RateLimitMiddleware(cfg.RateLimit),
 	})
@@ -174,6 +183,35 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	mux.HandleFunc("GET /health/ready", health.ReadyHandler())
 	mux.Handle("GET /metrics", promhttp.Handler())
 
+	channelSecrets := cfg.ChannelSecrets
+	if channelSecrets == nil {
+		channelSecrets = secrets.NewEnvSecretResolver(secrets.NewEnvSecretStore(""))
+	}
+	channelProviders := cfg.ChannelProviders
+	if channelProviders == nil {
+		channelProviders = channel.NewProviderRegistry(channelSecrets)
+	}
+	channelChallenges := cfg.ChannelChallenges
+	if channelChallenges == nil {
+		channelChallenges = channel.NewChallengeStore(10 * time.Minute)
+	}
+	channelAuth, channelEnabled := NewChannelAuthHandler(cfg.Store, ChannelAuthConfig{
+		HashSecret:   cfg.ChannelHashSecret,
+		PublicURL:    cfg.ChannelPublicURL,
+		CookieSecure: cfg.ChannelCookieSecure,
+		Challenges:   channelChallenges,
+		Providers:    channelProviders,
+	})
+	if channelEnabled {
+		mux.HandleFunc("GET /auth/channel/{platform}/start", channelAuth.Start)
+		mux.HandleFunc("GET /auth/channel/{platform}/callback", channelAuth.Callback)
+		mux.Handle("POST /auth/logout", stack.Wrap(http.HandlerFunc(channelAuth.Logout)))
+	} else {
+		mux.HandleFunc("GET /auth/channel/{platform}/start", channelNotConfigured)
+		mux.HandleFunc("GET /auth/channel/{platform}/callback", channelNotConfigured)
+		mux.HandleFunc("POST /auth/logout", channelNotConfigured)
+	}
+
 	// Authenticated routes — through middleware stack + audit.
 	api := http.NewServeMux()
 	tenantHandler := NewTenantHandler(cfg.Store.Tenants(), cfg.TenantOpts...)
@@ -205,6 +243,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	me := NewMeHandler(cfg.Store)
 	api.Handle("/v1/me", me)
+	if channelEnabled {
+		api.HandleFunc("/v1/channel-bindings", channelAuth.ServeBindingsHTTP)
+		api.HandleFunc("/v1/channel-bindings/", channelAuth.ServeBindingsHTTP)
+	}
 
 	gdpr := NewGDPRHandler(cfg.Store, cfg.SkillsClient)
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())

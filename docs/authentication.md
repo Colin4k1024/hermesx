@@ -101,6 +101,31 @@ curl -X DELETE http://localhost:8080/v1/api-keys/key-uuid \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
+## 渠道可信登录
+
+飞书、微信公众号、企业微信用户可以从渠道消息中的一次性链接进入 SaaS，无需输入 API Key。
+
+核心规则：
+
+- `tenant_id` 不从公开 OAuth start/callback 参数读取，只能由管理员预配置的 `channel_apps.platform + app_key` 解析。
+- `channel_apps` 只保存 `secret_ref`，密钥值通过 `secrets.SecretResolver` 从环境变量或后续 secret backend 解析，不写入数据库。
+- 渠道用户 ID 使用 `HERMES_CHANNEL_HASH_SECRET` 做 HMAC hash 后再查询/保存，数据库不保存 openid/userid 原文。
+- OAuth callback 成功后写入 `hx_session` HttpOnly cookie 和 `hx_csrf` cookie；非 GET cookie 请求必须带 `X-Hermes-CSRF`。
+- `channel_session` 默认角色是 `user`，默认 scopes 为 `read`、`write`、`execute`，不会授予 admin。
+
+启用所需环境变量：
+
+```bash
+HERMES_CHANNEL_HASH_SECRET="32+ bytes random secret"
+SAAS_PUBLIC_URL="https://saas.example.com"
+SAAS_COOKIE_SECURE=true
+```
+
+管理接口使用 `channel:read` / `channel:write` scope 或显式 `admin` scope：
+
+- `GET|POST|PATCH|DELETE /admin/v1/channel-apps`
+- `GET|DELETE /admin/v1/channel-bindings`
+
 ## JWT 认证（预留）
 
 JWT 认证框架已内置，生产环境集成时启用。

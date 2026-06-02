@@ -16,6 +16,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/agent"
 	"github.com/Colin4k1024/hermesx/internal/api"
 	"github.com/Colin4k1024/hermesx/internal/auth"
+	"github.com/Colin4k1024/hermesx/internal/channel"
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
@@ -25,6 +26,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/scheduler"
+	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	_ "github.com/Colin4k1024/hermesx/internal/store/mysql"
@@ -91,6 +93,9 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	staticDir := os.Getenv("SAAS_STATIC_DIR")
 	acpToken := os.Getenv("HERMES_ACP_TOKEN")
 	apiKey := os.Getenv("HERMES_API_KEY")
+	channelHashSecret := os.Getenv("HERMES_CHANNEL_HASH_SECRET")
+	channelPublicURL := os.Getenv("SAAS_PUBLIC_URL")
+	channelCookieSecure := parseEnvBool("SAAS_COOKIE_SECURE", true)
 	bootstrapRateLimitRPM := 5
 	if v := os.Getenv("HERMES_BOOTSTRAP_RATE_LIMIT_RPM"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
@@ -193,6 +198,16 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 
 	// API key extractor.
 	authChain.Add(auth.NewAPIKeyExtractor(pgStore.APIKeys()))
+
+	channelChallenges := channel.NewChallengeStore(10 * time.Minute)
+	channelSecrets := secrets.NewEnvSecretResolver(secrets.NewEnvSecretStore(""))
+	channelProviders := channel.NewProviderRegistry(channelSecrets)
+	if channelStores, ok := dataStore.(store.ChannelStoreProvider); ok && channelHashSecret != "" {
+		authChain.Add(auth.NewChannelSessionExtractor(channelStores.BrowserSessions()))
+		slog.Info("channel session extractor enabled")
+	} else if channelHashSecret != "" {
+		slog.Warn("channel hash secret is configured but store does not support channel login")
+	}
 
 	// ── 4. RBAC config ──────────────────────────────────────
 	rbacCfg := middleware.RBACConfig{
@@ -327,6 +342,12 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		UsageStore:            usageStore,
 		EvolutionStore:        evolutionStore,
 		TenantOpts:            tenantOpts,
+		ChannelHashSecret:     channelHashSecret,
+		ChannelPublicURL:      channelPublicURL,
+		ChannelCookieSecure:   channelCookieSecure,
+		ChannelChallenges:     channelChallenges,
+		ChannelProviders:      channelProviders,
+		ChannelSecrets:        channelSecrets,
 	}
 
 	saasServer := api.NewAPIServer(serverCfg)
@@ -355,6 +376,17 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 				"api": []any{"*"},
 			}
 			runner = gateway.NewRunner(gwCfg, pool, dataStore)
+			if channelStores, ok := dataStore.(store.ChannelStoreProvider); ok && channelHashSecret != "" {
+				runner.WithIdentityResolver(gateway.NewGatewayIdentityResolver(gateway.GatewayIdentityResolverConfig{
+					Apps:       channelStores.ChannelApps(),
+					Identities: channelStores.ChannelIdentities(),
+					AuditLogs:  dataStore.AuditLogs(),
+					Challenges: channelChallenges,
+					HashSecret: channelHashSecret,
+					PublicURL:  channelPublicURL,
+					ReturnTo:   "/",
+				}))
+			}
 
 			adapter := platforms.NewAPIServerAdapter(adapterPort, apiKey)
 			runner.RegisterAdapter(adapter)
@@ -553,4 +585,17 @@ func seedDefaultTenant(ctx context.Context, pgStore store.Store) (bool, error) {
 
 	slog.Info("seeded default tenant", "id", defaultTenantID)
 	return true, nil
+}
+
+func parseEnvBool(name string, defaultValue bool) bool {
+	raw := os.Getenv(name)
+	if raw == "" {
+		return defaultValue
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		slog.Warn("invalid boolean env var, using default", "name", name, "value", raw, "default", defaultValue)
+		return defaultValue
+	}
+	return value
 }

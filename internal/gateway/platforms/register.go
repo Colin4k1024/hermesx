@@ -141,8 +141,15 @@ func init() {
 			if appID == "" || appSecret == "" {
 				return nil, ErrMissingToken
 			}
+			verifyToken := cfg.Settings["verification_token"]
+			if verifyToken == "" {
+				verifyToken = cfg.Settings["token"]
+			}
+			if verifyToken == "" {
+				verifyToken = cfg.Token
+			}
 			port := parsePort(cfg.Settings["webhook_port"])
-			return NewFeishuAdapter(appID, appSecret, port), nil
+			return NewFeishuAdapter(appID, appSecret, port, verifyToken), nil
 		},
 		Capabilities: gateway.PlatformCapabilities{
 			SupportsImages:    true,

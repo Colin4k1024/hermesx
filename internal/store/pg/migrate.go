@@ -702,6 +702,54 @@ var migrations = []migration{
 				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
 		END IF;
 	END $$`},
+
+	// v2.4.0-dev: trusted channel login and gateway binding.
+	{111, `CREATE TABLE IF NOT EXISTS channel_apps (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		platform TEXT NOT NULL,
+		app_key TEXT NOT NULL,
+		app_secret_ref TEXT,
+		oauth_secret_ref TEXT,
+		webhook_secret_ref TEXT,
+		enabled BOOLEAN NOT NULL DEFAULT true,
+		deleted_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE(platform, app_key)
+	);
+	CREATE INDEX IF NOT EXISTS idx_channel_apps_tenant ON channel_apps(tenant_id);
+	CREATE INDEX IF NOT EXISTS idx_channel_apps_lookup ON channel_apps(platform, app_key) WHERE deleted_at IS NULL`},
+	{112, `CREATE TABLE IF NOT EXISTS channel_identities (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		channel_app_id UUID NOT NULL REFERENCES channel_apps(id) ON DELETE CASCADE,
+		platform TEXT NOT NULL,
+		provider_user_hash TEXT NOT NULL,
+		provider_display_name TEXT,
+		user_id TEXT NOT NULL,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		last_login_at TIMESTAMPTZ,
+		revoked_at TIMESTAMPTZ,
+		UNIQUE(channel_app_id, provider_user_hash)
+	);
+	CREATE INDEX IF NOT EXISTS idx_channel_identities_tenant_user ON channel_identities(tenant_id, user_id);
+	CREATE INDEX IF NOT EXISTS idx_channel_identities_lookup ON channel_identities(channel_app_id, provider_user_hash)`},
+	{113, `CREATE TABLE IF NOT EXISTS browser_sessions (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL,
+		token_hash TEXT NOT NULL UNIQUE,
+		csrf_token_hash TEXT NOT NULL,
+		user_agent TEXT,
+		source_ip TEXT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		last_seen_at TIMESTAMPTZ,
+		expires_at TIMESTAMPTZ NOT NULL,
+		revoked_at TIMESTAMPTZ
+	);
+	CREATE INDEX IF NOT EXISTS idx_browser_sessions_tenant_user ON browser_sessions(tenant_id, user_id);
+	CREATE INDEX IF NOT EXISTS idx_browser_sessions_active ON browser_sessions(token_hash) WHERE revoked_at IS NULL`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

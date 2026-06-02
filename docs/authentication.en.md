@@ -101,6 +101,31 @@ curl -X DELETE http://localhost:8080/v1/api-keys/key-uuid \
   -H "Authorization: Bearer $ADMIN_TOKEN"
 ```
 
+## Trusted Channel Login
+
+Feishu, Weixin Official Account, and WeCom users can enter the SaaS app from a one-time channel link without typing an API key.
+
+Core rules:
+
+- Public OAuth start/callback routes never accept `tenant_id`; tenant is resolved only from the admin-configured `channel_apps.platform + app_key`.
+- `channel_apps` stores secret references only. Raw provider secrets are resolved through `secrets.SecretResolver` from environment variables or a future secret backend.
+- Provider user IDs are HMAC-hashed with `HERMES_CHANNEL_HASH_SECRET` before lookup/storage; openid/userid raw values are not persisted.
+- Successful OAuth callback sets an HttpOnly `hx_session` cookie and a readable `hx_csrf` cookie; unsafe cookie-authenticated methods must send `X-Hermes-CSRF`.
+- `channel_session` receives role `user` and scopes `read`, `write`, `execute` by default. It never grants admin.
+
+Required environment variables:
+
+```bash
+HERMES_CHANNEL_HASH_SECRET="32+ bytes random secret"
+SAAS_PUBLIC_URL="https://saas.example.com"
+SAAS_COOKIE_SECURE=true
+```
+
+Admin management requires `channel:read` / `channel:write` scope or an explicit `admin` scope:
+
+- `GET|POST|PATCH|DELETE /admin/v1/channel-apps`
+- `GET|DELETE /admin/v1/channel-bindings`
+
 ## JWT Authentication (Reserved)
 
 The JWT authentication framework is built in and can be enabled for production environment integration.

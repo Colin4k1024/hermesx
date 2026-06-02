@@ -5,7 +5,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha1"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/xml"
@@ -13,10 +12,9 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"sort"
-	"strings"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/channel"
 	"github.com/Colin4k1024/hermesx/internal/gateway"
 )
 
@@ -180,7 +178,7 @@ func (w *WeComAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) {
 			msgSig := r.URL.Query().Get("msg_signature")
 			timestamp := r.URL.Query().Get("timestamp")
 			nonce := r.URL.Query().Get("nonce")
-			if !verifyWeComSignature(w.token, timestamp, nonce, echostr, msgSig) {
+			if !channel.VerifyWeComSignature(w.token, timestamp, nonce, echostr, msgSig) {
 				http.Error(rw, "invalid signature", http.StatusUnauthorized)
 				return
 			}
@@ -217,7 +215,7 @@ func (w *WeComAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) {
 		msgSig := r.URL.Query().Get("msg_signature")
 		timestamp := r.URL.Query().Get("timestamp")
 		nonce := r.URL.Query().Get("nonce")
-		if !verifyWeComSignature(w.token, timestamp, nonce, callback.Encrypt, msgSig) {
+		if !channel.VerifyWeComSignature(w.token, timestamp, nonce, callback.Encrypt, msgSig) {
 			http.Error(rw, "invalid signature", http.StatusUnauthorized)
 			return
 		}
@@ -251,22 +249,11 @@ func (w *WeComAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) {
 			ChatType: "dm",
 			UserID:   msg.FromUserName,
 		},
+		Metadata: map[string]string{"app_key": w.corpID + ":" + w.agentID},
 	}
 
 	w.EmitMessage(event)
 	rw.WriteHeader(http.StatusOK)
-}
-
-// verifyWeComSignature validates the WeCom callback signature.
-// It sorts [token, timestamp, nonce, encrypt] lexicographically, joins them,
-// SHA1-hashes the result, and compares the hex digest with msgSignature.
-func verifyWeComSignature(token, timestamp, nonce, encrypt, msgSignature string) bool {
-	parts := []string{token, timestamp, nonce, encrypt}
-	sort.Strings(parts)
-	h := sha1.New()
-	h.Write([]byte(strings.Join(parts, "")))
-	computed := fmt.Sprintf("%x", h.Sum(nil))
-	return computed == msgSignature
 }
 
 func (w *WeComAdapter) decryptMsg(encrypted string) ([]byte, error) {

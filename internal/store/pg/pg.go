@@ -34,6 +34,9 @@ type PGStore struct {
 	executionReceipts *pgExecutionReceiptStore
 	workflows         *pgWorkflowStore
 	checkpoints       *pgAgentCheckpointStore
+	channelApps       *pgChannelAppStore
+	channelIdentities *pgChannelIdentityStore
+	browserSessions   *pgBrowserSessionStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -78,6 +81,9 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.executionReceipts = &pgExecutionReceiptStore{pool: pool}
 	s.workflows = &pgWorkflowStore{pool: pool}
 	s.checkpoints = &pgAgentCheckpointStore{pool: pool}
+	s.channelApps = &pgChannelAppStore{pool: pool}
+	s.channelIdentities = &pgChannelIdentityStore{pool: pool}
+	s.browserSessions = &pgBrowserSessionStore{pool: pool}
 	return s, nil
 }
 
@@ -95,6 +101,9 @@ func (s *PGStore) PricingRules() store.PricingRuleStore           { return s.pri
 func (s *PGStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
 func (s *PGStore) Workflows() store.WorkflowStore                 { return s.workflows }
 func (s *PGStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
+func (s *PGStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }
+func (s *PGStore) ChannelIdentities() store.ChannelIdentityStore  { return s.channelIdentities }
+func (s *PGStore) BrowserSessions() store.BrowserSessionStore     { return s.browserSessions }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

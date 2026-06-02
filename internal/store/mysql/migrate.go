@@ -320,6 +320,53 @@ var migrations = []string{
 		INDEX idx_usage_records_tenant_date (tenant_id, created_at),
 		INDEX idx_usage_records_session (tenant_id, session_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS channel_apps (
+		id                 CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id          CHAR(36)     NOT NULL,
+		platform           VARCHAR(64)  NOT NULL,
+		app_key            VARCHAR(255) NOT NULL,
+		app_secret_ref     VARCHAR(255) NULL,
+		oauth_secret_ref   VARCHAR(255) NULL,
+		webhook_secret_ref VARCHAR(255) NULL,
+		enabled            TINYINT(1)   NOT NULL DEFAULT 1,
+		deleted_at         DATETIME(3)  NULL,
+		created_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		updated_at         DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		UNIQUE KEY uk_channel_app (platform, app_key),
+		INDEX idx_channel_apps_tenant (tenant_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS channel_identities (
+		id                    CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id             CHAR(36)     NOT NULL,
+		channel_app_id         CHAR(36)     NOT NULL,
+		platform              VARCHAR(64)  NOT NULL,
+		provider_user_hash    CHAR(64)     NOT NULL,
+		provider_display_name VARCHAR(255) NULL,
+		user_id               VARCHAR(255) NOT NULL,
+		created_at            DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		last_login_at         DATETIME(3)  NULL,
+		revoked_at            DATETIME(3)  NULL,
+		UNIQUE KEY uk_channel_identity (channel_app_id, provider_user_hash),
+		INDEX idx_channel_identities_tenant_user (tenant_id, user_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	`CREATE TABLE IF NOT EXISTS browser_sessions (
+		id              CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id       CHAR(36)     NOT NULL,
+		user_id         VARCHAR(255) NOT NULL,
+		token_hash      CHAR(64)     NOT NULL,
+		csrf_token_hash CHAR(64)     NOT NULL,
+		user_agent      VARCHAR(500) NULL,
+		source_ip       VARCHAR(100) NULL,
+		created_at      DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		last_seen_at    DATETIME(3)  NULL,
+		expires_at      DATETIME(3)  NOT NULL,
+		revoked_at      DATETIME(3)  NULL,
+		UNIQUE KEY uk_browser_session_token (token_hash),
+		INDEX idx_browser_sessions_tenant_user (tenant_id, user_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

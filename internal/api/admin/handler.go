@@ -120,6 +120,14 @@ func (h *AdminHandler) Handler() http.Handler {
 	// Audit log query endpoint (cross-tenant).
 	handle("GET /admin/v1/audit-logs", []string{"audit:read"}, h.listAuditLogs)
 
+	// Trusted channel login configuration and binding governance.
+	handle("GET /admin/v1/channel-apps", []string{"channel:read"}, h.listChannelApps)
+	handle("POST /admin/v1/channel-apps", []string{"channel:write"}, h.createChannelApp)
+	handle("PATCH /admin/v1/channel-apps/{id}", []string{"channel:write"}, h.updateChannelApp)
+	handle("DELETE /admin/v1/channel-apps/{id}", []string{"channel:write"}, h.deleteChannelApp)
+	handle("GET /admin/v1/channel-bindings", []string{"channel:read"}, h.listChannelBindings)
+	handle("DELETE /admin/v1/channel-bindings/{id}", []string{"channel:write"}, h.revokeChannelBinding)
+
 	// Tenant usage aggregation (cross-tenant aggregate-only view).
 	handle("GET /admin/v1/usage/tenants", []string{"billing:read", "usage:read:all"}, h.listTenantUsage)
 
