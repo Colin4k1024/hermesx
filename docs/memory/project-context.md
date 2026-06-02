@@ -1,10 +1,10 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-05-27-backlog-batch-1
-**前任务**: 2026-05-19-saas-cron-scheduler（RELEASED）
-**阶段**: executing（Backlog batch 1 — safety/egress/evolution watcher 已完成；全量 Go test green）
-**版本目标**: v2.5.0 — Eino Phase 2 + governance backlog closure
+**当前任务**: 2026-06-01-hermes-agent-v0152-absorption + trusted-channel-login
+**前任务**: 2026-05-27-backlog-batch-1（完成）
+**阶段**: executing（v0.15.2 absorption 4 phases 完成 + trusted channel login 已合入 main）
+**版本目标**: v2.5.0 — Eino Phase 2 + governance backlog closure + channel auth
 
 ## Tech Stack
 
@@ -31,6 +31,8 @@
 - IronClaw security-enhancement MERGED to main (2026-05-18 — safety/egress/secrets 三包构建完成，5236 行新增，未接入主链路)
 - v2.3.0 security-integration CLOSED (2026-05-18 — 全部 9 Story 完成，5 阻塞项(B-1~B-5) + 6 MEDIUM 项修复，26/26 -race 通过，全链路 9 个 artifacts 落盘，6 项遗留入 v2.4.0 backlog)
 - Eino ADK POC CLOSED (2026-05-19 — CloudWeGo Eino ReAct agent 验证通过；Adapter Layer + EinoAgent + SafetyPipeline + WorkflowExecutor；1813 tests/46 pkgs 全绿；Phase 2 全量替换准入达成)
+- hermes-agent v0.15.2 absorption CLOSED (2026-06-01 — 4 phases: core+provider+gateway+safety&secrets; gofmt+govulncheck 修复)
+- Trusted Channel Login MERGED (2026-06-02 — channel provider 管理、challenge 验证、网关身份识别、CSRF 中间件、MySQL/PG channel_auth store、Admin API 扩展；+3270 行/40 文件)
 
 ## 已完成
 
@@ -44,6 +46,8 @@
 - v2.0.0 Hardening: LifecycleHooks→Runner wired, SelfImprover→Agent loop wired, URL traversal fix, sanitizeForPrompt extracted + applied to compress.go/curator.go
 - v2.1.0-webui: React Admin Console (租户/Key/审计/定价/沙箱) + User Portal (SSE Chat/Memories/Skills/Usage) + Bootstrap 引导页; subtle.ConstantTimeCompare + sync.Mutex TOCTOU + sessionStorage key 清除 + isAdmin roles 修复; Vary: Origin CORS; webui.yml 最小权限 CI
 - v2.2.0 stabilization: `POST /admin/v1/bootstrap` 增加应用层与 Nginx IP 限流；PG/MySQL `bootstrap_state` 原子 claim 防跨实例重复初始化；PG API key scopes 读写对齐；新会话自动标题；release workflow 切到 Go 1.25
+- hermes-agent v0.15.2 absorption: 4-phase upstream sync (core provider refactor, gateway platforms, safety & secrets enhancements)
+- Trusted Channel Login: channel provider CRUD, HMAC/challenge verification, gateway channel identity extraction, CSRF middleware, OpenAPI channel auth endpoints
 
 ## 依赖
 
@@ -56,6 +60,11 @@
 
 - DB migrations 000001/000002（safety_policies + secret_patterns 表）必须在集成测试前执行
 - `RequireScope("admin")` 中间件已存在（v1.4.0 RBAC）
+
+## 依赖（channel auth 新增）
+
+- DB migrations: channel_credentials + channel_sessions 表（PG/MySQL 双适配）
+- Channel provider 注册: 飞书/企微/微信平台 challenge 验证回调
 
 ## 风险
 

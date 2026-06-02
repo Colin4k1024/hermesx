@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -84,10 +83,7 @@ func TestChannelSessionExtractor_NoCookieAndInvalidCookie(t *testing.T) {
 
 	req.AddCookie(&http.Cookie{Name: ChannelSessionCookie, Value: "missing"})
 	ac, err = extractor.Extract(req)
-	if err == nil || ac != nil {
-		t.Fatalf("invalid cookie ac=%v err=%v, want error", ac, err)
-	}
-	if !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("err = %v, want wrapped store.ErrNotFound", err)
+	if err != nil || ac != nil {
+		t.Fatalf("invalid cookie ac=%v err=%v, want nil nil (unknown session treated as unauthenticated)", ac, err)
 	}
 }

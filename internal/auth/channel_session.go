@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -33,8 +33,11 @@ func (e *ChannelSessionExtractor) Extract(r *http.Request) (*AuthContext, error)
 	}
 
 	session, err := e.sessions.GetByHash(r.Context(), HashKey(cookie.Value))
+	if errors.Is(err, store.ErrNotFound) {
+		return nil, nil
+	}
 	if err != nil {
-		return nil, fmt.Errorf("channel session invalid: %w", err)
+		return nil, err
 	}
 	_ = e.sessions.Touch(r.Context(), session.ID)
 

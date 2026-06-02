@@ -1,10 +1,15 @@
 package channel
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
 )
+
+var ErrChallengeCapacity = errors.New("challenge store capacity exceeded")
+
+const maxChallenges = 10000
 
 type Challenge struct {
 	ID               string
@@ -60,6 +65,9 @@ func (s *ChallengeStore) Create(platform, appKey, expectedUserHash, returnTo str
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.cleanupLocked(time.Now())
+	if len(s.challenges)+len(s.states) >= maxChallenges {
+		return Challenge{}, ErrChallengeCapacity
+	}
 	s.challenges[id] = ch
 	return ch, nil
 }
@@ -74,6 +82,9 @@ func (s *ChallengeStore) CreateState(challengeID string) (State, error) {
 	defer s.mu.Unlock()
 	now := time.Now()
 	s.cleanupLocked(now)
+	if len(s.challenges)+len(s.states) >= maxChallenges {
+		return State{}, ErrChallengeCapacity
+	}
 	ch, ok := s.challenges[challengeID]
 	if !ok || ch.ExpiresAt.Before(now) {
 		return State{}, fmt.Errorf("challenge expired or not found")

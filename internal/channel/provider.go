@@ -3,6 +3,7 @@ package channel
 import (
 	"bytes"
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -147,7 +148,7 @@ func (p *feishuProvider) VerifyWebhook(ctx context.Context, app *store.ChannelAp
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return err
 	}
-	if payload.Header.Token == "" || payload.Header.Token != secret {
+	if payload.Header.Token == "" || subtle.ConstantTimeCompare([]byte(payload.Header.Token), []byte(secret)) != 1 {
 		return fmt.Errorf("invalid feishu webhook token")
 	}
 	return nil
@@ -377,7 +378,7 @@ func splitWeComAppKey(appKey string) (corpID, agentID string) {
 }
 
 func readBody(r *http.Request) ([]byte, error) {
-	body, err := io.ReadAll(r.Body)
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MiB hard cap
 	if err != nil {
 		return nil, err
 	}
