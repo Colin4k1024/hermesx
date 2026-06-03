@@ -3,10 +3,12 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/observability"
@@ -15,15 +17,46 @@ import (
 
 const gdprExportMaxSessions = 1000
 
+// sessionExport pairs a session with its messages for GDPR export.
+type sessionExport struct {
+	Session  *store.Session   `json:"session"`
+	Messages []*store.Message `json:"messages"`
+}
+
+// exportData is the top-level JSON structure for GDPR data export.
+type exportData struct {
+	TenantID            string                      `json:"tenant_id"`
+	Sessions            []sessionExport             `json:"sessions"`
+	Memories            []memoryExportEntry         `json:"memories"`
+	Profiles            []profileExportEntry        `json:"profiles"`
+	WorkflowDefinitions []*store.WorkflowDefinition `json:"workflow_definitions,omitempty"`
+	WorkflowRuns        []*store.WorkflowRun        `json:"workflow_runs,omitempty"`
+	AlertRules          []*metering.AlertRule       `json:"alert_rules,omitempty"`
+	AlertEvents         []*metering.AlertEvent      `json:"alert_events,omitempty"`
+}
+
+type memoryExportEntry struct {
+	UserID  string `json:"user_id"`
+	Key     string `json:"key"`
+	Content string `json:"content"`
+}
+
+type profileExportEntry struct {
+	UserID  string `json:"user_id"`
+	Content string `json:"content"`
+}
+
 // GDPRHandler serves data export and deletion endpoints.
 // Uses store.Store for all operations — works with any backend (MySQL, PostgreSQL, SQLite).
 type GDPRHandler struct {
-	store store.Store
-	minio objstore.ObjectStore
+	store       store.Store
+	minio       objstore.ObjectStore
+	alertRules  metering.AlertRuleStore  // optional; nil skips alert rule export
+	alertEvents metering.AlertEventStore // optional; nil skips alert event export
 }
 
-func NewGDPRHandler(s store.Store, minio objstore.ObjectStore) *GDPRHandler {
-	return &GDPRHandler{store: s, minio: minio}
+func NewGDPRHandler(s store.Store, minio objstore.ObjectStore, alertRules metering.AlertRuleStore, alertEvents metering.AlertEventStore) *GDPRHandler {
+	return &GDPRHandler{store: s, minio: minio, alertRules: alertRules, alertEvents: alertEvents}
 }
 
 // ExportHandler returns GET /v1/gdpr/export — exports all user data for a tenant.
@@ -57,13 +90,19 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 			}
 		}
 
-		// Collect memories per user via store interface.
-		type memoryEntry struct {
-			UserID  string `json:"user_id"`
-			Key     string `json:"key"`
-			Content string `json:"content"`
+		// Build session exports with messages.
+		sessionExports := make([]sessionExport, 0, len(sessions))
+		for _, sess := range sessions {
+			msgs, err := h.store.Messages().List(ctx, tenantID, sess.ID, 1000, 0)
+			if err != nil {
+				log.Warn("gdpr export: failed to list messages", "session_id", sess.ID, "error", err)
+				msgs = nil
+			}
+			sessionExports = append(sessionExports, sessionExport{Session: sess, Messages: msgs})
 		}
-		var memories []memoryEntry
+
+		// Collect memories per user via store interface.
+		var memories []memoryExportEntry
 		if memStore := h.store.Memories(); memStore != nil {
 			for uid := range userIDSet {
 				entries, err := memStore.List(ctx, tenantID, uid)
@@ -72,24 +111,20 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 					continue
 				}
 				for _, e := range entries {
-					memories = append(memories, memoryEntry{UserID: uid, Key: e.Key, Content: e.Content})
+					memories = append(memories, memoryExportEntry{UserID: uid, Key: e.Key, Content: e.Content})
 				}
 			}
 		}
 
 		// Collect user profiles via store interface.
-		type profileEntry struct {
-			UserID  string `json:"user_id"`
-			Content string `json:"content"`
-		}
-		var profiles []profileEntry
+		var profiles []profileExportEntry
 		if profStore := h.store.UserProfiles(); profStore != nil {
 			for uid := range userIDSet {
 				content, err := profStore.Get(ctx, tenantID, uid)
 				if err != nil || content == "" {
 					continue
 				}
-				profiles = append(profiles, profileEntry{UserID: uid, Content: content})
+				profiles = append(profiles, profileExportEntry{UserID: uid, Content: content})
 			}
 		}
 
@@ -100,43 +135,46 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 			workflowRuns, _, _ = wfStore.ListRuns(ctx, tenantID, store.WorkflowRunListOptions{Limit: 1000})
 		}
 
+		// Collect alert rules and events for this tenant.
+		var alertRules []*metering.AlertRule
+		if h.alertRules != nil {
+			alertRules, err = h.alertRules.List(ctx, tenantID)
+			if err != nil {
+				log.Warn("gdpr export: failed to list alert rules", "tenant_id", tenantID, "error", err)
+			}
+		}
+		var alertEvents []*metering.AlertEvent
+		if h.alertEvents != nil {
+			alertEvents, err = h.alertEvents.ListByTenant(ctx, tenantID, gdprExportMaxSessions)
+			if err != nil {
+				log.Warn("gdpr export: failed to list alert events", "tenant_id", tenantID, "error", err)
+			}
+		}
+
 		// Audit the export action.
 		_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
 			TenantID:  tenantID,
 			Action:    "GDPR_EXPORT",
-			Detail:    fmt.Sprintf("sessions=%d memories=%d profiles=%d workflow_definitions=%d workflow_runs=%d", len(sessions), len(memories), len(profiles), len(workflowDefinitions), len(workflowRuns)),
+			Detail:    fmt.Sprintf("sessions=%d memories=%d profiles=%d workflow_definitions=%d workflow_runs=%d alert_rules=%d alert_events=%d", len(sessions), len(memories), len(profiles), len(workflowDefinitions), len(workflowRuns), len(alertRules), len(alertEvents)),
 			RequestID: middleware.RequestIDFromContext(ctx),
 		})
 
+		export := exportData{
+			TenantID:            tenantID,
+			Sessions:            sessionExports,
+			Memories:            memories,
+			Profiles:            profiles,
+			WorkflowDefinitions: workflowDefinitions,
+			WorkflowRuns:        workflowRuns,
+			AlertRules:          alertRules,
+			AlertEvents:         alertEvents,
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Content-Disposition", "attachment; filename=export.json")
-
-		enc := json.NewEncoder(w)
-		fmt.Fprint(w, `{"tenant_id":"`+tenantID+`","sessions":[`)
-		for i, sess := range sessions {
-			if i > 0 {
-				fmt.Fprint(w, ",")
-			}
-			msgs, err := h.store.Messages().List(ctx, tenantID, sess.ID, 1000, 0)
-			if err != nil {
-				log.Warn("gdpr export: failed to list messages", "session_id", sess.ID, "error", err)
-				msgs = nil
-			}
-			type sessionExport struct {
-				Session  *store.Session   `json:"session"`
-				Messages []*store.Message `json:"messages"`
-			}
-			enc.Encode(sessionExport{Session: sess, Messages: msgs})
+		if err := json.NewEncoder(w).Encode(export); err != nil {
+			log.Error("gdpr export: failed to encode response", "error", err)
 		}
-		fmt.Fprint(w, `],"memories":`)
-		enc.Encode(memories)
-		fmt.Fprint(w, `,"profiles":`)
-		enc.Encode(profiles)
-		fmt.Fprint(w, `,"workflow_definitions":`)
-		enc.Encode(workflowDefinitions)
-		fmt.Fprint(w, `,"workflow_runs":`)
-		enc.Encode(workflowRuns)
-		fmt.Fprint(w, `}`)
 	}
 }
 
@@ -232,23 +270,47 @@ func (h *GDPRHandler) DeletionStatusHandler() http.HandlerFunc {
 			return
 		}
 
-		tenant, err := h.store.Tenants().Get(r.Context(), tenantID)
-		if err != nil {
-			// Tenant not found via normal Get (filters deleted_at IS NULL) — check deleted state.
+		ctx := r.Context()
+
+		// First check if the tenant is active (not soft-deleted).
+		tenant, err := h.store.Tenants().Get(ctx, tenantID)
+		if err == nil {
+			_ = tenant
 			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
 			json.NewEncoder(w).Encode(map[string]any{
-				"status":  "pending_deletion",
-				"message": "tenant is scheduled for deletion; use POST /v1/gdpr/restore to cancel",
+				"status": "active",
 			})
 			return
 		}
 
-		_ = tenant
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]any{
-			"status": "active",
-		})
+		if !errors.Is(err, store.ErrNotFound) {
+			// Unexpected error from Get — treat as server error.
+			http.Error(w, "failed to check tenant status", http.StatusInternalServerError)
+			return
+		}
+
+		// Tenant not found via Get (deleted_at IS NULL) — check if it's soft-deleted within the grace period.
+		cutoff := time.Now().Add(-GDPRGracePeriod)
+		deleted, err := h.store.Tenants().ListDeleted(ctx, cutoff)
+		if err != nil {
+			http.Error(w, "failed to check deletion status", http.StatusInternalServerError)
+			return
+		}
+
+		for _, d := range deleted {
+			if d.ID == tenantID {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				json.NewEncoder(w).Encode(map[string]any{
+					"status":  "pending_deletion",
+					"message": "tenant is scheduled for deletion; use POST /v1/gdpr/restore to cancel",
+				})
+				return
+			}
+		}
+
+		// Tenant not found in active or deleted-within-grace-period lists.
+		http.Error(w, "tenant not found", http.StatusNotFound)
 	}
 }
 

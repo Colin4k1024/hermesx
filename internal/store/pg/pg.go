@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/jackc/pgx/v5"
@@ -37,6 +38,8 @@ type PGStore struct {
 	channelApps       *pgChannelAppStore
 	channelIdentities *pgChannelIdentityStore
 	browserSessions   *pgBrowserSessionStore
+	alertRules        *pgAlertRuleStore
+	alertEvents       *pgAlertEventStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -89,6 +92,8 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.channelApps = &pgChannelAppStore{pool: pool}
 	s.channelIdentities = &pgChannelIdentityStore{pool: pool}
 	s.browserSessions = &pgBrowserSessionStore{pool: pool}
+	s.alertRules = &pgAlertRuleStore{pool: pool}
+	s.alertEvents = &pgAlertEventStore{pool: pool}
 	return s, nil
 }
 
@@ -109,6 +114,8 @@ func (s *PGStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.che
 func (s *PGStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }
 func (s *PGStore) ChannelIdentities() store.ChannelIdentityStore  { return s.channelIdentities }
 func (s *PGStore) BrowserSessions() store.BrowserSessionStore     { return s.browserSessions }
+func (s *PGStore) AlertRules() metering.AlertRuleStore            { return s.alertRules }
+func (s *PGStore) AlertEvents() metering.AlertEventStore          { return s.alertEvents }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

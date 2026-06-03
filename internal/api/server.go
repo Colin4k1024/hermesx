@@ -256,7 +256,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		api.HandleFunc("/v1/channel-bindings/", channelAuth.ServeBindingsHTTP)
 	}
 
-	gdpr := NewGDPRHandler(cfg.Store, cfg.SkillsClient)
+	gdpr := NewGDPRHandler(cfg.Store, cfg.SkillsClient, cfg.AlertRuleStore, cfg.AlertEventStore)
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
 	api.HandleFunc("POST /v1/gdpr/restore", gdpr.RestoreHandler())

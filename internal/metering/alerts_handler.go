@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/middleware"
+	"github.com/google/uuid"
 )
 
 // AlertHandler provides HTTP endpoints for managing usage alert rules.
@@ -90,7 +91,7 @@ func (h *AlertHandler) createRule(w http.ResponseWriter, r *http.Request, tenant
 
 	now := time.Now()
 	rule := &AlertRule{
-		ID:        "ar-" + now.Format("20060102150405"),
+		ID:        "ar-" + uuid.New().String(),
 		TenantID:  tenantID,
 		Metric:    req.Metric,
 		Threshold: req.Threshold,

@@ -753,6 +753,52 @@ var migrations = []migration{
 
 	// v2.4.0: Index for audit log archival (efficient range scan by created_at for retention jobs).
 	{114, `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at ASC)`},
+
+	// v2.5.0: Alert rules and events tables for usage alerting.
+	{115, `CREATE TABLE IF NOT EXISTS alert_rules (
+		id TEXT PRIMARY KEY,
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		metric TEXT NOT NULL,
+		threshold NUMERIC(14,4) NOT NULL DEFAULT 0,
+		window TEXT NOT NULL DEFAULT 'daily',
+		enabled BOOLEAN NOT NULL DEFAULT true,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{116, `CREATE TABLE IF NOT EXISTS alert_events (
+		id TEXT PRIMARY KEY,
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		rule_id TEXT NOT NULL,
+		metric TEXT NOT NULL,
+		threshold NUMERIC(14,4) NOT NULL DEFAULT 0,
+		current_val NUMERIC(14,4) NOT NULL DEFAULT 0,
+		percentage NUMERIC(10,2) NOT NULL DEFAULT 0,
+		fired_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	)`},
+	{117, `CREATE INDEX IF NOT EXISTS idx_alert_rules_tenant ON alert_rules(tenant_id)`},
+	{118, `CREATE INDEX IF NOT EXISTS idx_alert_rules_enabled ON alert_rules(enabled) WHERE enabled = true`},
+	{119, `CREATE INDEX IF NOT EXISTS idx_alert_events_tenant ON alert_events(tenant_id, fired_at DESC)`},
+	{120, `CREATE INDEX IF NOT EXISTS idx_alert_events_rule ON alert_events(tenant_id, rule_id)`},
+
+	// v2.5.0: RLS policies for alert_rules and alert_events.
+	{121, `ALTER TABLE alert_rules ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE alert_rules FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'alert_rules' AND policyname = 'tenant_isolation_alert_rules') THEN
+			CREATE POLICY tenant_isolation_alert_rules ON alert_rules
+				USING (tenant_id::text = current_setting('app.current_tenant', true))
+				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		END IF;
+	END $$`},
+	{122, `ALTER TABLE alert_events ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE alert_events FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'alert_events' AND policyname = 'tenant_isolation_alert_events') THEN
+			CREATE POLICY tenant_isolation_alert_events ON alert_events
+				USING (tenant_id::text = current_setting('app.current_tenant', true))
+				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

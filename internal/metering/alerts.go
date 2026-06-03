@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 // AlertMetric identifies what usage metric to monitor.
@@ -76,6 +78,17 @@ func (n *LogAlertNotifier) Notify(_ context.Context, event *AlertEvent) error {
 	return nil
 }
 
+const (
+	// lastFiredCleanupTTL is how long a lastFiredKeys entry lives before
+	// it is eligible for eviction.  48 h covers both daily and monthly
+	// windows so a rule that fired at the end of a window is still
+	// deduplicated until the window rolls over.
+	lastFiredCleanupTTL = 48 * time.Hour
+
+	// lastFiredCleanupInterval is how often the cleanup sweep runs.
+	lastFiredCleanupInterval = 1 * time.Hour
+)
+
 // AlertChecker evaluates alert rules against current usage on a schedule.
 type AlertChecker struct {
 	rules    AlertRuleStore
@@ -116,6 +129,12 @@ func NewAlertChecker(rules AlertRuleStore, events AlertEventStore, usage UsageSt
 // Run starts the background evaluation loop. Blocks until ctx is cancelled.
 func (c *AlertChecker) Run(ctx context.Context) {
 	slog.Info("usage_alert_checker_started", "interval", c.interval)
+
+	// Start periodic cleanup of lastFiredKeys so the map does not grow
+	// without bound in long-running deployments.
+	stopCleanup := c.StartCleanupLoop(ctx, lastFiredCleanupTTL)
+	defer stopCleanup()
+
 	ticker := time.NewTicker(c.interval)
 	defer ticker.Stop()
 
@@ -184,7 +203,7 @@ func (c *AlertChecker) evaluate(ctx context.Context, rule *AlertRule) error {
 	c.mu.Unlock()
 
 	event := &AlertEvent{
-		ID:         fmt.Sprintf("ae-%d", time.Now().UnixNano()),
+		ID:         "ae-" + uuid.New().String(),
 		TenantID:   rule.TenantID,
 		RuleID:     rule.ID,
 		Metric:     rule.Metric,
@@ -201,6 +220,52 @@ func (c *AlertChecker) evaluate(ctx context.Context, rule *AlertRule) error {
 	}
 
 	return c.notifier.Notify(ctx, event)
+}
+
+// evictExpired removes lastFiredKeys entries older than ttl.
+// Caller must hold c.mu.
+func (c *AlertChecker) evictExpired(ttl time.Duration) int {
+	deadline := time.Now().Add(-ttl)
+	removed := 0
+	for key, fired := range c.lastFiredKeys {
+		if fired.Before(deadline) {
+			delete(c.lastFiredKeys, key)
+			removed++
+		}
+	}
+	return removed
+}
+
+// StartCleanupLoop launches a background goroutine that evicts stale
+// lastFiredKeys entries older than ttl.  The sweep interval is fixed at
+// lastFiredCleanupInterval (1 hour).
+//
+// The returned stop function blocks until the goroutine exits; callers may
+// also cancel the supplied context to achieve the same effect.
+func (c *AlertChecker) StartCleanupLoop(ctx context.Context, ttl time.Duration) func() {
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(lastFiredCleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				c.mu.Lock()
+				removed := c.evictExpired(ttl)
+				c.mu.Unlock()
+				if removed > 0 {
+					slog.Debug("alert_last_fired_cleanup", "removed", removed)
+				}
+			}
+		}
+	}()
+
+	return func() { <-done }
 }
 
 func windowBounds(window string, now time.Time) (time.Time, time.Time) {

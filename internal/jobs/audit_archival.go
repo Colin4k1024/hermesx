@@ -1,6 +1,7 @@
 package jobs
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -161,14 +162,13 @@ func (j *AuditArchivalJob) writeBatchToObjectStore(ctx context.Context, logs []*
 }
 
 func marshalJSONLines(logs []*store.AuditLog) ([]byte, error) {
-	var buf []byte
+	var buf bytes.Buffer
+	buf.Grow(len(logs) * 256) // pre-allocate estimated capacity
+	enc := json.NewEncoder(&buf)
 	for _, l := range logs {
-		line, err := json.Marshal(l)
-		if err != nil {
+		if err := enc.Encode(l); err != nil {
 			return nil, err
 		}
-		buf = append(buf, line...)
-		buf = append(buf, '\n')
 	}
-	return buf, nil
+	return buf.Bytes(), nil
 }

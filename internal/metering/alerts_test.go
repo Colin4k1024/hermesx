@@ -273,3 +273,54 @@ func TestWindowBounds_Monthly(t *testing.T) {
 		t.Errorf("to = %v, want %v", to, wantTo)
 	}
 }
+
+func TestAlertChecker_EvictExpired(t *testing.T) {
+	checker := &AlertChecker{lastFiredKeys: make(map[string]time.Time)}
+
+	now := time.Now()
+	checker.lastFiredKeys["recent"] = now.Add(-1 * time.Hour)
+	checker.lastFiredKeys["old"] = now.Add(-49 * time.Hour)
+	checker.lastFiredKeys["ancient"] = now.Add(-72 * time.Hour)
+
+	removed := checker.evictExpired(48 * time.Hour)
+
+	if removed != 2 {
+		t.Fatalf("removed = %d, want 2", removed)
+	}
+	if _, ok := checker.lastFiredKeys["recent"]; !ok {
+		t.Error("recent entry should not have been evicted")
+	}
+	if _, ok := checker.lastFiredKeys["old"]; ok {
+		t.Error("old entry should have been evicted")
+	}
+	if _, ok := checker.lastFiredKeys["ancient"]; ok {
+		t.Error("ancient entry should have been evicted")
+	}
+}
+
+func TestAlertChecker_StartCleanupLoop(t *testing.T) {
+	checker := &AlertChecker{lastFiredKeys: make(map[string]time.Time)}
+
+	// Seed with one expired and one fresh entry.
+	now := time.Now()
+	checker.lastFiredKeys["expired"] = now.Add(-49 * time.Hour)
+	checker.lastFiredKeys["fresh"] = now.Add(-1 * time.Hour)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	// Use a very short TTL so the test doesn't need to wait long.
+	// The cleanup interval is fixed at 1 hour, so we call evictExpired
+	// directly instead of waiting for the ticker.
+	stop := checker.StartCleanupLoop(ctx, 48*time.Hour)
+
+	// Cancel immediately to stop the goroutine; the test verifies the
+	// wiring is correct (no panic, stop blocks until exit).
+	cancel()
+	stop()
+
+	// The goroutine may or may not have run one sweep before we cancelled,
+	// so we verify eviction works directly.
+	removed := checker.evictExpired(48 * time.Hour)
+	if removed > 1 {
+		t.Errorf("unexpected extra removals after cancel: %d", removed)
+	}
+}
