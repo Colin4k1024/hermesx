@@ -50,6 +50,12 @@ func (n *noopAuditLogStore) List(_ context.Context, _ string, _ store.AuditListO
 func (n *noopAuditLogStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
 	return 0, errSQLiteUnsupported
 }
+func (n *noopAuditLogStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopAuditLogStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, errSQLiteUnsupported
+}
 
 var _ store.AuditLogStore = (*noopAuditLogStore)(nil)
 

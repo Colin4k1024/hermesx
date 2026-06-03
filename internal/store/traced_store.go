@@ -377,6 +377,28 @@ func (a *tracedAuditLogs) DeleteByTenant(ctx context.Context, tenantID string) (
 	return n, err
 }
 
+func (a *tracedAuditLogs) ArchiveOlderThan(ctx context.Context, cutoff time.Time, batchSize int) ([]*AuditLog, error) {
+	ctx, span := tracer.Start(ctx, "store.AuditLogs.ArchiveOlderThan")
+	defer span.End()
+	logs, err := a.inner.ArchiveOlderThan(ctx, cutoff, batchSize)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return logs, err
+}
+
+func (a *tracedAuditLogs) ArchiveCount(ctx context.Context, cutoff time.Time) (int64, error) {
+	ctx, span := tracer.Start(ctx, "store.AuditLogs.ArchiveCount")
+	defer span.End()
+	n, err := a.inner.ArchiveCount(ctx, cutoff)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return n, err
+}
+
 // ── APIKeys ──────────────────────────────────────────────────────────────────
 
 type tracedAPIKeys struct{ inner APIKeyStore }

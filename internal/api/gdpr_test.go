@@ -119,6 +119,12 @@ func (m *mockGDPRAuditStore) List(_ context.Context, _ string, _ store.AuditList
 func (m *mockGDPRAuditStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (m *mockGDPRAuditStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (m *mockGDPRAuditStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
 
 type mockGDPRTenantStore struct{}
 
@@ -218,24 +224,13 @@ func TestGDPRDeleteHandler(t *testing.T) {
 		name       string
 		method     string
 		tenantID   string
-		seedData   func(*mockSessionStore)
 		wantStatus int
 	}{
 		{
-			name:     "DELETE with tenant and sessions returns 204",
-			method:   http.MethodDelete,
-			tenantID: "tenant-1",
-			seedData: func(ss *mockSessionStore) {
-				ss.sessions["tenant-1/s1"] = &store.Session{ID: "s1", TenantID: "tenant-1"}
-				ss.sessions["tenant-1/s2"] = &store.Session{ID: "s2", TenantID: "tenant-1"}
-			},
-			wantStatus: http.StatusNoContent,
-		},
-		{
-			name:       "DELETE with no sessions returns 204",
+			name:       "DELETE with tenant returns 202 Accepted (soft-delete grace period)",
 			method:     http.MethodDelete,
 			tenantID:   "tenant-1",
-			wantStatus: http.StatusNoContent,
+			wantStatus: http.StatusAccepted,
 		},
 		{
 			name:       "DELETE without tenant returns 400",
@@ -253,15 +248,96 @@ func TestGDPRDeleteHandler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ss := newMockSessionStore()
-			if tt.seedData != nil {
-				tt.seedData(ss)
-			}
-
-			s := &mockGDPRStore{ss: ss, ms: newMockMessageStore(), al: &mockGDPRAuditStore{}}
+			s := &mockGDPRStore{ss: newMockSessionStore(), ms: newMockMessageStore(), al: &mockGDPRAuditStore{}}
 			handler := NewGDPRHandler(s, nil).DeleteHandler()
 			rec := httptest.NewRecorder()
 			req := gdprReq(tt.method, "/v1/gdpr/data", tt.tenantID)
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestGDPRRestoreHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		method     string
+		tenantID   string
+		wantStatus int
+	}{
+		{
+			name:       "POST restore with tenant returns 200",
+			method:     http.MethodPost,
+			tenantID:   "tenant-1",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "POST restore without tenant returns 400",
+			method:     http.MethodPost,
+			tenantID:   "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "GET on restore endpoint returns 405",
+			method:     http.MethodGet,
+			tenantID:   "tenant-1",
+			wantStatus: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &mockGDPRStore{ss: newMockSessionStore(), ms: newMockMessageStore(), al: &mockGDPRAuditStore{}}
+			handler := NewGDPRHandler(s, nil).RestoreHandler()
+			rec := httptest.NewRecorder()
+			req := gdprReq(tt.method, "/v1/gdpr/restore", tt.tenantID)
+
+			handler.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatus {
+				t.Errorf("status = %d, want %d; body = %s", rec.Code, tt.wantStatus, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestGDPRDeletionStatusHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		method     string
+		tenantID   string
+		wantStatus int
+	}{
+		{
+			name:       "GET status with active tenant returns 200",
+			method:     http.MethodGet,
+			tenantID:   "tenant-1",
+			wantStatus: http.StatusOK,
+		},
+		{
+			name:       "GET status without tenant returns 400",
+			method:     http.MethodGet,
+			tenantID:   "",
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "POST on status endpoint returns 405",
+			method:     http.MethodPost,
+			tenantID:   "tenant-1",
+			wantStatus: http.StatusMethodNotAllowed,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := &mockGDPRStore{ss: newMockSessionStore(), ms: newMockMessageStore(), al: &mockGDPRAuditStore{}}
+			handler := NewGDPRHandler(s, nil).DeletionStatusHandler()
+			rec := httptest.NewRecorder()
+			req := gdprReq(tt.method, "/v1/gdpr/status", tt.tenantID)
 
 			handler.ServeHTTP(rec, req)
 

@@ -66,6 +66,11 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 		return nil, fmt.Errorf("pg ping: %w", err)
 	}
 
+	if err := verifySuperuserSafety(ctx, pool); err != nil {
+		pool.Close()
+		return nil, err
+	}
+
 	s := &PGStore{pool: pool}
 	s.sessions = &pgSessionStore{pool: pool}
 	s.messages = &pgMessageStore{pool: pool}

@@ -31,6 +31,12 @@ func (s *governanceAuditStore) List(_ context.Context, _ string, _ store.AuditLi
 func (s *governanceAuditStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (s *governanceAuditStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (s *governanceAuditStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
 
 type governanceStore struct {
 	store.Store

@@ -40,6 +40,9 @@ func (c *Client) Close() error { return c.rdb.Close() }
 // UniversalClient returns the underlying Redis client (satisfies redis.UniversalClient).
 func (c *Client) UniversalClient() redis.UniversalClient { return c.rdb }
 
+// GoRedisClient returns the underlying *redis.Client for direct use.
+func (c *Client) GoRedisClient() *redis.Client { return c.rdb }
+
 // --- Session Lock (Distributed) ---
 
 // AcquireSessionLock attempts to acquire a distributed lock for a session.

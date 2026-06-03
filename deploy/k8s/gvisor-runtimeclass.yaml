@@ -1,0 +1,23 @@
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc
+scheduling:
+  nodeSelector:
+    sandbox.gvisor.dev/runtime: "true"
+---
+# For GKE Autopilot or GKE Standard with sandbox nodes:
+# The RuntimeClass name is "gvisor" and it maps to the runsc handler.
+#
+# Prerequisites:
+#   GKE: Enable "Sandbox" on the node pool (uses gVisor by default)
+#   EKS: Install gVisor DaemonSet: https://gvisor.dev/docs/user_guide/install/
+#   Self-managed: Install runsc + configure containerd/CRI-O
+#
+# To disable gVisor (development only):
+#   Set K8S_JOB_RUNTIME_CLASS=none
+#
+# Verification:
+#   kubectl get runtimeclass gvisor
+#   kubectl run test --image=ubuntu --restart=Never --runtime-class-name=gvisor -- dmesg

@@ -76,6 +76,10 @@ func (stubAuditLogStore) List(_ context.Context, _ string, _ store.AuditListOpti
 	return nil, 0, nil
 }
 func (stubAuditLogStore) DeleteByTenant(_ context.Context, _ string) (int64, error) { return 0, nil }
+func (stubAuditLogStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (stubAuditLogStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) { return 0, nil }
 
 // stubAPIKeyStore implements store.APIKeyStore with no-op methods.
 type stubAPIKeyStore struct{}

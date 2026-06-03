@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -122,6 +123,12 @@ func (s *authAuditStore) List(_ context.Context, _ string, _ store.AuditListOpti
 	return nil, 0, nil
 }
 func (s *authAuditStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
+	return 0, nil
+}
+func (s *authAuditStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (s *authAuditStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
 	return 0, nil
 }
 

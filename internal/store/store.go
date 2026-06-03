@@ -117,6 +117,10 @@ type AuditLogStore interface {
 	Append(ctx context.Context, log *AuditLog) error
 	List(ctx context.Context, tenantID string, opts AuditListOptions) ([]*AuditLog, int, error)
 	DeleteByTenant(ctx context.Context, tenantID string) (int64, error)
+	// ArchiveOlderThan moves logs older than cutoff into the returned batch and deletes them from hot storage.
+	ArchiveOlderThan(ctx context.Context, cutoff time.Time, batchSize int) ([]*AuditLog, error)
+	// ArchiveCount returns the number of records older than cutoff (for planning).
+	ArchiveCount(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
 // AuditListOptions controls pagination and filtering for audit log queries.

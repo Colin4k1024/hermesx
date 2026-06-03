@@ -750,6 +750,9 @@ var migrations = []migration{
 	);
 	CREATE INDEX IF NOT EXISTS idx_browser_sessions_tenant_user ON browser_sessions(tenant_id, user_id);
 	CREATE INDEX IF NOT EXISTS idx_browser_sessions_active ON browser_sessions(token_hash) WHERE revoked_at IS NULL`},
+
+	// v2.4.0: Index for audit log archival (efficient range scan by created_at for retention jobs).
+	{114, `CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at ASC)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

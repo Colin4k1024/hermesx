@@ -55,6 +55,9 @@ type APIServerConfig struct {
 	CanaryDetector *safety.CanaryDetector // nil → safety.NewCanaryDetector()
 	PolicyStore    safety.PolicyStore     // nil → pg-backed when pool available, else in-memory
 
+	AlertRuleStore  metering.AlertRuleStore  // optional; enables usage threshold alerts
+	AlertEventStore metering.AlertEventStore // optional; stores fired alert events
+
 	ChannelHashSecret   string // required to enable trusted channel login
 	ChannelPublicURL    string // external base URL used for OAuth redirects; empty derives from request
 	ChannelCookieSecure bool   // secure cookie flag; enable in production behind TLS
@@ -229,6 +232,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	} else {
 		api.Handle("/v1/usage", NewUsageHandler(cfg.Store.Sessions(), cfg.Store.Messages()))
 	}
+	if cfg.AlertRuleStore != nil {
+		alertH := metering.NewAlertHandler(cfg.AlertRuleStore, cfg.AlertEventStore)
+		api.Handle("/v1/usage-alerts", alertH)
+		api.Handle("/v1/usage-alerts/", alertH)
+	}
 	api.HandleFunc("GET /v1/openapi", OpenAPISpec())
 	workflowHTTPClient := &http.Client{Transport: egressTransport, Timeout: 30 * time.Second}
 	receiptRecorder := tools.NewReceiptRecorder(cfg.Store.ExecutionReceipts())
@@ -251,6 +259,8 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	gdpr := NewGDPRHandler(cfg.Store, cfg.SkillsClient)
 	api.HandleFunc("GET /v1/gdpr/export", gdpr.ExportHandler())
 	api.HandleFunc("DELETE /v1/gdpr/data", gdpr.DeleteHandler())
+	api.HandleFunc("POST /v1/gdpr/restore", gdpr.RestoreHandler())
+	api.HandleFunc("GET /v1/gdpr/status", gdpr.DeletionStatusHandler())
 	api.HandleFunc("POST /v1/gdpr/cleanup-minio", gdpr.CleanupMinIOHandler())
 
 	// Chat endpoint — full AIAgent with tool loop, soul, skills, memory.

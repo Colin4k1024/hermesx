@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
 )
@@ -87,6 +88,14 @@ func (s *myAuditLogStore) DeleteByTenant(ctx context.Context, tenantID string) (
 		return 0, err
 	}
 	return res.RowsAffected()
+}
+
+func (s *myAuditLogStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, fmt.Errorf("mysql: audit archival not implemented")
+}
+
+func (s *myAuditLogStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, fmt.Errorf("mysql: audit archival not implemented")
 }
 
 var _ store.AuditLogStore = (*myAuditLogStore)(nil)

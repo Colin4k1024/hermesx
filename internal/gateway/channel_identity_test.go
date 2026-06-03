@@ -93,6 +93,12 @@ func (s *fakeGatewayAuditStore) List(_ context.Context, _ string, _ store.AuditL
 func (s *fakeGatewayAuditStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (s *fakeGatewayAuditStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (s *fakeGatewayAuditStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
 
 func TestGatewayIdentityResolver_BoundRewritesSource(t *testing.T) {
 	app := &store.ChannelApp{ID: "app-1", TenantID: "tenant-1", Platform: string(PlatformWeixin), AppKey: "wx-app", Enabled: true}

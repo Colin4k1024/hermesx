@@ -3,6 +3,7 @@ package pg
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/google/uuid"
@@ -137,6 +138,59 @@ func (s *pgAuditLogStore) DeleteByTenant(ctx context.Context, tenantID string) (
 		return nil
 	})
 	return affected, err
+}
+
+// ArchiveOlderThan atomically selects and deletes logs older than cutoff, returning them for external archival.
+// Uses a CTE to ensure atomicity — logs are removed from hot storage in the same statement.
+func (s *pgAuditLogStore) ArchiveOlderThan(ctx context.Context, cutoff time.Time, batchSize int) ([]*store.AuditLog, error) {
+	if batchSize <= 0 {
+		batchSize = 1000
+	}
+	if batchSize > 10000 {
+		batchSize = 10000
+	}
+
+	const q = `WITH batch AS (
+		SELECT id FROM audit_logs
+		WHERE created_at < $1
+		ORDER BY created_at ASC
+		LIMIT $2
+		FOR UPDATE SKIP LOCKED
+	), deleted AS (
+		DELETE FROM audit_logs
+		WHERE id IN (SELECT id FROM batch)
+		RETURNING id, COALESCE(tenant_id::text, ''), COALESCE(user_id::text, ''), session_id, action, detail, request_id, status_code, latency_ms, COALESCE(source_ip, ''), COALESCE(error_code, ''), COALESCE(user_agent, ''), created_at
+	)
+	SELECT * FROM deleted ORDER BY created_at ASC`
+
+	rows, err := s.pool.Query(ctx, q, cutoff, batchSize)
+	if err != nil {
+		return nil, fmt.Errorf("archive audit logs: %w", err)
+	}
+	defer rows.Close()
+
+	var logs []*store.AuditLog
+	for rows.Next() {
+		l := &store.AuditLog{}
+		if err := rows.Scan(&l.ID, &l.TenantID, &l.UserID, &l.SessionID, &l.Action, &l.Detail, &l.RequestID, &l.StatusCode, &l.LatencyMs, &l.SourceIP, &l.ErrorCode, &l.UserAgent, &l.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan archived audit log: %w", err)
+		}
+		logs = append(logs, l)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate archived audit logs: %w", err)
+	}
+	return logs, nil
+}
+
+// ArchiveCount returns the number of audit log records older than the given cutoff.
+func (s *pgAuditLogStore) ArchiveCount(ctx context.Context, cutoff time.Time) (int64, error) {
+	var count int64
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE created_at < $1`, cutoff).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count archivable audit logs: %w", err)
+	}
+	return count, nil
 }
 
 var _ store.AuditLogStore = (*pgAuditLogStore)(nil)

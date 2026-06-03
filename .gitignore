@@ -37,3 +37,9 @@ deploy/kind/values.local.override.yaml
 site/
 # Playwright test artifacts
 test-results/
+# AI agent directories (supply chain security - prevent unintended AI-generated commits)
+.claude/
+.deepseek/
+.cursor/
+.copilot/
+user_notes.md

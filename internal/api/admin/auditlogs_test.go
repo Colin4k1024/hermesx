@@ -24,6 +24,12 @@ func (m *mockAuditStore) Append(_ context.Context, log *store.AuditLog) error {
 func (m *mockAuditStore) DeleteByTenant(_ context.Context, _ string) (int64, error) {
 	return 0, nil
 }
+func (m *mockAuditStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
+	return nil, nil
+}
+func (m *mockAuditStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
+	return 0, nil
+}
 
 func (m *mockAuditStore) List(_ context.Context, tenantID string, opts store.AuditListOptions) ([]*store.AuditLog, int, error) {
 	var filtered []*store.AuditLog

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
@@ -15,23 +15,6 @@ import (
 
 const gdprExportMaxSessions = 1000
 
-var gdprAllowedTables = map[string]struct{}{
-	"messages":             {},
-	"sessions":             {},
-	"memories":             {},
-	"user_profiles":        {},
-	"api_keys":             {},
-	"cron_jobs":            {},
-	"users":                {},
-	"audit_logs":           {},
-	"usage_records":        {},
-	"roles":                {},
-	"purge_audit_logs":     {},
-	"workflow_definitions": {},
-	"workflow_versions":    {},
-	"workflow_runs":        {},
-	"workflow_step_runs":   {},
-}
 
 // GDPRHandler serves data export and deletion endpoints.
 // Uses store.Store for all operations — works with any backend (MySQL, PostgreSQL, SQLite).
@@ -158,7 +141,12 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 	}
 }
 
-// DeleteHandler returns DELETE /v1/gdpr/data — deletes all data for a tenant via the store interface.
+// GDPRGracePeriod is the retention window before soft-deleted data is permanently purged.
+const GDPRGracePeriod = 30 * 24 * time.Hour
+
+// DeleteHandler returns DELETE /v1/gdpr/data — initiates soft-delete with a 30-day grace period.
+// Data is not immediately removed; the TenantCleanupJob will purge it after the grace window.
+// During the grace period, the tenant can be restored via POST /v1/gdpr/restore.
 func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodDelete {
@@ -173,30 +161,95 @@ func (h *GDPRHandler) DeleteHandler() http.HandlerFunc {
 		}
 
 		ctx := r.Context()
-		log := observability.ContextLogger(ctx)
 
-		if err := h.deleteViaStore(ctx, tenantID, log); err != nil {
-			http.Error(w, "deletion failed", http.StatusInternalServerError)
+		if err := h.store.Tenants().Delete(ctx, tenantID); err != nil {
+			http.Error(w, "deletion request failed", http.StatusInternalServerError)
 			return
 		}
 
-		// Post-delete: clean up object store (best-effort).
-		if h.minio != nil {
-			if err := h.deleteMinIOTenantObjects(ctx, tenantID); err != nil {
-				log.Warn("gdpr delete: minio cleanup failed", "tenant_id", tenantID, "error", err)
-				// Record failure via audit log (best-effort).
-				_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
-					TenantID: tenantID,
-					Action:   "MINIO_CLEANUP_FAILED",
-					Detail:   err.Error(),
-				})
-				w.WriteHeader(http.StatusMultiStatus)
-				fmt.Fprintf(w, `{"status":"partial","error":"some resources could not be deleted"}`)
-				return
-			}
+		_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
+			TenantID:  tenantID,
+			Action:    "GDPR_DELETE_REQUESTED",
+			Detail:    fmt.Sprintf("grace_period=%s", GDPRGracePeriod),
+			RequestID: middleware.RequestIDFromContext(ctx),
+		})
+
+		purgeAt := time.Now().Add(GDPRGracePeriod)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusAccepted)
+		json.NewEncoder(w).Encode(map[string]any{
+			"status":       "scheduled",
+			"grace_period": GDPRGracePeriod.String(),
+			"purge_after":  purgeAt.Format(time.RFC3339),
+			"restore_url":  "/v1/gdpr/restore",
+		})
+	}
+}
+
+// RestoreHandler returns POST /v1/gdpr/restore — cancels a pending deletion during the grace period.
+func (h *GDPRHandler) RestoreHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		tenantID := middleware.TenantFromContext(r.Context())
+		if tenantID == "" {
+			http.Error(w, "tenant context required", http.StatusBadRequest)
+			return
+		}
+
+		ctx := r.Context()
+
+		if err := h.store.Tenants().Restore(ctx, tenantID); err != nil {
+			http.Error(w, "restore failed: tenant not found or grace period expired", http.StatusGone)
+			return
+		}
+
+		_ = h.store.AuditLogs().Append(ctx, &store.AuditLog{
+			TenantID:  tenantID,
+			Action:    "GDPR_DELETE_CANCELLED",
+			Detail:    "tenant restored during grace period",
+			RequestID: middleware.RequestIDFromContext(ctx),
+		})
+
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprintf(w, `{"status":"restored"}`)
+	}
+}
+
+// DeletionStatusHandler returns GET /v1/gdpr/status — reports the deletion state and remaining grace time.
+func (h *GDPRHandler) DeletionStatusHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		tenantID := middleware.TenantFromContext(r.Context())
+		if tenantID == "" {
+			http.Error(w, "tenant context required", http.StatusBadRequest)
+			return
+		}
+
+		tenant, err := h.store.Tenants().Get(r.Context(), tenantID)
+		if err != nil {
+			// Tenant not found via normal Get (filters deleted_at IS NULL) — check deleted state.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			json.NewEncoder(w).Encode(map[string]any{
+				"status":  "pending_deletion",
+				"message": "tenant is scheduled for deletion; use POST /v1/gdpr/restore to cancel",
+			})
+			return
+		}
+
+		_ = tenant
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"status": "active",
+		})
 	}
 }
 
@@ -239,61 +292,3 @@ func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
 	}
 }
 
-// deleteViaStore performs deletions through the store interface (works with MySQL, PostgreSQL, SQLite).
-func (h *GDPRHandler) deleteViaStore(ctx context.Context, tenantID string, log *slog.Logger) error {
-	// Delete sessions (messages typically cascade via FK or session delete).
-	sessions, _, _ := h.store.Sessions().List(ctx, tenantID, store.ListOptions{Limit: gdprExportMaxSessions})
-	for _, sess := range sessions {
-		if err := h.store.Sessions().Delete(ctx, tenantID, sess.ID); err != nil {
-			log.Error("gdpr delete: session failed", "session_id", sess.ID, "error", err)
-			return err
-		}
-	}
-
-	// Delete memories for all users in tenant.
-	if memStore := h.store.Memories(); memStore != nil {
-		if _, err := memStore.DeleteAllByTenant(ctx, tenantID); err != nil {
-			log.Error("gdpr delete: memories failed", "error", err)
-			return err
-		}
-	}
-
-	// Delete user profiles for all users in tenant.
-	if profStore := h.store.UserProfiles(); profStore != nil {
-		if _, err := profStore.DeleteAllByTenant(ctx, tenantID); err != nil {
-			log.Error("gdpr delete: user_profiles failed", "error", err)
-			return err
-		}
-	}
-
-	// Delete API keys.
-	if keyStore := h.store.APIKeys(); keyStore != nil {
-		keys, _ := keyStore.List(ctx, tenantID)
-		for _, k := range keys {
-			_ = keyStore.Revoke(ctx, tenantID, k.ID)
-		}
-	}
-
-	// Delete cron jobs.
-	if cronStore := h.store.CronJobs(); cronStore != nil {
-		jobs, _ := cronStore.List(ctx, tenantID)
-		for _, j := range jobs {
-			_ = cronStore.Delete(ctx, tenantID, j.ID)
-		}
-	}
-
-	// Delete workflow state.
-	if wfStore := h.store.Workflows(); wfStore != nil {
-		if _, err := wfStore.DeleteAllByTenant(ctx, tenantID); err != nil {
-			return fmt.Errorf("delete workflows: %w", err)
-		}
-	}
-
-	// Delete audit logs.
-	if _, err := h.store.AuditLogs().DeleteByTenant(ctx, tenantID); err != nil {
-		log.Error("gdpr delete: audit_logs failed", "error", err)
-		return err
-	}
-
-	return nil
-}

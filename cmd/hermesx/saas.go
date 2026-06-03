@@ -236,6 +236,7 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 	}
 
 	// Inject distributed Redis rate limiter if REDIS_URL is configured.
+	// Uses ZSET sliding window for accurate multi-pod rate limiting.
 	var rc *rediscache.Client
 	if redisURL := os.Getenv("REDIS_URL"); redisURL != "" {
 		var rcErr error
@@ -244,8 +245,11 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 			slog.Warn("Redis unavailable, using local fallback", "error", rcErr)
 			rc = nil
 		} else {
-			rateLimitCfg.Limiter = rc
-			slog.Info("Distributed Redis rate limiter enabled")
+			rdb := rc.GoRedisClient()
+			rateLimitCfg.Limiter = middleware.NewRedisRateLimiter(rdb)
+			rateLimitCfg.DualLimiter = middleware.NewRedisDualLimiter(rdb)
+			rateLimitCfg.UserRPM = 30 // per-user default: half of tenant limit
+			slog.Info("Distributed Redis rate limiter enabled (ZSET sliding window + dual-layer)")
 		}
 	}
 

@@ -13,7 +13,7 @@ import (
 
 const (
 	cleanupLockID    int64         = 0x48455232 // "HER2"
-	defaultRetention time.Duration = 7 * 24 * time.Hour
+	defaultRetention time.Duration = 30 * 24 * time.Hour
 	defaultInterval  time.Duration = 1 * time.Hour
 )
 

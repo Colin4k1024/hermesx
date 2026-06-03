@@ -22,6 +22,7 @@ type K8sJobEnvironment struct {
 	cpuLimit       string
 	memoryLimit    string
 	serviceAccount string
+	runtimeClass   string // gvisor, kata, or empty for default
 }
 
 func init() {
@@ -63,12 +64,21 @@ func init() {
 			serviceAccount = os.Getenv("K8S_JOB_SERVICE_ACCOUNT")
 		}
 
+		runtimeClass := params["runtime_class"]
+		if runtimeClass == "" {
+			runtimeClass = os.Getenv("K8S_JOB_RUNTIME_CLASS")
+		}
+		if runtimeClass == "" {
+			runtimeClass = "gvisor" // secure default: use gVisor sandbox isolation
+		}
+
 		return &K8sJobEnvironment{
 			namespace:      namespace,
 			image:          image,
 			cpuLimit:       cpuLimit,
 			memoryLimit:    memoryLimit,
 			serviceAccount: serviceAccount,
+			runtimeClass:   runtimeClass,
 		}, nil
 	})
 }
@@ -136,6 +146,11 @@ func (e *K8sJobEnvironment) buildJobManifest(jobName, command string, timeout in
 		saBlock = fmt.Sprintf("      serviceAccountName: %s\n", e.serviceAccount)
 	}
 
+	runtimeClassBlock := ""
+	if e.runtimeClass != "" && e.runtimeClass != "none" {
+		runtimeClassBlock = fmt.Sprintf("      runtimeClassName: %s\n", e.runtimeClass)
+	}
+
 	return fmt.Sprintf(`apiVersion: batch/v1
 kind: Job
 metadata:
@@ -155,7 +170,14 @@ spec:
         hermesx.io/job-name: %s
     spec:
       restartPolicy: Never
-%s      containers:
+%s%s      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
       - name: exec
         image: %s
         command: ["sh", "-c", '%s']
@@ -166,11 +188,17 @@ spec:
           requests:
             cpu: "100m"
             memory: "64Mi"
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
 `,
 		jobName, e.namespace,
 		timeout,
 		jobName,
 		saBlock,
+		runtimeClassBlock,
 		e.image,
 		escapedCmd,
 		e.cpuLimit, e.memoryLimit,
