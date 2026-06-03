@@ -760,7 +760,7 @@ var migrations = []migration{
 		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
 		metric TEXT NOT NULL,
 		threshold NUMERIC(14,4) NOT NULL DEFAULT 0,
-		window TEXT NOT NULL DEFAULT 'daily',
+		alert_window TEXT NOT NULL DEFAULT 'daily',
 		enabled BOOLEAN NOT NULL DEFAULT true,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT now()

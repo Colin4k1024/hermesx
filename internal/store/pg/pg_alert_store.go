@@ -21,7 +21,7 @@ type pgAlertRuleStore struct {
 func (s *pgAlertRuleStore) Create(ctx context.Context, rule *metering.AlertRule) error {
 	return withTenantTx(ctx, s.pool, rule.TenantID, func(tx pgx.Tx) error {
 		_, err := tx.Exec(ctx,
-			`INSERT INTO alert_rules (id, tenant_id, metric, threshold, window, enabled, created_at, updated_at)
+			`INSERT INTO alert_rules (id, tenant_id, metric, threshold, alert_window, enabled, created_at, updated_at)
 			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
 			rule.ID, rule.TenantID, string(rule.Metric), rule.Threshold,
 			rule.Window, rule.Enabled, rule.CreatedAt, rule.UpdatedAt)
@@ -36,7 +36,7 @@ func (s *pgAlertRuleStore) Get(ctx context.Context, tenantID, ruleID string) (*m
 	var r metering.AlertRule
 	var metric string
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, tenant_id, metric, threshold, window, enabled, created_at, updated_at
+		`SELECT id, tenant_id, metric, threshold, alert_window, enabled, created_at, updated_at
 		 FROM alert_rules WHERE tenant_id = $1 AND id = $2`,
 		tenantID, ruleID).Scan(
 		&r.ID, &r.TenantID, &metric, &r.Threshold, &r.Window,
@@ -53,7 +53,7 @@ func (s *pgAlertRuleStore) Get(ctx context.Context, tenantID, ruleID string) (*m
 
 func (s *pgAlertRuleStore) List(ctx context.Context, tenantID string) ([]*metering.AlertRule, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, tenant_id, metric, threshold, window, enabled, created_at, updated_at
+		`SELECT id, tenant_id, metric, threshold, alert_window, enabled, created_at, updated_at
 		 FROM alert_rules WHERE tenant_id = $1 ORDER BY created_at DESC`,
 		tenantID)
 	if err != nil {
@@ -78,7 +78,7 @@ func (s *pgAlertRuleStore) List(ctx context.Context, tenantID string) ([]*meteri
 func (s *pgAlertRuleStore) Update(ctx context.Context, rule *metering.AlertRule) error {
 	return withTenantTx(ctx, s.pool, rule.TenantID, func(tx pgx.Tx) error {
 		tag, err := tx.Exec(ctx,
-			`UPDATE alert_rules SET metric=$3, threshold=$4, window=$5, enabled=$6, updated_at=$7
+			`UPDATE alert_rules SET metric=$3, threshold=$4, alert_window=$5, enabled=$6, updated_at=$7
 			 WHERE tenant_id = $1 AND id = $2`,
 			rule.TenantID, rule.ID, string(rule.Metric), rule.Threshold,
 			rule.Window, rule.Enabled, rule.UpdatedAt)
@@ -111,7 +111,7 @@ func (s *pgAlertRuleStore) Delete(ctx context.Context, tenantID, ruleID string) 
 // tenant_sql_check:skip -- intentional cross-tenant query for background checker.
 func (s *pgAlertRuleStore) ListAllEnabled(ctx context.Context) ([]*metering.AlertRule, error) {
 	rows, err := s.pool.Query(ctx,
-		`SELECT id, tenant_id, metric, threshold, window, enabled, created_at, updated_at
+		`SELECT id, tenant_id, metric, threshold, alert_window, enabled, created_at, updated_at
 		 FROM alert_rules WHERE enabled = true ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, fmt.Errorf("pg list all enabled alert rules: %w", err)
