@@ -1,10 +1,16 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Input, Typography, Space, message } from 'antd'
+import { Button, Divider, Input, Typography, Space, message } from 'antd'
 import { Bot } from 'lucide-react'
 import { useAuthStore } from '@shared/stores/authStore'
 
 const { Title, Text } = Typography
+
+const CHANNEL_PLATFORMS = [
+  { key: 'feishu', label: 'Feishu / Lark' },
+  { key: 'wework', label: 'WeCom' },
+  { key: 'weixin', label: 'WeChat' },
+]
 
 export default function Login() {
   const [apiKey, setApiKey] = useState('')
@@ -28,6 +34,10 @@ export default function Login() {
     }
   }
 
+  const handleChannelLogin = (platform: string) => {
+    window.location.href = `/auth/channel/${platform}/start?return_to=/chat`
+  }
+
   return (
     <div className="flex items-center justify-center min-h-screen" style={{ background: 'var(--ant-color-bg-layout)' }}>
       <div style={{ width: 380, padding: 40 }}>
@@ -36,6 +46,7 @@ export default function Login() {
           <Title level={3} style={{ margin: 0 }}>HermesX</Title>
           <Text type="secondary">Connect to your AI agent</Text>
         </Space>
+
         <Space direction="vertical" size="middle" style={{ width: '100%', marginTop: 32 }}>
           <Input
             placeholder="API Key"
@@ -55,6 +66,23 @@ export default function Login() {
           <Button type="primary" block size="large" loading={loading} onClick={handleConnect}>
             Connect
           </Button>
+        </Space>
+
+        <Divider plain style={{ margin: '24px 0 16px' }}>
+          <Text type="secondary" style={{ fontSize: 12 }}>or sign in with</Text>
+        </Divider>
+
+        <Space direction="vertical" size="small" style={{ width: '100%' }}>
+          {CHANNEL_PLATFORMS.map(({ key, label }) => (
+            <Button
+              key={key}
+              block
+              size="large"
+              onClick={() => handleChannelLogin(key)}
+            >
+              {label}
+            </Button>
+          ))}
         </Space>
       </div>
     </div>
