@@ -15,7 +15,6 @@ import (
 
 const gdprExportMaxSessions = 1000
 
-
 // GDPRHandler serves data export and deletion endpoints.
 // Uses store.Store for all operations — works with any backend (MySQL, PostgreSQL, SQLite).
 type GDPRHandler struct {
@@ -291,4 +290,3 @@ func (h *GDPRHandler) CleanupMinIOHandler() http.HandlerFunc {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
-

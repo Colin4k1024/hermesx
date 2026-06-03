@@ -1,6 +1,6 @@
 module github.com/Colin4k1024/hermesx
 
-go 1.25.10
+go 1.25.11
 
 require (
 	github.com/Colin4k1024/Oris/sdks/go v0.3.0

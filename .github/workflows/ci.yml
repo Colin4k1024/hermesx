@@ -212,4 +212,6 @@ jobs:
           echo "All services ready."
 
       - name: Run integration tests
+        env:
+          HERMESX_ALLOW_SUPERUSER: 'true'
         run: go test -tags=integration -v -count=1 -timeout=300s ./tests/integration/...
