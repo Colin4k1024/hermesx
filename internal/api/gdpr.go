@@ -15,7 +15,10 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
-const gdprExportMaxSessions = 1000
+const (
+	gdprExportMaxSessions    = 1000
+	gdprExportMaxAlertEvents = 1000 // used for non-GDPR API endpoints; GDPR export passes 0 (unlimited)
+)
 
 // sessionExport pairs a session with its messages for GDPR export.
 type sessionExport struct {
@@ -145,7 +148,7 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 		}
 		var alertEvents []*metering.AlertEvent
 		if h.alertEvents != nil {
-			alertEvents, err = h.alertEvents.ListByTenant(ctx, tenantID, gdprExportMaxSessions)
+			alertEvents, err = h.alertEvents.ListByTenant(ctx, tenantID, 0) // 0 = unlimited for GDPR full export
 			if err != nil {
 				log.Warn("gdpr export: failed to list alert events", "tenant_id", tenantID, "error", err)
 			}

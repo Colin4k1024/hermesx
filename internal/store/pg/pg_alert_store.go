@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Colin4k1024/hermesx/internal/metering"
+	"github.com/Colin4k1024/hermesx/internal/store"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -43,7 +44,7 @@ func (s *pgAlertRuleStore) Get(ctx context.Context, tenantID, ruleID string) (*m
 		&r.Enabled, &r.CreatedAt, &r.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, fmt.Errorf("alert rule %s: %w", ruleID, pgx.ErrNoRows)
+			return nil, fmt.Errorf("alert rule %s: %w", ruleID, store.ErrNotFound)
 		}
 		return nil, fmt.Errorf("pg get alert rule: %w", err)
 	}
@@ -86,7 +87,7 @@ func (s *pgAlertRuleStore) Update(ctx context.Context, rule *metering.AlertRule)
 			return fmt.Errorf("pg update alert rule: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("alert rule %s: %w", rule.ID, pgx.ErrNoRows)
+			return fmt.Errorf("alert rule %s: %w", rule.ID, store.ErrNotFound)
 		}
 		return nil
 	})
@@ -101,7 +102,7 @@ func (s *pgAlertRuleStore) Delete(ctx context.Context, tenantID, ruleID string) 
 			return fmt.Errorf("pg delete alert rule: %w", err)
 		}
 		if tag.RowsAffected() == 0 {
-			return fmt.Errorf("alert rule %s: %w", ruleID, pgx.ErrNoRows)
+			return fmt.Errorf("alert rule %s: %w", ruleID, store.ErrNotFound)
 		}
 		return nil
 	})
@@ -155,13 +156,25 @@ func (s *pgAlertEventStore) Record(ctx context.Context, event *metering.AlertEve
 }
 
 func (s *pgAlertEventStore) ListByTenant(ctx context.Context, tenantID string, limit int) ([]*metering.AlertEvent, error) {
-	if limit <= 0 || limit > 100 {
-		limit = 50
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	if limit == 0 {
+		// limit=0 means unlimited — used by GDPR full export
+		rows, err = s.pool.Query(ctx,
+			`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
+			 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC`,
+			tenantID)
+	} else {
+		if limit < 0 || limit > 10000 {
+			limit = 50
+		}
+		rows, err = s.pool.Query(ctx,
+			`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
+			 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC LIMIT $2`,
+			tenantID, limit)
 	}
-	rows, err := s.pool.Query(ctx,
-		`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
-		 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC LIMIT $2`,
-		tenantID, limit)
 	if err != nil {
 		return nil, fmt.Errorf("pg list alert events: %w", err)
 	}

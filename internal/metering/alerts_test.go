@@ -298,7 +298,7 @@ func TestAlertChecker_EvictExpired(t *testing.T) {
 	}
 }
 
-func TestAlertChecker_StartCleanupLoop(t *testing.T) {
+func TestAlertChecker_startCleanupLoop(t *testing.T) {
 	checker := &AlertChecker{lastFiredKeys: make(map[string]time.Time)}
 
 	// Seed with one expired and one fresh entry.
@@ -310,7 +310,7 @@ func TestAlertChecker_StartCleanupLoop(t *testing.T) {
 	// Use a very short TTL so the test doesn't need to wait long.
 	// The cleanup interval is fixed at 1 hour, so we call evictExpired
 	// directly instead of waiting for the ticker.
-	stop := checker.StartCleanupLoop(ctx, 48*time.Hour)
+	stop := checker.startCleanupLoop(ctx, 48*time.Hour)
 
 	// Cancel immediately to stop the goroutine; the test verifies the
 	// wiring is correct (no panic, stop blocks until exit).

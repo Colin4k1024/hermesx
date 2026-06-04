@@ -132,7 +132,7 @@ func (c *AlertChecker) Run(ctx context.Context) {
 
 	// Start periodic cleanup of lastFiredKeys so the map does not grow
 	// without bound in long-running deployments.
-	stopCleanup := c.StartCleanupLoop(ctx, lastFiredCleanupTTL)
+	stopCleanup := c.startCleanupLoop(ctx, lastFiredCleanupTTL)
 	defer stopCleanup()
 
 	ticker := time.NewTicker(c.interval)
@@ -236,13 +236,13 @@ func (c *AlertChecker) evictExpired(ttl time.Duration) int {
 	return removed
 }
 
-// StartCleanupLoop launches a background goroutine that evicts stale
+// startCleanupLoop launches a background goroutine that evicts stale
 // lastFiredKeys entries older than ttl.  The sweep interval is fixed at
 // lastFiredCleanupInterval (1 hour).
 //
 // The returned stop function blocks until the goroutine exits; callers may
 // also cancel the supplied context to achieve the same effect.
-func (c *AlertChecker) StartCleanupLoop(ctx context.Context, ttl time.Duration) func() {
+func (c *AlertChecker) startCleanupLoop(ctx context.Context, ttl time.Duration) func() {
 	done := make(chan struct{})
 
 	go func() {
