@@ -1,0 +1,12 @@
+{
+  "id": "pull-latest-code",
+  "title": "拉取最新代码",
+  "status": "completed",
+  "complexity": "S",
+  "risk": "low",
+  "domain": "repo",
+  "currentPhase": "completed",
+  "nextAction": "已完成并准备归档",
+  "createdAt": "2026-06-09T11:51:33Z",
+  "branch": "main"
+}
