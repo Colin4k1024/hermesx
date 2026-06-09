@@ -1,0 +1,12 @@
+{
+  "id": "plan-enterprise-audit-fixes",
+  "title": "根据企业平台审查报告整理修复计划",
+  "status": "completed",
+  "complexity": "L+",
+  "risk": "medium",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "已生成修复计划并准备归档",
+  "createdAt": "2026-06-09T11:55:11Z",
+  "branch": "main"
+}

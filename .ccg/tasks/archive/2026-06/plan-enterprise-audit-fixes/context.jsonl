@@ -1,0 +1,10 @@
+{"path":"docs/artifacts/2026-06-09-enterprise-agent-platform-audit/harness-audit-report.md","reason":"source audit report"}
+{"path":"internal/store/pg/auditlog.go","reason":"PostgreSQL audit archival and tenant SQL skip rationale"}
+{"path":"internal/store/mysql/auditlog.go","reason":"MySQL audit archival parity implementation"}
+{"path":"scripts/check_tenant_sql.sh","reason":"PostgreSQL tenant SQL static gate"}
+{"path":"scripts/check_tenant_sql_mysql.sh","reason":"MySQL tenant SQL static gate"}
+{"path":"docs/runbooks/enterprise-OIDC-integration-test-plan.md","reason":"OIDC live evidence runbook"}
+{"path":"docs/ENTERPRISE_READINESS.md","reason":"enterprise release readiness claims and caveats"}
+{"path":"internal/api/gdpr.go","reason":"GDPR export and AlertEvents scope"}
+{"path":"internal/middleware/dual_limiter.go","reason":"LocalDualLimiter fallback behavior"}
+{"path":"internal/api/server.go","reason":"CORS behavior and production configuration"}
