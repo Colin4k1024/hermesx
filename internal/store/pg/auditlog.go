@@ -141,7 +141,8 @@ func (s *pgAuditLogStore) DeleteByTenant(ctx context.Context, tenantID string) (
 }
 
 // ArchiveOlderThan atomically selects and deletes logs older than cutoff, returning them for external archival.
-// Uses a CTE to ensure atomicity — logs are removed from hot storage in the same statement.
+// tenant_sql_check:skip — audit archival is a privileged global retention job, not a tenant request path.
+// Uses a CTE to ensure atomicity; logs are removed from hot storage in the same statement.
 func (s *pgAuditLogStore) ArchiveOlderThan(ctx context.Context, cutoff time.Time, batchSize int) ([]*store.AuditLog, error) {
 	if batchSize <= 0 {
 		batchSize = 1000
@@ -184,6 +185,7 @@ func (s *pgAuditLogStore) ArchiveOlderThan(ctx context.Context, cutoff time.Time
 }
 
 // ArchiveCount returns the number of audit log records older than the given cutoff.
+// tenant_sql_check:skip — audit archival planning intentionally counts across all tenants.
 func (s *pgAuditLogStore) ArchiveCount(ctx context.Context, cutoff time.Time) (int64, error) {
 	var count int64
 	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM audit_logs WHERE created_at < $1`, cutoff).Scan(&count)

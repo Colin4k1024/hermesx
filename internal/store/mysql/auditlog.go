@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/store"
@@ -90,12 +91,100 @@ func (s *myAuditLogStore) DeleteByTenant(ctx context.Context, tenantID string) (
 	return res.RowsAffected()
 }
 
-func (s *myAuditLogStore) ArchiveOlderThan(_ context.Context, _ time.Time, _ int) ([]*store.AuditLog, error) {
-	return nil, fmt.Errorf("mysql: audit archival not implemented")
+func (s *myAuditLogStore) ArchiveOlderThan(ctx context.Context, cutoff time.Time, batchSize int) ([]*store.AuditLog, error) {
+	batchSize = normalizeAuditArchiveBatchSize(batchSize)
+
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, fmt.Errorf("begin audit archival tx: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+
+	// tenant_sql_check:skip — audit archival is a privileged global retention job, not a tenant request path.
+	const selectQ = `SELECT id, COALESCE(tenant_id,''), COALESCE(user_id,''), COALESCE(session_id,''), action, COALESCE(detail,''), COALESCE(request_id,''), COALESCE(status_code,0), COALESCE(latency_ms,0), COALESCE(source_ip,''), COALESCE(error_code,''), COALESCE(user_agent,''), created_at
+FROM audit_logs
+WHERE created_at < ?
+ORDER BY created_at ASC
+LIMIT ? FOR UPDATE SKIP LOCKED`
+
+	rows, err := tx.QueryContext(ctx, selectQ, cutoff, batchSize)
+	if err != nil {
+		return nil, fmt.Errorf("select archive audit logs: %w", err)
+	}
+
+	var logs []*store.AuditLog
+	var ids []int64
+	for rows.Next() {
+		l := &store.AuditLog{}
+		if err := rows.Scan(&l.ID, &l.TenantID, &l.UserID, &l.SessionID, &l.Action, &l.Detail, &l.RequestID,
+			&l.StatusCode, &l.LatencyMs, &l.SourceIP, &l.ErrorCode, &l.UserAgent, &l.CreatedAt); err != nil {
+			rows.Close()
+			return nil, fmt.Errorf("scan archived audit log: %w", err)
+		}
+		logs = append(logs, l)
+		ids = append(ids, l.ID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, fmt.Errorf("iterate archived audit logs: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, fmt.Errorf("close archived audit log rows: %w", err)
+	}
+
+	if len(ids) > 0 {
+		args := make([]any, len(ids))
+		for i, id := range ids {
+			args[i] = id
+		}
+		// tenant_sql_check:skip — deletes only the IDs locked by the global archival transaction above.
+		deleteQ := `DELETE FROM audit_logs WHERE id IN (` + mysqlPlaceholders(len(ids)) + `)`
+		res, err := tx.ExecContext(ctx, deleteQ, args...)
+		if err != nil {
+			return nil, fmt.Errorf("delete archived audit logs: %w", err)
+		}
+		if affected, err := res.RowsAffected(); err == nil && affected != int64(len(ids)) {
+			return nil, fmt.Errorf("delete archived audit logs: affected %d, want %d", affected, len(ids))
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit audit archival tx: %w", err)
+	}
+	committed = true
+	return logs, nil
 }
 
-func (s *myAuditLogStore) ArchiveCount(_ context.Context, _ time.Time) (int64, error) {
-	return 0, fmt.Errorf("mysql: audit archival not implemented")
+func (s *myAuditLogStore) ArchiveCount(ctx context.Context, cutoff time.Time) (int64, error) {
+	var count int64
+	// tenant_sql_check:skip — audit archival planning intentionally counts across all tenants.
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM audit_logs WHERE created_at < ?`, cutoff).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("count archivable audit logs: %w", err)
+	}
+	return count, nil
+}
+
+func normalizeAuditArchiveBatchSize(batchSize int) int {
+	if batchSize <= 0 {
+		return 1000
+	}
+	if batchSize > 10000 {
+		return 10000
+	}
+	return batchSize
+}
+
+func mysqlPlaceholders(n int) string {
+	if n <= 0 {
+		return ""
+	}
+	return strings.TrimRight(strings.Repeat("?,", n), ",")
 }
 
 var _ store.AuditLogStore = (*myAuditLogStore)(nil)
