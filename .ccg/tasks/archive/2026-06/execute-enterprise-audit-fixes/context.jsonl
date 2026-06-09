@@ -1,0 +1,10 @@
+{"path":".ccg/tasks/archive/2026-06/plan-enterprise-audit-fixes/plan.md","reason":"source execution plan"}
+{"path":"docs/artifacts/2026-06-09-enterprise-agent-platform-audit/harness-audit-report.md","reason":"source audit report"}
+{"path":"webui/src/admin/router.tsx","reason":"admin route registration"}
+{"path":"webui/src/admin/components/AdminShell.tsx","reason":"admin navigation"}
+{"path":"webui/src/shared/types/index.ts","reason":"shared frontend API types"}
+{"path":"webui/e2e/authenticated.spec.ts","reason":"frontend e2e mocks and page coverage"}
+{"path":"internal/api/gdpr.go","reason":"GDPR AlertEvents export path"}
+{"path":"internal/metering/alerts.go","reason":"AlertEventStore interface"}
+{"path":"docs/ENTERPRISE_READINESS.md","reason":"release readiness matrix"}
+{"path":"docs/ENTERPRISE_READINESS.en.md","reason":"English release readiness matrix"}

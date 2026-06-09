@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	gdprExportMaxSessions    = 1000
-	gdprExportMaxAlertEvents = 1000 // used for non-GDPR API endpoints; GDPR export passes 0 (unlimited)
+	gdprExportMaxSessions        = 1000
+	gdprExportAlertEventPageSize = 500
 )
 
 // sessionExport pairs a session with its messages for GDPR export.
@@ -148,7 +148,7 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 		}
 		var alertEvents []*metering.AlertEvent
 		if h.alertEvents != nil {
-			alertEvents, err = h.alertEvents.ListByTenant(ctx, tenantID, 0) // 0 = unlimited for GDPR full export
+			alertEvents, err = h.listAllAlertEvents(ctx, tenantID)
 			if err != nil {
 				log.Warn("gdpr export: failed to list alert events", "tenant_id", tenantID, "error", err)
 			}
@@ -177,6 +177,20 @@ func (h *GDPRHandler) ExportHandler() http.HandlerFunc {
 		w.Header().Set("Content-Disposition", "attachment; filename=export.json")
 		if err := json.NewEncoder(w).Encode(export); err != nil {
 			log.Error("gdpr export: failed to encode response", "error", err)
+		}
+	}
+}
+
+func (h *GDPRHandler) listAllAlertEvents(ctx context.Context, tenantID string) ([]*metering.AlertEvent, error) {
+	var all []*metering.AlertEvent
+	for offset := 0; ; offset += gdprExportAlertEventPageSize {
+		page, err := h.alertEvents.ListByTenantPage(ctx, tenantID, gdprExportAlertEventPageSize, offset)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if len(page) < gdprExportAlertEventPageSize {
+			return all, nil
 		}
 	}
 }

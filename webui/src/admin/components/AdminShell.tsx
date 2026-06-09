@@ -12,6 +12,7 @@ import {
   DollarSign,
   Shield,
   LockKeyhole,
+  ShieldCheck,
   Plug,
   Settings,
   LogOut,
@@ -36,6 +37,7 @@ const navItems = [
   { key: '/pricing', icon: <DollarSign size={18} />, label: 'Pricing' },
   { key: '/sandbox', icon: <Shield size={18} />, label: 'Sandbox' },
   { key: '/security', icon: <LockKeyhole size={18} />, label: 'Security' },
+  { key: '/governance', icon: <ShieldCheck size={18} />, label: 'Governance' },
   { key: '/channels', icon: <Plug size={18} />, label: 'Channels' },
   { key: '/settings', icon: <Settings size={18} />, label: 'Settings' },
 ]

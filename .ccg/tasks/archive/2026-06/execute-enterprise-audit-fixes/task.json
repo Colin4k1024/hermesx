@@ -1,0 +1,12 @@
+{
+  "id": "execute-enterprise-audit-fixes",
+  "title": "批量执行企业审查修复计划",
+  "status": "completed",
+  "complexity": "L+",
+  "risk": "medium",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "已完成本地可落地批量执行项并准备归档",
+  "createdAt": "2026-06-09T12:02:38Z",
+  "branch": "main"
+}

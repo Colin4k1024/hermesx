@@ -158,6 +158,43 @@ export interface SandboxPolicy {
   updated_at?: string
 }
 
+export type SharingMode = 'disabled' | 'anonymous' | 'trusted'
+
+export interface SharingPolicySnapshot {
+  mode: SharingMode
+  shared_prefix: string
+  levels: SharingMode[]
+  version: number
+}
+
+export interface EffectiveTenantSharingPolicy {
+  tenant_id: string
+  global_mode: SharingMode
+  consume_shared: boolean
+  contribution_mode: SharingMode
+  effective_contribution_mode: SharingMode
+  labels?: string[]
+  version: number
+}
+
+export interface SharingPolicyHistoryEntry {
+  scope_type: string
+  scope_id: string
+  version: number
+  reason: string
+  changed_at: string
+  mode?: SharingMode
+  consume_shared?: boolean
+  contribution_mode?: SharingMode
+  labels?: string[]
+}
+
+export interface SharingPolicyHistoryResponse {
+  entries: SharingPolicyHistoryEntry[]
+  limit: number
+  offset: number
+}
+
 export interface BootstrapStatusResponse {
   bootstrap_required: boolean
 }

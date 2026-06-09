@@ -140,7 +140,11 @@ Phase 2-S3:
 ### 失败 / 回退思路
 
 - 若 Lua 脚本在 Redis Cluster 模式下不工作：回退到方案 A（两次调用 + 文档说明非原子性）
-- 若 local fallback 精度不足：接受为"尽力而为"，不阻塞发布
+- 若 local fallback 精度不足：接受为"尽力而为"，但仅作为 Redis 故障态的可用性策略
+
+### 企业发布策略
+
+多副本企业部署必须配置 `REDIS_URL`，以 Redis Lua 路径作为唯一精确的分布式限流实现。`LocalDualLimiter` 在 Redis 不可用时每个副本独立计数，故障窗口内有效限流约为 `limit × replica_count`；该行为需要在发布证据中记录为已接受风险，或由入口层执行 fail-closed / 限流降载策略。
 
 ---
 
@@ -152,3 +156,4 @@ Phase 2-S3:
 | 更新 RateLimitMiddleware | backend-engineer | 认证请求走双层路径 |
 | 表驱动测试覆盖 | backend-engineer | ≥8 个 scenario |
 | Redis Cluster hash tag 验证 | backend-engineer | CI 中 Redis Cluster 模式测试 |
+| Redis 故障演练证据 | sre | 多副本环境记录 fallback 行为或入口层 fail-closed 策略 |

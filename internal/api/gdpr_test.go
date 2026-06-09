@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/metering"
 	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/store"
 )
@@ -143,6 +145,42 @@ func (m *mockGDPRTenantStore) ListDeleted(_ context.Context, _ time.Time) ([]*st
 func (m *mockGDPRTenantStore) HardDelete(_ context.Context, _ string) error { return nil }
 func (m *mockGDPRTenantStore) Restore(_ context.Context, _ string) error    { return nil }
 
+type alertEventPageCall struct {
+	limit  int
+	offset int
+}
+
+type mockGDPRAlertEventStore struct {
+	events []*metering.AlertEvent
+	calls  []alertEventPageCall
+}
+
+func (m *mockGDPRAlertEventStore) Record(_ context.Context, _ *metering.AlertEvent) error {
+	return nil
+}
+
+func (m *mockGDPRAlertEventStore) ListByTenant(ctx context.Context, tenantID string, limit int) ([]*metering.AlertEvent, error) {
+	return m.ListByTenantPage(ctx, tenantID, limit, 0)
+}
+
+func (m *mockGDPRAlertEventStore) ListByTenantPage(_ context.Context, tenantID string, limit, offset int) ([]*metering.AlertEvent, error) {
+	m.calls = append(m.calls, alertEventPageCall{limit: limit, offset: offset})
+	var filtered []*metering.AlertEvent
+	for _, event := range m.events {
+		if event.TenantID == tenantID {
+			filtered = append(filtered, event)
+		}
+	}
+	if offset >= len(filtered) {
+		return []*metering.AlertEvent{}, nil
+	}
+	end := offset + limit
+	if limit <= 0 || end > len(filtered) {
+		end = len(filtered)
+	}
+	return filtered[offset:end], nil
+}
+
 func gdprReq(method, path string, tenantID string) *http.Request {
 	req := httptest.NewRequest(method, path, nil)
 	ctx := req.Context()
@@ -216,6 +254,43 @@ func TestGDPRExportHandler(t *testing.T) {
 				tt.checkHeader(t, rec.Header())
 			}
 		})
+	}
+}
+
+func TestGDPRExportPagesAlertEvents(t *testing.T) {
+	ss := newMockSessionStore()
+	ms := newMockMessageStore()
+	s := &mockGDPRStore{ss: ss, ms: ms, al: &mockGDPRAuditStore{}}
+	events := &mockGDPRAlertEventStore{}
+	for i := 0; i < gdprExportAlertEventPageSize+1; i++ {
+		events.events = append(events.events, &metering.AlertEvent{ID: "event", TenantID: "tenant-1", Metric: metering.MetricCostUSD})
+	}
+
+	handler := NewGDPRHandler(s, nil, nil, events).ExportHandler()
+	rec := httptest.NewRecorder()
+	req := gdprReq(http.MethodGet, "/v1/gdpr/export", "tenant-1")
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body = %s", rec.Code, rec.Body.String())
+	}
+	if len(events.calls) != 2 {
+		t.Fatalf("page calls = %d, want 2 (%+v)", len(events.calls), events.calls)
+	}
+	if events.calls[0] != (alertEventPageCall{limit: gdprExportAlertEventPageSize, offset: 0}) {
+		t.Fatalf("first page call = %+v", events.calls[0])
+	}
+	if events.calls[1] != (alertEventPageCall{limit: gdprExportAlertEventPageSize, offset: gdprExportAlertEventPageSize}) {
+		t.Fatalf("second page call = %+v", events.calls[1])
+	}
+
+	var exported exportData
+	if err := json.NewDecoder(rec.Body).Decode(&exported); err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+	if len(exported.AlertEvents) != gdprExportAlertEventPageSize+1 {
+		t.Fatalf("alert events = %d, want %d", len(exported.AlertEvents), gdprExportAlertEventPageSize+1)
 	}
 }
 

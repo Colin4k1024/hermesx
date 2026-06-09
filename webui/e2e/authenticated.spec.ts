@@ -162,6 +162,77 @@ async function mockAuthAndLogin(page: Page, type: 'user' | 'admin') {
     })
   })
 
+  // Mock evolution governance APIs
+  await page.route('**/admin/v1/evolution/sharing-policy/history*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        entries: [
+          { scope_type: 'global', scope_id: 'global', version: 2, reason: 'trusted rollout', changed_at: '2026-06-08T10:00:00Z', mode: 'trusted' },
+          { scope_type: 'global', scope_id: 'global', version: 1, reason: 'initial sharing', changed_at: '2026-06-01T10:00:00Z', mode: 'anonymous' },
+        ],
+        limit: 50,
+        offset: 0,
+      }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/sharing-policy/rollback', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ mode: 'anonymous', shared_prefix: '__shared__:', levels: ['disabled', 'anonymous', 'trusted'], version: 3 }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/sharing-policy', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ mode: 'trusted', shared_prefix: '__shared__:', levels: ['disabled', 'anonymous', 'trusted'], version: 2 }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/tenants/*/sharing-policy/history*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        entries: [
+          { scope_type: 'tenant', scope_id: 'tenant-1', version: 2, reason: 'enable curated labels', changed_at: '2026-06-08T11:00:00Z', consume_shared: true, contribution_mode: 'trusted', labels: ['enterprise'] },
+          { scope_type: 'tenant', scope_id: 'tenant-1', version: 1, reason: 'strict baseline', changed_at: '2026-06-01T11:00:00Z', consume_shared: false, contribution_mode: 'disabled' },
+        ],
+        limit: 50,
+        offset: 0,
+      }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/tenants/*/sharing-policy/rollback', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tenant_id: 'tenant-1', global_mode: 'trusted', consume_shared: false, contribution_mode: 'disabled', effective_contribution_mode: 'disabled', version: 3 }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/tenants/*/sharing-policy', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ tenant_id: 'tenant-1', global_mode: 'trusted', consume_shared: true, contribution_mode: 'trusted', effective_contribution_mode: 'trusted', labels: ['enterprise'], version: 2 }),
+    })
+  })
+
+  await page.route('**/admin/v1/evolution/shared-knowledge/revoke', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ deleted: 4 }),
+    })
+  })
+
   // Mock bootstrap status — matches BootstrapStatusResponse
   await page.route('**/admin/v1/bootstrap*', async (route) => {
     await route.fulfill({
@@ -294,6 +365,13 @@ test.describe('Authenticated Admin Console (dark mode)', () => {
     await page.screenshot({ path: 'e2e/screenshots/auth-admin-sandbox.png', fullPage: true })
   })
 
+  test('Governance', async ({ page }) => {
+    await mockAuthAndLogin(page, 'admin')
+    await page.goto('/admin.html#/governance')
+    await page.waitForTimeout(1500)
+    await page.screenshot({ path: 'e2e/screenshots/auth-admin-governance.png', fullPage: true })
+  })
+
   test('System Settings', async ({ page }) => {
     await mockAuthAndLogin(page, 'admin')
     await page.goto('/admin.html#/settings')
@@ -373,5 +451,12 @@ test.describe('Mobile Authenticated', () => {
     await page.goto('/admin.html#/keys')
     await page.waitForTimeout(1500)
     await page.screenshot({ path: 'e2e/screenshots/mobile-auth-admin-apikeys.png', fullPage: true })
+  })
+
+  test('Admin Governance - mobile', async ({ page }) => {
+    await mockAuthAndLogin(page, 'admin')
+    await page.goto('/admin.html#/governance')
+    await page.waitForTimeout(1500)
+    await page.screenshot({ path: 'e2e/screenshots/mobile-auth-admin-governance.png', fullPage: true })
   })
 })

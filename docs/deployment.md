@@ -382,6 +382,8 @@ docker compose -f docker-compose.multi-replica.yml up -d --build
 | `MINIO_SECRET_KEY` | — | MinIO secret key |
 | `MINIO_BUCKET` | `hermes-skills` | Skills bucket |
 
+企业多副本部署必须配置 `REDIS_URL`。Redis 不可用时，运行时会降级到进程内 `LocalDualLimiter`，这是可用性优先的故障策略；每个副本独立计数，因此故障窗口内有效限流约为 `limit × replica_count`。强监管环境需要在发布证据中记录 Redis HA/故障演练，或在入口层选择 fail-closed/限流降载策略。
+
 ### SaaS API（v2.0.0）
 
 | Variable | Default | Description |

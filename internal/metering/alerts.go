@@ -58,6 +58,7 @@ type AlertRuleStore interface {
 type AlertEventStore interface {
 	Record(ctx context.Context, event *AlertEvent) error
 	ListByTenant(ctx context.Context, tenantID string, limit int) ([]*AlertEvent, error)
+	ListByTenantPage(ctx context.Context, tenantID string, limit, offset int) ([]*AlertEvent, error)
 }
 
 // AlertNotifier delivers alert events to tenant administrators.

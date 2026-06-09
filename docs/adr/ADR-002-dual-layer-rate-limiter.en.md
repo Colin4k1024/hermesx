@@ -140,7 +140,11 @@ Phase 2-S3:
 ### Failure / Fallback Strategy
 
 - If the Lua script does not work in Redis Cluster mode: fall back to Option A (two calls + document non-atomicity)
-- If local fallback accuracy is insufficient: accept as "best effort", does not block release
+- If local fallback accuracy is insufficient: accept as "best effort", but only as an availability policy during Redis outages
+
+### Enterprise Release Policy
+
+Multi-replica enterprise deployments must configure `REDIS_URL` so the Redis Lua path is the only precise distributed limiter. When Redis is unavailable, `LocalDualLimiter` counts independently per replica, so the effective limit during the outage window is approximately `limit × replica_count`; release evidence must record this as an accepted risk, or the ingress layer must enforce fail-closed / load-shedding behavior.
 
 ---
 
@@ -152,3 +156,4 @@ Phase 2-S3:
 | Update RateLimitMiddleware | backend-engineer | Authenticated requests use dual-layer path |
 | Table-driven test coverage | backend-engineer | ≥8 scenarios |
 | Redis Cluster hash tag validation | backend-engineer | Redis Cluster mode test in CI |
+| Redis outage drill evidence | sre | Multi-replica environment records fallback behavior or ingress fail-closed policy |

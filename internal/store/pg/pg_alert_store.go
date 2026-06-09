@@ -156,25 +156,20 @@ func (s *pgAlertEventStore) Record(ctx context.Context, event *metering.AlertEve
 }
 
 func (s *pgAlertEventStore) ListByTenant(ctx context.Context, tenantID string, limit int) ([]*metering.AlertEvent, error) {
-	var (
-		rows pgx.Rows
-		err  error
-	)
-	if limit == 0 {
-		// limit=0 means unlimited — used by GDPR full export
-		rows, err = s.pool.Query(ctx,
-			`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
-			 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC`,
-			tenantID)
-	} else {
-		if limit < 0 || limit > 10000 {
-			limit = 50
-		}
-		rows, err = s.pool.Query(ctx,
-			`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
-			 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC LIMIT $2`,
-			tenantID, limit)
+	return s.ListByTenantPage(ctx, tenantID, limit, 0)
+}
+
+func (s *pgAlertEventStore) ListByTenantPage(ctx context.Context, tenantID string, limit, offset int) ([]*metering.AlertEvent, error) {
+	if limit <= 0 || limit > 10000 {
+		limit = 50
 	}
+	if offset < 0 {
+		offset = 0
+	}
+	rows, err := s.pool.Query(ctx,
+		`SELECT id, tenant_id, rule_id, metric, threshold, current_val, percentage, fired_at
+		 FROM alert_events WHERE tenant_id = $1 ORDER BY fired_at DESC LIMIT $2 OFFSET $3`,
+		tenantID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("pg list alert events: %w", err)
 	}

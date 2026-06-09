@@ -11,16 +11,16 @@
 
 | 能力 | 当前状态 | 发布状态 | 证据 | 后续动作 |
 |------|----------|----------|------|----------|
-| 多租户隔离 | Done | Released baseline | PostgreSQL RLS migration、Tenant middleware、租户级 Store、`tests/integration/` 集成测试 | 保持真实 PostgreSQL RLS 测试进入 CI |
-| Auth、API Key、RBAC | Done | Released baseline + OIDC plan | `internal/auth/`、`internal/middleware/rbac.go`、API key scopes、`RBAC_MATRIX.md`、[OIDC 集成测试计划](runbooks/enterprise-OIDC-integration-test-plan.md) | 执行 Keycloak/Auth0/local IdP E2E 并沉淀证据 |
+| 多租户隔离 | Done | Released baseline | PostgreSQL RLS migration、Tenant middleware、租户级 Store、`tests/integration/` 集成测试、[2026-06-09 release evidence](artifacts/2026-06-09-enterprise-release-evidence/README.md) | 保持真实 PostgreSQL RLS 测试进入 CI；tenant SQL 静态门禁必须持续通过 |
+| Auth、API Key、RBAC | Done | Released baseline + OIDC plan | `internal/auth/`、`internal/middleware/rbac.go`、API key scopes、`RBAC_MATRIX.md`、[OIDC 集成测试计划](runbooks/enterprise-OIDC-integration-test-plan.md)、[本地 OIDC harness 证据](artifacts/2026-06-09-enterprise-release-evidence/README.md) | 企业放行前补 Keycloak/Auth0 live IdP E2E 证据 |
 | Agent Runtime | Done | Released baseline + Unreleased Eino path | `internal/agent/`、Chat API、tool loop、skills、memory、MCP、changelog Unreleased Eino 0.9 条目 | Eino 0.9 行为在发布前按 `v2.4.0-dev` 处理 |
 | 执行回执与审计 | Done | Released baseline | Execution receipt store/API、Audit middleware/store、API 文档中的 trace 关联说明 | 如面向强监管部署，补充更长保留期与外部导出策略 |
 | 工作流与人工任务 | Done | Released baseline + Unreleased Eino 默认执行器 | `internal/workflow/`、workflow stores、OpenAPI workflow paths、`workflow-guide.md` | 将 workflow Eino executor 的发布说明与稳定 workflow API 分开 |
 | 沙箱隔离 | Done | Released baseline + Unreleased K8s Job mode | Local/Docker sandbox policy、租户级沙箱控制；K8s Job mode 位于 Unreleased | 生产前验证集群 RBAC、镜像策略、网络策略和资源限制 |
 | Egress 控制 | Done | 当前分支 `v2.4.0-dev` | `SecureTransport`、租户 allowlist、生产 `deny-all` 默认值、`HERMES_EGRESS_DEFAULT` override | 在生产类环境补 allowlist smoke test |
 | Metering 与 Usage | Partial | Released tenant usage + Unreleased admin aggregation | `usage_records`、租户 usage API、Unreleased admin aggregation | 明确 billing/invoicing 不属于当前能力边界 |
-| 可观测性 | Done | Released baseline + Unreleased 预置观测包 | Prometheus metrics、OTel tracing、结构化日志、[Grafana dashboard](../deploy/grafana/dashboards/hermesx-overview.json)、[alerts](../deploy/prometheus/alerts.yml)、[Prometheus config](../deploy/prometheus/prometheus.yml) | 在 staging 导入 dashboard 并 dry-run alerts |
-| 备份与灾备 | Partial | Released PG backup baseline + Unreleased Redis/MinIO scripts | PG backup/restore 文档、[scripts/dr-test.sh](../scripts/dr-test.sh)、[scripts/pitr-drill.sh](../scripts/pitr-drill.sh)、[PITR runbook](runbooks/pg-pitr-recovery.md) | 用生产级数据恢复演练记录 RTO/RPO |
+| 可观测性 | Done | Released baseline + Unreleased 预置观测包 | Prometheus metrics、OTel tracing、结构化日志、[Grafana dashboard](../deploy/grafana/dashboards/hermesx-overview.json)、[alerts](../deploy/prometheus/alerts.yml)、[Prometheus config](../deploy/prometheus/prometheus.yml)、Helm/Compose 渲染证据 | 在 staging 导入 dashboard 并 dry-run alerts |
+| 备份与灾备 | Partial | Released PG backup baseline + Unreleased Redis/MinIO scripts | PG backup/restore 文档、[scripts/dr-test.sh](../scripts/dr-test.sh)、[scripts/pitr-drill.sh](../scripts/pitr-drill.sh)、[PITR runbook](runbooks/pg-pitr-recovery.md)、[2026-06-09 本地证据](artifacts/2026-06-09-enterprise-release-evidence/README.md) | 当前本地 DR 未通过，因为没有备份目录/PITR 容器；企业放行前必须在预备环境记录 RTO/RPO |
 | OpenAPI 契约 | Done | 当前文档/API 基线 `v2.4.0-dev` | `internal/api/openapi.go`、`GET /v1/openapi`、OpenAPI tests | 保持 `info.version` 与 README 发布状态说明一致 |
 | CI 与安全门禁 | Done | Released baseline | Go tests、integration tests、race/coverage workflow、安全 workflow 文档 | 如生产策略要求，补 DAST/container runtime checks |
 
@@ -40,7 +40,7 @@
 |------|--------|------|
 | `v2.4.0-dev` 文档可能被误解为稳定发布承诺 | Medium | README、OpenAPI、changelog 和本矩阵均区分当前分支与最新已发布基线 |
 | K8s Job sandbox 需要集群策略验证 | Medium | 在 cluster RBAC、network policy、image policy、resource limit 验证前保持 Unreleased |
-| OIDC E2E 尚未对外部 IdP 留痕 | Medium | 企业放行前执行 [enterprise-OIDC-integration-test-plan.md](runbooks/enterprise-OIDC-integration-test-plan.md) |
+| OIDC E2E 尚未对外部 IdP 留痕 | Medium | 本地 OIDC harness 已通过；企业放行前执行 [enterprise-OIDC-integration-test-plan.md](runbooks/enterprise-OIDC-integration-test-plan.md) 并附 Keycloak/Auth0 证据 |
 | Grafana/Prometheus 配置需要 live validation | Low | JSON/YAML 已本地检查；需要导入 staging 并记录 dashboard/alert 证据 |
-| Backup/DR 在不同数据存储之间不均衡 | Medium | PG baseline 已存在；Redis/MinIO scripts 在自动恢复演练前保持 Unreleased |
+| Backup/DR 在不同数据存储之间不均衡 | Medium | 2026-06-09 本地 DR 检查因缺少备份和 PITR 容器未通过；Redis/MinIO scripts 在自动恢复演练前保持 Unreleased |
 | Billing 仍是用量记录，不是开票系统 | Low | 将 usage API 描述为计量/控制平面能力，而非 billing platform |

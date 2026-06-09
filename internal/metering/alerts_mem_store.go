@@ -100,12 +100,24 @@ func (m *MemAlertEventStore) Record(_ context.Context, event *AlertEvent) error 
 	return nil
 }
 
-func (m *MemAlertEventStore) ListByTenant(_ context.Context, tenantID string, limit int) ([]*AlertEvent, error) {
+func (m *MemAlertEventStore) ListByTenant(ctx context.Context, tenantID string, limit int) ([]*AlertEvent, error) {
+	return m.ListByTenantPage(ctx, tenantID, limit, 0)
+}
+
+func (m *MemAlertEventStore) ListByTenantPage(_ context.Context, tenantID string, limit, offset int) ([]*AlertEvent, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
+	if offset < 0 {
+		offset = 0
+	}
 	var result []*AlertEvent
+	skipped := 0
 	for i := len(m.events) - 1; i >= 0; i-- {
 		if m.events[i].TenantID == tenantID {
+			if skipped < offset {
+				skipped++
+				continue
+			}
 			result = append(result, m.events[i])
 			if limit > 0 && len(result) >= limit {
 				break

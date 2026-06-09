@@ -18,6 +18,7 @@ const WorkflowRuns = lazy(() => import('./pages/WorkflowRuns'))
 const Pricing = lazy(() => import('./pages/Pricing'))
 const Sandbox = lazy(() => import('./pages/Sandbox'))
 const Security = lazy(() => import('./pages/Security'))
+const Governance = lazy(() => import('./pages/Governance'))
 const ChannelApps = lazy(() => import('./pages/ChannelApps'))
 const SystemSettings = lazy(() => import('./pages/SystemSettings'))
 
@@ -54,6 +55,7 @@ export const router = createHashRouter([
           { path: '/pricing', element: <Lazy><Pricing /></Lazy> },
           { path: '/sandbox', element: <Lazy><Sandbox /></Lazy> },
           { path: '/security', element: <Lazy><Security /></Lazy> },
+          { path: '/governance', element: <Lazy><Governance /></Lazy> },
           { path: '/channels', element: <Lazy><ChannelApps /></Lazy> },
           { path: '/settings', element: <Lazy><SystemSettings /></Lazy> },
         ],

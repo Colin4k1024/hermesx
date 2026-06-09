@@ -382,6 +382,8 @@ Architecture: Nginx (ip_hash) → 3× hermes instances → Shared PG + Redis + M
 | `MINIO_SECRET_KEY` | — | MinIO secret key |
 | `MINIO_BUCKET` | `hermes-skills` | Skills bucket |
 
+Enterprise multi-replica deployments must configure `REDIS_URL`. When Redis is unavailable, the runtime falls back to the in-process `LocalDualLimiter`; this is an availability-first failure policy. Each replica counts independently, so the effective limit during the outage window is approximately `limit × replica_count`. Regulated environments should record Redis HA/failover evidence or enforce fail-closed/load-shedding at the ingress layer.
+
 ### SaaS API (v2.0.0)
 
 | Variable | Default | Description |
