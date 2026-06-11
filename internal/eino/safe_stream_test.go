@@ -1,7 +1,9 @@
 package eino
 
 import (
+	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/Colin4k1024/hermesx/internal/secrets"
 )
@@ -78,6 +80,41 @@ func TestSafeStreamWriter_NilCallbacks(t *testing.T) {
 
 	if result == "content with AKIAIOSFODNN7EXAMPLE secret and padding text for buffer" {
 		t.Error("expected redaction even without callbacks")
+	}
+}
+
+func TestSafeStreamWriter_DoesNotSplitUTF8Runes(t *testing.T) {
+	hook := NewRedactionHook(nil)
+
+	var deltas []string
+	cb := &StreamCallbacks{
+		OnStreamDelta: func(text string) {
+			if !utf8.ValidString(text) {
+				t.Fatalf("stream delta should be valid UTF-8, got %q", text)
+			}
+			deltas = append(deltas, text)
+		},
+	}
+
+	msg := strings.Repeat("a", safeStreamBufferThreshold*2) + "海" + strings.Repeat("b", safeStreamBufferThreshold-2)
+	split := len(msg) - safeStreamBufferThreshold
+	if split <= 0 || split >= len(msg) || utf8.RuneStart(msg[split]) {
+		t.Fatal("test setup failed to place safe split inside a UTF-8 rune")
+	}
+
+	sw := newSafeStreamWriter(hook, cb)
+	sw.Write(msg)
+	result := sw.Flush()
+
+	combined := strings.Join(deltas, "")
+	if !utf8.ValidString(combined) {
+		t.Fatalf("combined stream output should be valid UTF-8, got %q", combined)
+	}
+	if result != msg {
+		t.Errorf("expected passthrough result\ngot:  %q\nwant: %q", result, msg)
+	}
+	if combined != result {
+		t.Errorf("callback total should equal result\ngot:  %q\nwant: %q", combined, result)
 	}
 }
 

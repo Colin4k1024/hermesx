@@ -22,6 +22,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/eino/modeladapter"
 	"github.com/Colin4k1024/hermesx/internal/eino/tooladapter"
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/tools"
@@ -100,6 +101,7 @@ type agentConfig struct {
 	leakScanner       *secrets.LeakScanner
 	secretResolver    secrets.SecretResolver
 	httpTransport     *http.Transport
+	objectStore       objstore.ObjectStore
 	receiptRecorder   *tools.ReceiptRecorder
 }
 
@@ -130,8 +132,9 @@ func NewEinoAgent(ctx context.Context, opts ...Option) (*EinoAgent, error) {
 	wrappedModel := buildChatModel(ctx, cfg, capture)
 
 	wrappedTools := make([]einotool.BaseTool, 0, len(cfg.toolEntries))
+	baseToolContext := toolContextFromAgentConfig(cfg)
 	for _, entry := range cfg.toolEntries {
-		wrappedTools = append(wrappedTools, tooladapter.WrapWithRecorder(entry, cfg.receiptRecorder))
+		wrappedTools = append(wrappedTools, tooladapter.WrapWithRecorderAndContext(entry, cfg.receiptRecorder, baseToolContext))
 	}
 
 	handler := &runtimeHandler{
@@ -256,20 +259,7 @@ func (e *EinoAgent) run(ctx context.Context, runner *adk.Runner, userMessage str
 	}
 	input = append(input, schema.UserMessage(userMessage))
 
-	tctx := &tools.ToolContext{
-		SessionID:      e.config.sessionID,
-		TenantID:       e.config.tenantID,
-		UserID:         e.config.userID,
-		Platform:       e.config.platform,
-		MemoryProvider: e.config.memoryProvider,
-		SecretResolver: e.config.secretResolver,
-		Extra: map[string]any{
-			"egress_transport": e.config.httpTransport,
-		},
-	}
-	ctx = egress.WithTenant(ctx, e.config.tenantID)
-	ctx = ctxkeys.WithToolContext(ctx, tctx)
-	ctx = llm.WithTenantID(ctx, e.config.tenantID)
+	ctx = contextWithAgentConfig(ctx, e.config)
 
 	if e.callbacks != nil && e.callbacks.OnStatus != nil {
 		e.callbacks.OnStatus("starting agent")
@@ -525,6 +515,35 @@ func retryBackoff(attempt int) time.Duration {
 	return time.Duration(attempt*attempt) * 100 * time.Millisecond
 }
 
+func contextWithAgentConfig(ctx context.Context, cfg *agentConfig) context.Context {
+	if cfg == nil {
+		return ctx
+	}
+	tctx := toolContextFromAgentConfig(cfg)
+	ctx = egress.WithTenant(ctx, cfg.tenantID)
+	ctx = ctxkeys.WithToolContext(ctx, tctx)
+	ctx = llm.WithTenantID(ctx, cfg.tenantID)
+	return ctx
+}
+
+func toolContextFromAgentConfig(cfg *agentConfig) *tools.ToolContext {
+	if cfg == nil {
+		return nil
+	}
+	return &tools.ToolContext{
+		SessionID:      cfg.sessionID,
+		TenantID:       cfg.tenantID,
+		UserID:         cfg.userID,
+		Platform:       cfg.platform,
+		MemoryProvider: cfg.memoryProvider,
+		SecretResolver: cfg.secretResolver,
+		ObjectStore:    cfg.objectStore,
+		Extra: map[string]any{
+			"egress_transport": cfg.httpTransport,
+		},
+	}
+}
+
 func buildChatModel(ctx context.Context, cfg *agentConfig, capture *Capture) model.BaseModel[*schema.Message] {
 	if cfg == nil {
 		return nil
@@ -533,7 +552,7 @@ func buildChatModel(ctx context.Context, cfg *agentConfig, capture *Capture) mod
 }
 
 func buildChatModelWithConfig(ctx context.Context, transport llm.Transport, modelName, provider, baseURL, apiKey, apiMode string, capture *Capture) model.BaseModel[*schema.Message] {
-	if modelName != "" && apiKey != "" {
+	if modelName != "" && apiKey != "" && shouldUseAgenticProviderModel(provider, apiMode) {
 		agenticModel, err := agenticProviderModelFactory(ctx, AgenticProviderConfig{
 			Provider: provider,
 			APIMode:  apiMode,
@@ -549,6 +568,21 @@ func buildChatModelWithConfig(ctx context.Context, transport llm.Transport, mode
 		}
 	}
 	return modeladapter.Wrap(transport, modelName)
+}
+
+func shouldUseAgenticProviderModel(provider, apiMode string) bool {
+	switch strings.ToLower(apiMode) {
+	case "responses", "codex", "anthropic", "gemini":
+		return true
+	case "openai", "chat_completions":
+		return false
+	}
+	switch strings.ToLower(provider) {
+	case "anthropic", "gemini":
+		return true
+	default:
+		return false
+	}
 }
 
 func newFailoverConfig(cfg *agentConfig, capture *Capture) *adk.ModelFailoverConfig[*schema.Message] {

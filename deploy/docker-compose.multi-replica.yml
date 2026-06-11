@@ -52,8 +52,9 @@ services:
       REDIS_URL: redis://redis:6379
       MINIO_ENDPOINT: minio:9000
       MINIO_ACCESS_KEY: hermesx
-      MINIO_SECRET_KEY: hermesxxpass
+      MINIO_SECRET_KEY: hermesxpass
       MINIO_BUCKET: hermes-skills
+      HERMESX_ALLOW_SUPERUSER: "true"
       HERMES_API_PORT: "8080"
       HERMES_API_KEY: ${HERMES_API_KEY:-test-secret-key}
       HERMES_MODEL: ${HERMES_MODEL:-}
@@ -139,7 +140,7 @@ services:
       hermes-3:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/nginx-health"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1/nginx-health"]
       interval: 10s
       timeout: 5s
       retries: 3

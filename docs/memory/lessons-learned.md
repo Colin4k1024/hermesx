@@ -298,3 +298,19 @@
 1. 任何实现 StreamReader/Iterator 模式的外部库，接入时必须在 adapter 层显式处理：(a) defer Close, (b) 区分 EOF 与真实错误, (c) 错误向上传播而非静默忽略。
 2. 安全管线（输入检查 + 输出检查 + 密钥脱敏）应在架构层作为默认路径强制，不安全的 `RunConversation` 仅供内部测试使用。对外暴露的 Executor 接口必须调用 `*Safe` 变体。
 3. 对 Agent 迭代次数设定硬上限（当前 50），防止 workflow 配置注入导致无限循环消耗 token 预算。
+
+---
+
+## 2026-06-04 — pg store 约定缺失导致静默截断与错误泄漏
+
+**场景**: 架构批量修复（commit a6833f4）后代码审查发现 3 个遗留问题，均属于"约定不统一"类缺陷。
+
+**问题**:
+1. 新建 `pgAlertRuleStore` 时，Get/Update/Delete 三处 `pgx.ErrNoRows` 未包装为 `store.ErrNotFound`，导致上层 `errors.Is(err, store.ErrNotFound)` 失效，pg 内部错误泄漏到业务层。
+2. `ListByTenant` 的 `limit <= 0 || limit > 100 → 50` guard 没有注释说明，GDPR 路径传入 1000 被静默截断为 50，调用方无感知，造成合规风险。
+3. `StartCleanupLoop` 实现时直接 exported，但只在 `Run` 内部使用，后续需要 rename 才能收敛可见性。
+
+**建议**:
+1. 新建 pg store 时，在 checklist 中加入"ErrNoRows → store.ErrNotFound 包装确认"，import `store` 包作为强制项。
+2. 任何有隐式上限 guard 的公开方法，必须在 godoc 中说明 `limit=0` 语义和上限截断行为，不能让调用方靠猜。
+3. 新方法命名时先问"是否需要包外访问"；仅内部使用的辅助方法默认小写，测试文件在同包内访问无需 export。

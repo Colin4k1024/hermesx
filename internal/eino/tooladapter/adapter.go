@@ -20,6 +20,7 @@ import (
 type WrappedTool struct {
 	entry    *tools.ToolEntry
 	recorder *tools.ReceiptRecorder
+	baseCtx  *tools.ToolContext
 }
 
 var _ tool.InvokableTool = (*WrappedTool)(nil)
@@ -32,6 +33,13 @@ func Wrap(entry *tools.ToolEntry) *WrappedTool {
 // WrapWithRecorder creates an Eino tool that records completed invocations.
 func WrapWithRecorder(entry *tools.ToolEntry, recorder *tools.ReceiptRecorder) *WrappedTool {
 	return &WrappedTool{entry: entry, recorder: recorder}
+}
+
+// WrapWithRecorderAndContext creates an Eino tool with a default ToolContext.
+// The default is used when the underlying agent runtime does not preserve
+// context values through tool invocation.
+func WrapWithRecorderAndContext(entry *tools.ToolEntry, recorder *tools.ReceiptRecorder, baseCtx *tools.ToolContext) *WrappedTool {
+	return &WrappedTool{entry: entry, recorder: recorder, baseCtx: baseCtx}
 }
 
 // WrapAll converts a slice of ToolEntry into Eino InvokableTools and their ToolInfos.
@@ -85,6 +93,9 @@ func (w *WrappedTool) InvokableRun(ctx context.Context, argumentsInJSON string, 
 	}
 
 	tctx := ctxkeys.ToolContextFrom(ctx)
+	if tctx == nil {
+		tctx = w.baseCtx
+	}
 	if tctx == nil {
 		tctx = &tools.ToolContext{}
 	}

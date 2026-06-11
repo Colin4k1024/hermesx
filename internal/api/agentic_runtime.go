@@ -25,6 +25,11 @@ const agenticSessionSearchGuidance = `
 ## Session Search
 You can search past conversations using the session_search tool when the user references prior work.`
 
+const agenticSkillInstallGuidance = `
+
+## Skill Installation
+When the user asks to install, add, download, or import a skill, use the skill_install tool when it is available. Do not ask the user to run terminal commands for skill installation in SaaS chat.`
+
 type systemPromptProvider interface {
 	SystemPromptBlock() string
 }
@@ -34,6 +39,7 @@ func (h *chatHandler) buildAgenticSystemPrompt(ctx context.Context, soulContent 
 	sb.WriteString(defaultSoul)
 	sb.WriteString(agenticMemoryGuidance)
 	sb.WriteString(agenticSessionSearchGuidance)
+	sb.WriteString(agenticSkillInstallGuidance)
 
 	if strings.TrimSpace(soulContent) != "" {
 		sb.WriteString("\n\n## Persona\n")

@@ -1,0 +1,7 @@
+.git
+.cache
+node_modules
+webui/node_modules
+dist
+coverage
+*.log

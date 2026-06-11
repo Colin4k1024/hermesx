@@ -205,3 +205,8 @@
 - [x] **API/Workflow SafetyInterceptor 注入**：API chat 与 workflow agent executor 共用 server-level `SafetyInterceptor`、`LeakScanner` 和 `CanaryDetector`，避免 admin 控制面与运行时检测分叉。
 - [x] **Tool HTTP tenant/path 上下文注入**：Eino tool adapter 通过 tenant-aware RoundTripper 自动把 tenant 与 URL path 写入 SecureTransport context，避免工具用 `http.NewRequest` 时丢失治理上下文。
 - [x] **Evolution policy 多实例刷新**：`GeneStore.RefreshSharingPolicies` 支持主动刷新，`StartSharingPolicyWatcher` 支持周期 watcher，API server `Shutdown` 会停止 watcher。
+
+### 2026-06-04 code-review-fixes 遗留项
+
+- [ ] **[P2] GDPR AlertEvents 流式分页导出**：当前 `ListByTenant(limit=0)` 全量拉入内存，大租户可能有内存压力。后续改为游标分页 + streaming JSON 写入 response writer。(Owner: backend-engineer, Label: scalability)
+- [ ] **[P3] Teams agent shutdown 协议**：实验性 Teams 中 agent 不响应 `shutdown_request` 导致 `TeamDelete` 失败，需排查 agent mailbox 接收与协议处理实现。(Owner: platform, Label: dx)

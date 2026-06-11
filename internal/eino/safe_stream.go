@@ -1,6 +1,9 @@
 package eino
 
-import "strings"
+import (
+	"strings"
+	"unicode/utf8"
+)
 
 const safeStreamBufferThreshold = 64
 
@@ -35,7 +38,7 @@ func (w *safeStreamWriter) emitSafePrefix() {
 	full := w.buf.String()
 	redacted := w.hook.RedactToolOutput(full)
 
-	safeEnd := len(redacted) - safeStreamBufferThreshold
+	safeEnd := utf8BoundaryBefore(redacted, len(redacted)-safeStreamBufferThreshold)
 	if safeEnd <= w.emitted {
 		return
 	}
@@ -61,4 +64,17 @@ func (w *safeStreamWriter) Flush() string {
 	}
 
 	return redacted
+}
+
+func utf8BoundaryBefore(s string, idx int) int {
+	if idx <= 0 {
+		return 0
+	}
+	if idx >= len(s) {
+		return len(s)
+	}
+	for idx > 0 && !utf8.RuneStart(s[idx]) {
+		idx--
+	}
+	return idx
 }

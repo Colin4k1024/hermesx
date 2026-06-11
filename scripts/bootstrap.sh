@@ -6,7 +6,8 @@ set -euo pipefail
 
 # ─── Configuration ────────────────────────────────────────────────────────────
 BASE_URL="${BASE_URL:-http://localhost:8080}"
-ADMIN_TOKEN="${HERMES_ACP_TOKEN:-dev-bootstrap-token}"
+ACP_TOKEN="${HERMES_ACP_TOKEN:-dev-bootstrap-token}"
+ADMIN_API_KEY="${BOOTSTRAP_ADMIN_API_KEY:-${ADMIN_API_KEY:-}}"
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
 MINIO_ACCESS="${MINIO_ACCESS_KEY:-hermes}"
 MINIO_SECRET="${MINIO_SECRET_KEY:-hermespass}"
@@ -168,11 +169,50 @@ upload_soul() {
     log "  ✅ Soul uploaded → ${tenant_id}/SOUL.md"
 }
 
+json_field() {
+    local field="$1"
+    python3 -c "
+import json, sys
+data = json.load(sys.stdin)
+print(data.get('${field}', ''))
+"
+}
+
+ensure_admin_api_key() {
+    if [ -n "${ADMIN_API_KEY}" ]; then
+        return 0
+    fi
+
+    local status
+    status=$(curl -sf "${BASE_URL}/admin/v1/bootstrap/status")
+    local required
+    required=$(echo "$status" | json_field "bootstrap_required")
+
+    if [ "$required" = "True" ] || [ "$required" = "true" ]; then
+        local created
+        created=$(curl -sf -X POST "${BASE_URL}/admin/v1/bootstrap" \
+            -H "Authorization: Bearer ${ACP_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"quickstart-admin\"}")
+        ADMIN_API_KEY=$(echo "$created" | json_field "key")
+        if [ -z "${ADMIN_API_KEY}" ]; then
+            log "❌ Bootstrap endpoint did not return an admin API key"
+            exit 1
+        fi
+        log "✅ Admin API key created via /admin/v1/bootstrap"
+        return 0
+    fi
+
+    log "❌ Platform is already bootstrapped and no admin API key was provided."
+    log "   Set BOOTSTRAP_ADMIN_API_KEY to an existing admin key, or recreate local volumes."
+    exit 1
+}
+
 create_or_get_tenant() {
     local name="$1"
     local response
     response=$(curl -sf "${BASE_URL}/v1/tenants?limit=100" \
-        -H "Authorization: Bearer ${ADMIN_TOKEN}")
+        -H "Authorization: Bearer ${ADMIN_API_KEY}")
 
     local existing_id
     existing_id=$(echo "$response" | python3 -c "
@@ -191,7 +231,7 @@ for t in data.get(\"tenants\", []):
 
     local created
     created=$(curl -sf -X POST "${BASE_URL}/v1/tenants" \
-        -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+        -H "Authorization: Bearer ${ADMIN_API_KEY}" \
         -H "Content-Type: application/json" \
         -d "{\"name\":\"${name}\"}")
     echo "$created" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"id\"])"
@@ -202,7 +242,7 @@ create_api_key() {
     local label="$2"
     local result
     result=$(curl -sf -X POST "${BASE_URL}/v1/api-keys" \
-        -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+        -H "Authorization: Bearer ${ADMIN_API_KEY}" \
         -H "Content-Type: application/json" \
         -d "{\"tenant_id\":\"${tenant_id}\",\"name\":\"${label}\",\"roles\":[\"user\"]}")
     echo "$result" | python3 -c "import sys, json; print(json.load(sys.stdin)[\"key\"])"
@@ -260,6 +300,8 @@ main() {
     log ""
 
     wait_for_health
+
+    ensure_admin_api_key
 
     setup_mc
     mc_alias_set

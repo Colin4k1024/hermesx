@@ -799,6 +799,21 @@ var migrations = []migration{
 				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
 		END IF;
 	END $$`},
+
+	// v2.5.1: Per-tenant safety policy store.
+	{123, `CREATE TABLE IF NOT EXISTS safety_policies (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		mode TEXT NOT NULL DEFAULT 'log_only',
+		input_patterns JSONB NOT NULL DEFAULT '[]'::jsonb,
+		output_rules JSONB NOT NULL DEFAULT '[]'::jsonb,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE (tenant_id),
+		CONSTRAINT ck_safety_policy_mode CHECK (mode IN ('enforce', 'log_only', 'disabled'))
+	);
+	CREATE INDEX IF NOT EXISTS idx_safety_policies_tenant ON safety_policies(tenant_id);
+	CREATE INDEX IF NOT EXISTS idx_safety_policies_updated ON safety_policies(updated_at DESC)`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

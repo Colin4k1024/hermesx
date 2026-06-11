@@ -90,6 +90,15 @@ func (h *TenantHandler) create(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "name is required", http.StatusBadRequest)
 		return
 	}
+	if t.Plan == "" {
+		t.Plan = "free"
+	}
+	if t.RateLimitRPM <= 0 {
+		t.RateLimitRPM = 60
+	}
+	if t.MaxSessions <= 0 {
+		t.MaxSessions = 100
+	}
 	if err := h.store.Create(r.Context(), &t); err != nil {
 		http.Error(w, "create failed", http.StatusInternalServerError)
 		return

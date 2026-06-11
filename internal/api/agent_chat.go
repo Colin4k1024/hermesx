@@ -187,6 +187,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			eino.WithMemoryProvider(memProvider),
 			eino.WithCheckpointStore(storeCheckpointAdapter(h.store)),
 			eino.WithReceiptRecorder(tools.NewReceiptRecorder(h.store.ExecutionReceipts())),
+			eino.WithObjectStore(h.skillsClient),
 		}
 		if h.egressTransport != nil {
 			agentOpts = append(agentOpts, eino.WithHTTPTransport(h.egressTransport))
@@ -306,6 +307,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		// Persist and update tokens.
 		h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
 		h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", result.FinalResponse, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
+		h.extractAndPersistMemories(tenantID, userID, userMessage)
 		h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
 			Input: result.InputTokens, Output: result.OutputTokens,
 		})
@@ -337,13 +339,7 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
 	msgID := h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", reply, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
 
-	// Run rule-based memory extractor on the user message.
-	if h.store != nil {
-		extractor := &memoryExtractor{memStore: h.store.Memories()}
-		if memories := extractor.extract(userMessage); len(memories) > 0 {
-			extractor.persist(tenantID, userID, memories)
-		}
-	}
+	h.extractAndPersistMemories(tenantID, userID, userMessage)
 
 	// Update session token counters.
 	h.store.Sessions().UpdateTokens(ctx, tenantID, sessionID, store.TokenDelta{
@@ -382,6 +378,20 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.AgenticBlocks = result.AgenticBlocks
 	}
 	json.NewEncoder(w).Encode(resp)
+}
+
+func (h *chatHandler) extractAndPersistMemories(tenantID, userID, userMessage string) {
+	if h.store == nil {
+		return
+	}
+	memStore := h.store.Memories()
+	if memStore == nil {
+		return
+	}
+	extractor := &memoryExtractor{memStore: memStore}
+	if memories := extractor.extract(userMessage); len(memories) > 0 {
+		extractor.persist(tenantID, userID, memories)
+	}
 }
 
 func (h *chatHandler) agenticToolEntries(ctx context.Context, tenantID string) []*tools.ToolEntry {

@@ -1,9 +1,9 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-06-01-hermes-agent-v0152-absorption + trusted-channel-login
-**前任务**: 2026-05-27-backlog-batch-1（完成）
-**阶段**: executing（v0.15.2 absorption 4 phases 完成 + trusted channel login 已合入 main）
+**当前任务**: 2026-06-04-code-review-fixes（CLOSED）
+**前任务**: 2026-06-01-hermes-agent-v0152-absorption + trusted-channel-login（完成）
+**阶段**: closed（code-review-fixes 4项修复已合入 main）
 **版本目标**: v2.5.0 — Eino Phase 2 + governance backlog closure + channel auth
 
 ## Tech Stack

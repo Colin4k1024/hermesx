@@ -100,6 +100,20 @@ func TestBuildChatModel_PrefersAgenticProviderModel(t *testing.T) {
 	}
 }
 
+func TestBuildChatModel_OpenAIChatCompletionsUsesTransport(t *testing.T) {
+	oldFactory := agenticProviderModelFactory
+	defer func() { agenticProviderModelFactory = oldFactory }()
+
+	agenticProviderModelFactory = func(context.Context, AgenticProviderConfig) (model.AgenticModel, error) {
+		return &stubAgenticModel{}, nil
+	}
+
+	got := buildChatModelWithConfig(context.Background(), &mockTransport{}, "mimo-v2.5-pro", "openai", "https://example.com/v1", "test-key", "openai", NewCapture())
+	if _, ok := got.(*modeladapter.WrappedModel); !ok {
+		t.Fatalf("expected OpenAI chat completions to use legacy transport wrapper, got %T", got)
+	}
+}
+
 func TestBuildChatModel_FallsBackToTransportWhenAgenticUnavailable(t *testing.T) {
 	oldFactory := agenticProviderModelFactory
 	defer func() { agenticProviderModelFactory = oldFactory }()

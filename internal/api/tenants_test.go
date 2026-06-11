@@ -248,3 +248,23 @@ func TestTenantHandler(t *testing.T) {
 		})
 	}
 }
+
+func TestTenantCreateAppliesDefaults(t *testing.T) {
+	ms := newMockTenantStore()
+	handler := NewTenantHandler(ms)
+	rec := httptest.NewRecorder()
+	req := tenantReq(http.MethodPost, "/v1/tenants", map[string]string{"name": "Acme Corp"}, "admin-tenant", []string{"admin"})
+
+	handler.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("status = %d, want %d; body = %s", rec.Code, http.StatusCreated, rec.Body.String())
+	}
+	got := ms.tenants["t1"]
+	if got == nil {
+		t.Fatal("tenant was not created")
+	}
+	if got.Plan != "free" || got.RateLimitRPM != 60 || got.MaxSessions != 100 {
+		t.Fatalf("defaults = plan:%q rpm:%d sessions:%d, want free/60/100", got.Plan, got.RateLimitRPM, got.MaxSessions)
+	}
+}

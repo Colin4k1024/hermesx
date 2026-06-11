@@ -6,6 +6,7 @@ import (
 	"github.com/cloudwego/eino/adk"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/tools"
@@ -116,6 +117,11 @@ func WithSecretResolver(resolver secrets.SecretResolver) Option {
 // WithHTTPTransport injects the shared egress-aware transport used by tool calls.
 func WithHTTPTransport(transport *http.Transport) Option {
 	return func(c *agentConfig) { c.httpTransport = transport }
+}
+
+// WithObjectStore injects the SaaS object store used by skill installation tools.
+func WithObjectStore(store objstore.ObjectStore) Option {
+	return func(c *agentConfig) { c.objectStore = store }
 }
 
 // WithReceiptRecorder records Eino tool executions as governance receipts.

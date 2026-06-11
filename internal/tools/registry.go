@@ -8,6 +8,7 @@ import (
 	"sort"
 	"sync"
 
+	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/store"
 )
@@ -36,6 +37,9 @@ type ToolContext struct {
 	// CronJobStore is non-nil in SaaS mode. Tools should use PG-backed
 	// persistence instead of the local filesystem when this field is set.
 	CronJobStore store.CronJobStore
+	// ObjectStore is non-nil in SaaS mode. Skill management tools use it to
+	// install tenant/user skills into S3-compatible object storage.
+	ObjectStore objstore.ObjectStore
 }
 
 // ToolEntry holds metadata for a registered tool.

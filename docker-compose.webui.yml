@@ -9,7 +9,7 @@ services:
     volumes:
       - hermesx_postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hermesx"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-hermes}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -70,6 +70,7 @@ services:
       LLM_API_URL: ${LLM_API_URL}
       LLM_API_KEY: ${LLM_API_KEY}
       LLM_MODEL: ${LLM_MODEL}
+      HERMESX_ALLOW_SUPERUSER: "true"
       HERMES_DEBUG: "false"
     volumes:
       - ./skills:/home/hermesx/skills:ro
@@ -90,9 +91,10 @@ services:
   bootstrap:
     image: alpine:3.19
     container_name: hermesx-bootstrap
-    command: >
-      sh -c "apk add --no-cache bash curl ca-certificates 2>/dev/null
-             && /scripts/bootstrap.sh"
+    command:
+      - sh
+      - -lc
+      - apk add --no-cache bash curl wget python3 ca-certificates && /scripts/bootstrap.sh
     volumes:
       - ./scripts:/scripts:ro
       - ./tests/fixtures:/fixtures
@@ -104,6 +106,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-hermesxpass}
       MINIO_BUCKET: hermes-skills
       FIXTURES_DIR: /fixtures
+      BOOTSTRAP_ADMIN_API_KEY: ${BOOTSTRAP_ADMIN_API_KEY:-}
     depends_on:
       hermesx-saas:
         condition: service_healthy

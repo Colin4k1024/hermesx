@@ -63,6 +63,7 @@ func RunConversationTurnLoopSafe(ctx context.Context, userMessage string, histor
 	if cfg.transport == nil {
 		return nil, fmt.Errorf("eino agent: transport is required")
 	}
+	ctx = contextWithAgentConfig(ctx, cfg)
 
 	request := turnLoopRequest{
 		item:            turnLoopItem{UserMessage: userMessage},

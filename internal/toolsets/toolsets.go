@@ -26,7 +26,7 @@ var CoreTools = []string{
 	// Vision + image generation
 	"vision_analyze", "image_generate",
 	// Skills
-	"skills_list", "skill_view", "skill_manage",
+	"skills_list", "skill_view", "skill_manage", "skill_install",
 	// Browser automation
 	"browser_navigate", "browser_snapshot", "browser_click",
 	"browser_type", "browser_scroll", "browser_back",
@@ -113,7 +113,7 @@ var Toolsets = map[string]*ToolsetDef{
 	},
 	"skills": {
 		Description: "Access, create, edit, and manage skill documents with specialized instructions and knowledge",
-		Tools:       []string{"skills_list", "skill_view", "skill_manage"},
+		Tools:       []string{"skills_list", "skill_view", "skill_manage", "skill_install"},
 	},
 	"browser": {
 		Description: "Browser automation for web interaction (navigate, click, type, scroll, iframes, hold-click) with web search for finding URLs",
@@ -198,7 +198,7 @@ var Toolsets = map[string]*ToolsetDef{
 			"terminal", "process",
 			"read_file", "write_file", "patch", "search_files",
 			"vision_analyze",
-			"skills_list", "skill_view", "skill_manage",
+			"skills_list", "skill_view", "skill_manage", "skill_install",
 			"browser_navigate", "browser_snapshot", "browser_click",
 			"browser_type", "browser_scroll", "browser_back",
 			"browser_press", "browser_get_images",
@@ -215,7 +215,7 @@ var Toolsets = map[string]*ToolsetDef{
 			"terminal", "process",
 			"read_file", "write_file", "patch", "search_files",
 			"vision_analyze", "image_generate",
-			"skills_list", "skill_view", "skill_manage",
+			"skills_list", "skill_view", "skill_manage", "skill_install",
 			"browser_navigate", "browser_snapshot", "browser_click",
 			"browser_type", "browser_scroll", "browser_back",
 			"browser_press", "browser_get_images",
@@ -233,7 +233,7 @@ var Toolsets = map[string]*ToolsetDef{
 			"web_search", "web_extract",
 			"read_file", "search_files",
 			"vision_analyze",
-			"skills_list", "skill_view",
+			"skills_list", "skill_view", "skill_install",
 			"todo", "memory",
 			"session_search",
 			"clarify",

@@ -9,7 +9,12 @@ RUN CGO_ENABLED=0 go build -ldflags="-s -w" -o /hermesx ./cmd/hermesx/
 
 FROM debian:bookworm-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN sed -i \
+    -e 's|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
+    -e 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
+    -e 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
+    /etc/apt/sources.list.d/debian.sources \
+    && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     git \
     curl \

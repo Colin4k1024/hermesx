@@ -304,6 +304,44 @@ func TestServeAgentHTTP_StreamErrorEventDoesNotPersistAssistantTurn(t *testing.T
 	}
 }
 
+func TestServeAgentHTTP_StreamPersistsExtractedMemories(t *testing.T) {
+	fake := newAgentChatFakeStore()
+	h := NewChatHandler(fake, nil, nil)
+	h.llmModel = "test-model"
+	h.runAgent = func(_ context.Context, _ string, _ []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error) {
+		if callbacks != nil {
+			callbacks.OnStreamDelta("ok")
+		}
+		return &eino.ConversationResult{FinalResponse: "ok"}, nil
+	}
+
+	rec := httptest.NewRecorder()
+	req := newAgentChatRequest(t, `{"messages":[{"role":"user","content":"请记住：我最喜欢的水果是芒果"}],"stream":true}`)
+	req.Header.Set("X-Hermes-Session-Id", "memory-stream-session")
+	h.ServeAgentHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 body=%q", rec.Code, rec.Body.String())
+	}
+	memories, err := fake.memories.List(context.Background(), "tenant-1", "user-1")
+	if err != nil {
+		t.Fatalf("list memories: %v", err)
+	}
+	if len(memories) == 0 {
+		t.Fatal("expected streaming request to persist extracted memories")
+	}
+	found := false
+	for _, memory := range memories {
+		if strings.Contains(memory.Content, "芒果") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected persisted memory to contain 芒果, got %#v", memories)
+	}
+}
+
 func TestServeAgentHTTP_SerializesConcurrentRequestsForSameSession(t *testing.T) {
 	fake := newAgentChatFakeStore()
 	fake.sessions.sessions["shared-session"] = &store.Session{ID: "shared-session", TenantID: "tenant-1", UserID: "user-1"}
@@ -404,6 +442,7 @@ type agentChatFakeStore struct {
 	stubStore
 	sessions    *agentChatSessionStore
 	messages    *agentChatMessageStore
+	memories    *agentChatMemoryStore
 	checkpoints *agentChatCheckpointStore
 }
 
@@ -411,12 +450,14 @@ func newAgentChatFakeStore() *agentChatFakeStore {
 	return &agentChatFakeStore{
 		sessions:    &agentChatSessionStore{sessions: map[string]*store.Session{}},
 		messages:    &agentChatMessageStore{},
+		memories:    &agentChatMemoryStore{entries: map[string]store.MemoryEntry{}},
 		checkpoints: &agentChatCheckpointStore{entries: map[string]*store.AgentCheckpoint{}},
 	}
 }
 
 func (s *agentChatFakeStore) Sessions() store.SessionStore { return s.sessions }
 func (s *agentChatFakeStore) Messages() store.MessageStore { return s.messages }
+func (s *agentChatFakeStore) Memories() store.MemoryStore  { return s.memories }
 func (s *agentChatFakeStore) AgentCheckpoints() store.AgentCheckpointStore {
 	return s.checkpoints
 }
@@ -548,6 +589,78 @@ func (s *agentChatMessageStore) CountRole(role string) int {
 		}
 	}
 	return count
+}
+
+type agentChatMemoryStore struct {
+	mu      sync.Mutex
+	entries map[string]store.MemoryEntry
+}
+
+func (s *agentChatMemoryStore) Get(_ context.Context, tenantID, userID, key string) (string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	entry, ok := s.entries[tenantID+"/"+userID+"/"+key]
+	if !ok {
+		return "", store.ErrNotFound
+	}
+	return entry.Content, nil
+}
+
+func (s *agentChatMemoryStore) List(_ context.Context, tenantID, userID string) ([]store.MemoryEntry, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]store.MemoryEntry, 0, len(s.entries))
+	for _, entry := range s.entries {
+		if entry.TenantID == tenantID && entry.UserID == userID {
+			out = append(out, entry)
+		}
+	}
+	return out, nil
+}
+
+func (s *agentChatMemoryStore) Upsert(_ context.Context, tenantID, userID, key, content string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.entries[tenantID+"/"+userID+"/"+key] = store.MemoryEntry{
+		TenantID: tenantID,
+		UserID:   userID,
+		Key:      key,
+		Content:  content,
+	}
+	return nil
+}
+
+func (s *agentChatMemoryStore) Delete(_ context.Context, tenantID, userID, key string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	delete(s.entries, tenantID+"/"+userID+"/"+key)
+	return nil
+}
+
+func (s *agentChatMemoryStore) DeleteAllByUser(_ context.Context, tenantID, userID string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted int64
+	for key, entry := range s.entries {
+		if entry.TenantID == tenantID && entry.UserID == userID {
+			delete(s.entries, key)
+			deleted++
+		}
+	}
+	return deleted, nil
+}
+
+func (s *agentChatMemoryStore) DeleteAllByTenant(_ context.Context, tenantID string) (int64, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted int64
+	for key, entry := range s.entries {
+		if entry.TenantID == tenantID {
+			delete(s.entries, key)
+			deleted++
+		}
+	}
+	return deleted, nil
 }
 
 type agentChatCheckpointStore struct {
