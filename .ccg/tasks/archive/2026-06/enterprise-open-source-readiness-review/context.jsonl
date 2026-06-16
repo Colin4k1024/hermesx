@@ -1,0 +1,15 @@
+{"path":"README.md","reason":"Project positioning, release state, capability matrix, enterprise claims"}
+{"path":"docs/ENTERPRISE_READINESS.en.md","reason":"Maintained readiness matrix and known risks"}
+{"path":"docs/artifacts/2026-06-09-enterprise-release-evidence/README.md","reason":"Release evidence and unclosed live infrastructure gates"}
+{"path":"docs/SECURITY_MODEL.en.md","reason":"Threat model, auth, tenant isolation, sandbox, egress, audit, secret management"}
+{"path":"docs/RBAC_MATRIX.en.md","reason":"Role and scope model"}
+{"path":"SECURITY.md","reason":"Vulnerability reporting and response expectations"}
+{"path":"GOVERNANCE.md","reason":"Open-source governance model"}
+{"path":"SUPPORT.md","reason":"Support expectations"}
+{"path":".github/workflows/security.yml","reason":"Security scan workflow coverage"}
+{"path":".github/workflows/ci.yml","reason":"CI test/build/race/integration coverage"}
+{"path":"deploy/helm/hermesx/values.yaml","reason":"Production chart defaults and secret/image posture"}
+{"path":"deploy/helm/hermesx/templates/deployment.yaml","reason":"Kubernetes deployment and securityContext posture"}
+{"path":"docker-compose.prod.yml","reason":"Production compose exposure and defaults"}
+{"path":"internal/egress/admin_handler.go","reason":"Egress allowlist and blocked-log endpoint maturity"}
+{"path":".gitignore","reason":"Local agent directories ignored after some files already tracked"}

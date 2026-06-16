@@ -1,0 +1,12 @@
+{
+  "id": "enterprise-open-source-readiness-review",
+  "title": "审查项目作为企业可用开源项目仍需加深的能力",
+  "status": "completed",
+  "complexity": "L",
+  "risk": "low",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "任务完成并准备归档",
+  "createdAt": "2026-06-16T12:25:58Z",
+  "branch": "main"
+}
