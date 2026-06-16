@@ -141,7 +141,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		egressDefault = egress.DefaultDenyAll
 	}
 	cachedEgressPolicy := egress.NewCachedPolicy(egressPolicy, time.Minute)
-	egressTransport := egress.NewSecureTransport(cachedEgressPolicy)
+	egressTransport := egress.NewSecureTransport(cachedEgressPolicy, egress.WithAuditLogger(egress.NewStoreAuditLogger(cfg.Store.AuditLogs(), nil)))
 	slog.Info("egress policy configured", "default", egressDefault, "tenant_allowlist", egressAdminStore != nil)
 
 	stack := middleware.NewStack(middleware.StackConfig{
@@ -317,7 +317,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		adminOpts = append(adminOpts, admin.WithEvolutionStore(cfg.EvolutionStore))
 	}
 	if egressAdminStore != nil {
-		adminOpts = append(adminOpts, admin.WithEgressHandler(egress.NewAdminHandler(egressAdminStore, cachedEgressPolicy)))
+		adminOpts = append(adminOpts, admin.WithEgressHandler(egress.NewAdminHandler(egressAdminStore, cachedEgressPolicy, egress.WithAuditStore(cfg.Store.AuditLogs()))))
 	}
 	adminH := admin.NewAdminHandler(cfg.Store, nil, adminOpts...)
 	mux.Handle("/admin/", stack.Wrap(adminH.Handler()))

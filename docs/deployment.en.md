@@ -106,7 +106,7 @@ docker compose -f docker-compose.dev.yml up -d postgres redis minio
 # Manually start SaaS API
 export DATABASE_URL="postgres://hermes:hermes@127.0.0.1:5432/hermes?sslmode=disable"
 export HERMES_ACP_TOKEN="admin-test-token"
-export SAAS_ALLOWED_ORIGINS="*"
+export SAAS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
 export SAAS_STATIC_DIR="./internal/dashboard/static"
 ./hermesx saas-api
 ```
@@ -210,22 +210,50 @@ deploy/helm/hermesx/
 ### Install
 
 ```bash
+kubectl create secret generic hermesx-runtime \
+  --namespace hermesx \
+  --from-literal=DATABASE_URL="postgres://user:pass@pg-host:5432/hermes?sslmode=require" \
+  --from-literal=HERMES_ACP_TOKEN="$(openssl rand -hex 32)" \
+  --from-literal=HERMES_API_KEY="$(openssl rand -hex 32)" \
+  --from-literal=REDIS_URL="redis://redis:6379" \
+  --from-literal=LLM_API_KEY="replace-me" \
+  --from-literal=MINIO_ACCESS_KEY="replace-me" \
+  --from-literal=MINIO_SECRET_KEY="replace-me"
+
 helm install hermesx deploy/helm/hermesx/ \
   --namespace hermesx \
   --create-namespace \
-  --set env.DATABASE_URL="postgres://user:pass@pg-host:5432/hermes?sslmode=require" \
-  --set env.HERMES_ACP_TOKEN="production-strong-token"
+  --set image.tag="v2.4.0-dev" \
+  --set secretEnv.existingSecret="hermesx-runtime" \
+  --set env.SAAS_ALLOWED_ORIGINS="https://your-domain.example.com"
 ```
 
-### Key values.yaml Configuration (v2.0.0)
+### Key values.yaml Configuration
 
 ```yaml
-replicaCount: 2          # v2.0.0 default 2 (v1.x was 1)
+replicaCount: 2
 
 image:
-  repository: hermesx/hermesx-saas  # v2.0.0 image name changed
-  tag: latest
+  repository: hermesx/hermesx-saas
+  # Empty defaults to Chart.appVersion. Pin a release tag or digest in production.
+  tag: ""
   pullPolicy: IfNotPresent
+
+secretEnv:
+  # Prefer a pre-created Kubernetes Secret for sensitive values.
+  existingSecret: "hermesx-runtime"
+  keys:
+    DATABASE_URL: DATABASE_URL
+    HERMES_ACP_TOKEN: HERMES_ACP_TOKEN
+    HERMES_API_KEY: HERMES_API_KEY
+    REDIS_URL: REDIS_URL
+    LLM_API_KEY: LLM_API_KEY
+    MINIO_ACCESS_KEY: MINIO_ACCESS_KEY
+    MINIO_SECRET_KEY: MINIO_SECRET_KEY
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
 
 service:
   type: ClusterIP
@@ -235,16 +263,28 @@ args:
   - saas-api
 
 env:
-  DATABASE_URL: ""              # Required
-  HERMES_ACP_TOKEN: ""          # Required
   SAAS_API_PORT: "8080"
   SAAS_ALLOWED_ORIGINS: "https://your-domain.example.com"  # Must set specific domain in production
   SAAS_STATIC_DIR: "/static"
-  REDIS_URL: "redis://redis:6379"  # New in v2.0.0
   HERMES_API_PORT: "8081"
   LLM_API_URL: ""
-  LLM_API_KEY: ""
   LLM_MODEL: ""
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: false  # Enable and restrict ingressFrom/egressTo for production namespaces.
 
 resources:
   limits:
@@ -390,7 +430,7 @@ Enterprise multi-replica deployments must configure `REDIS_URL`. When Redis is u
 |----------|---------|-------------|
 | `HERMES_ACP_TOKEN` | — | Static admin token (required) |
 | `SAAS_API_PORT` | `8080` | SaaS API port |
-| `SAAS_ALLOWED_ORIGINS` | `*` | CORS allowed origins (must set specific domains in production) |
+| `SAAS_ALLOWED_ORIGINS` | — (CORS disabled) | CORS allowed origins (must set specific domains in production) |
 | `SAAS_STATIC_DIR` | — | Static files directory |
 | `HERMES_API_PORT` | `8081` | HTTP API port (new in v2.0.0) |
 | `HERMES_API_KEY` | — | API authentication token (new in v2.0.0) |

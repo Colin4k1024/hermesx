@@ -11,6 +11,10 @@ Release state: these entries describe current-branch changes after the latest re
 
 ### Added
 
+- **Supply-chain artifacts** — Dependabot config for Go/npm/GitHub Actions/Docker, CodeQL security analysis, CycloneDX SBOM workflow, and release artifact provenance attestation.
+- **Egress denied-event audit** — `SecureTransport` denied decisions now persist as `audit_logs` entries with action `egress.denied`; `/admin/v1/egress/blocked-log` returns those persisted audit events.
+- **Helm production hardening controls** — chart supports existing Secret references for sensitive env vars, configurable ServiceAccount, pod/container security context, read-only root filesystem with `/tmp` emptyDir, and optional NetworkPolicy.
+- **Maintainer and security response docs** — added CODEOWNERS, MAINTAINERS, and explicit security response targets.
 - **Admin Usage Aggregation API** — `GET /admin/v1/usage?tenant_id=&granularity=daily|monthly&from=&to=` endpoint for per-tenant token usage and cost aggregation
 - **K8s Job Sandbox Mode** — `SANDBOX_MODE=k8s-job` executes tool code via Kubernetes Job API, no privileged containers or DinD required, compatible with GKE Autopilot / EKS Fargate
 - **Pre-built Observability Stack** — Grafana dashboard JSON (7 panels), Prometheus alert rules (5), OTel Collector config, one-click deploy via `docker-compose.observability.yml`
@@ -38,6 +42,7 @@ Release state: these entries describe current-branch changes after the latest re
 - **README positioning** — reframed HermesX as an Agent-first Runtime Control Plane with audience, pillars, minimal demo, capability matrix, and explicit release-state separation
 - **Agent-first architecture overview** — added `docs/AGENT_FIRST_ARCHITECTURE.md` with runtime/control-plane/workflow/governance boundaries
 - **Version alignment** — aligned README, OpenAPI, and Enterprise Readiness docs around `v2.4.0-dev` current docs/API baseline and `v2.3.0` latest released baseline
+- **RBAC role-count consistency** — updated docs that still described the older five-role model after platform/security/billing/ops governance roles were added
 
 ---
 

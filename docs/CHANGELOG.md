@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **供应链产物** — 新增 Dependabot（Go/npm/GitHub Actions/Docker）、CodeQL 安全分析、CycloneDX SBOM workflow，以及 release artifact provenance attestation
+- **Egress 拒绝事件审计** — `SecureTransport` 被拒绝的出站请求现在以 `egress.denied` 写入 `audit_logs`；`/admin/v1/egress/blocked-log` 返回持久化审计事件
+- **Helm 生产加固控制** — chart 支持敏感 env 引用已有 Secret、可配置 ServiceAccount、Pod/Container security context、只读根文件系统 + `/tmp` emptyDir、可选 NetworkPolicy
+- **维护者与安全响应文档** — 新增 CODEOWNERS、MAINTAINERS 和明确安全响应目标
 - **Admin Usage Aggregation API** — `GET /admin/v1/usage?tenant_id=&granularity=daily|monthly&from=&to=` 端点，按租户聚合 Token 用量及成本
 - **K8s Job 沙箱模式** — `SANDBOX_MODE=k8s-job` 通过 Kubernetes Job API 执行工具代码，无需特权容器或 DinD，兼容 GKE Autopilot / EKS Fargate
 - **预置可观测性栈** — Grafana Dashboard JSON（7 面板）、Prometheus 告警规则（5 条）、OTel Collector 配置、`docker-compose.observability.yml` 一键部署
@@ -38,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **README 定位重写** — 将 HermesX 叙事收敛为 Agent-first Runtime Control Plane，补充受众、三大支柱、最小 demo、能力矩阵和发布状态分层
 - **Agent-first 架构概览** — 新增 `docs/AGENT_FIRST_ARCHITECTURE.md`，说明 runtime、control plane、workflow、governance 边界
 - **版本口径对齐** — README、OpenAPI、Enterprise Readiness 统一为当前文档/API 基线 `v2.4.0-dev`，最新已发布基线 `v2.3.0`
+- **RBAC 角色数量一致性** — 更新仍描述旧五角色模型的文档，使其与 platform/security/billing/ops 等治理角色保持一致
 
 ---
 

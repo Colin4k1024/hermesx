@@ -2,8 +2,8 @@ apiVersion: v2
 name: hermesx
 description: Multi-tenant AI agent platform (SaaS mode)
 type: application
-version: 0.2.0
-appVersion: "1.0.0"
+version: 0.3.0
+appVersion: "v2.4.0-dev"
 keywords:
   - ai
   - agent

@@ -20,9 +20,15 @@ spec:
         prometheus.io/port: "{{ .Values.service.port }}"
         prometheus.io/path: "/metrics"
     spec:
+      {{- if or .Values.serviceAccount.create .Values.serviceAccount.name }}
+      serviceAccountName: {{ if .Values.serviceAccount.name }}{{ .Values.serviceAccount.name }}{{ else }}{{ .Release.Name }}{{ end }}
+      {{- end }}
+      automountServiceAccountToken: {{ .Values.serviceAccount.automountServiceAccountToken }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command:
             - /usr/local/bin/hermesx
@@ -38,9 +44,23 @@ spec:
             - name: DATABASE_DRIVER
               value: {{ .Values.env.DATABASE_DRIVER | default "postgres" | quote }}
             - name: DATABASE_URL
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.DATABASE_URL | quote }}
+              {{ else }}
               value: {{ .Values.env.DATABASE_URL | quote }}
+              {{ end }}
             - name: HERMES_ACP_TOKEN
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.HERMES_ACP_TOKEN | quote }}
+              {{ else }}
               value: {{ .Values.env.HERMES_ACP_TOKEN | quote }}
+              {{ end }}
             - name: SAAS_API_PORT
               value: {{ .Values.env.SAAS_API_PORT | quote }}
             - name: SAAS_ALLOWED_ORIGINS
@@ -50,13 +70,34 @@ spec:
             - name: HERMES_API_PORT
               value: {{ .Values.env.HERMES_API_PORT | quote }}
             - name: HERMES_API_KEY
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.HERMES_API_KEY | quote }}
+              {{ else }}
               value: {{ .Values.env.HERMES_API_KEY | quote }}
+              {{ end }}
             - name: REDIS_URL
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.REDIS_URL | quote }}
+              {{ else }}
               value: {{ .Values.env.REDIS_URL | quote }}
+              {{ end }}
             - name: LLM_API_URL
               value: {{ .Values.env.LLM_API_URL | quote }}
             - name: LLM_API_KEY
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.LLM_API_KEY | quote }}
+              {{ else }}
               value: {{ .Values.env.LLM_API_KEY | quote }}
+              {{ end }}
             - name: LLM_MODEL
               value: {{ .Values.env.LLM_MODEL | quote }}
             - name: HERMES_API_MODE
@@ -64,9 +105,23 @@ spec:
             - name: MINIO_ENDPOINT
               value: {{ .Values.env.MINIO_ENDPOINT | quote }}
             - name: MINIO_ACCESS_KEY
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.MINIO_ACCESS_KEY | quote }}
+              {{ else }}
               value: {{ .Values.env.MINIO_ACCESS_KEY | quote }}
+              {{ end }}
             - name: MINIO_SECRET_KEY
+              {{ if .Values.secretEnv.existingSecret }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secretEnv.existingSecret | quote }}
+                  key: {{ .Values.secretEnv.keys.MINIO_SECRET_KEY | quote }}
+              {{ else }}
               value: {{ .Values.env.MINIO_SECRET_KEY | quote }}
+              {{ end }}
             - name: MINIO_BUCKET
               value: {{ .Values.env.MINIO_BUCKET | quote }}
           livenessProbe:
@@ -91,10 +146,10 @@ spec:
               cpu: {{ .Values.resources.requests.cpu }}
               memory: {{ .Values.resources.requests.memory }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

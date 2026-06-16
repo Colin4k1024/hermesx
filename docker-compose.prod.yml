@@ -43,7 +43,7 @@ services:
     restart: unless-stopped
 
   minio:
-    image: minio/minio:latest
+    image: ${MINIO_IMAGE:?Set MINIO_IMAGE to a pinned minio/minio tag or digest}
     container_name: hermesx-minio
     command: server /data --console-address ":9001"
     environment:
@@ -105,7 +105,7 @@ services:
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
       MINIO_BUCKET: ${MINIO_BUCKET:-hermes-skills}
       SAAS_API_PORT: "8080"
-      SAAS_ALLOWED_ORIGINS: ${SAAS_ALLOWED_ORIGINS:-*}
+      SAAS_ALLOWED_ORIGINS: ${SAAS_ALLOWED_ORIGINS:?Set SAAS_ALLOWED_ORIGINS to explicit production origins; do not use *}
       SAAS_STATIC_DIR: /static
       HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN}
       HERMES_API_KEY: ${HERMES_API_KEY}

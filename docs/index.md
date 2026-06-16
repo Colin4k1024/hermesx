@@ -87,7 +87,7 @@
 - **多租户隔离** — PostgreSQL 行级安全（RLS），每事务 `SET LOCAL app.current_tenant`，11 张 RLS 保护表（含 `FORCE ROW LEVEL SECURITY`）
 - **认证链** — 静态 Token → API Key（SHA-256 哈希）→ JWT/OIDC，多层降级
 - **API Key 作用域** — `read` / `write` / `execute` / `admin` / `audit` / `gdpr` 六维细粒度授权
-- **5 种角色** — `super_admin`、`admin`、`owner`、`user`、`auditor`，覆盖所有操作路径
+- **治理角色** — RBAC 矩阵中记录 tenant、platform、security、billing、ops、owner、user、auditor 与 break-glass admin 等角色
 - **双层限流** — 原子 Redis Lua 脚本（租户 + 用户滑动窗口），Redis 故障自动降级本地 LRU
 - **Token 用量计量** — 异步批量持久化，DB 优先 + 硬编码双层成本计算，支持自定义定价规则
 - **执行回执** — 可审计的工具调用记录，含幂等去重和 OpenTelemetry 链路追踪关联

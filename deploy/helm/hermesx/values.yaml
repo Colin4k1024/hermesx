@@ -2,8 +2,14 @@ replicaCount: 2
 
 image:
   repository: hermesx/hermesx-saas
-  tag: latest
+  # Pin a release tag or digest in production. Defaults to Chart.appVersion.
+  tag: ""
   pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+  automountServiceAccountToken: false
 
 args:
   - saas-api
@@ -30,6 +36,19 @@ env:
   MINIO_SECRET_KEY: "changeme"
   MINIO_BUCKET: "hermesx-skills"
 
+# For production, prefer referencing a pre-created Secret instead of putting
+# sensitive values directly in env above. Keys default to the env var names.
+secretEnv:
+  existingSecret: ""
+  keys:
+    DATABASE_URL: DATABASE_URL
+    HERMES_ACP_TOKEN: HERMES_ACP_TOKEN
+    HERMES_API_KEY: HERMES_API_KEY
+    REDIS_URL: REDIS_URL
+    LLM_API_KEY: LLM_API_KEY
+    MINIO_ACCESS_KEY: MINIO_ACCESS_KEY
+    MINIO_SECRET_KEY: MINIO_SECRET_KEY
+
 resources:
   limits:
     cpu: "1000m"
@@ -47,6 +66,26 @@ probes:
     path: /health/ready
     initialDelaySeconds: 5
     periodSeconds: 10
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: false
+  # Empty selectors match pods in the same namespace. Configure these for a
+  # production namespace to restrict callers and dependency destinations.
+  ingressFrom: []
+  egressTo: []
 
 # PodDisruptionBudget — ensures availability during voluntary disruptions.
 pdb:

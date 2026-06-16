@@ -320,7 +320,7 @@ services:
       - "6379:6379"
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:<pinned-release-tag-or-digest>
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: hermes
@@ -337,6 +337,7 @@ services:
 - Passwords in `DATABASE_URL` should be injected via Kubernetes Secrets or Vault
 - API Keys are stored as SHA-256 hashes and cannot be reversed to retrieve the original value
 - Set `SAAS_ALLOWED_ORIGINS` to specific domain names; avoid using `*` in production
+- Pin production infrastructure images by release tag or digest; do not deploy `:latest`
 - MinIO credentials should be managed independently from PostgreSQL credentials
 
 ## Related Documentation

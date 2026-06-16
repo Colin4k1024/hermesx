@@ -1161,8 +1161,8 @@ func adminEgressBlockedLogPath() map[string]any {
 	return map[string]any{
 		"get": map[string]any{
 			"tags":      []string{"Admin", "Security"},
-			"summary":   "List blocked egress log placeholder and active rules",
-			"responses": map[string]any{"200": map[string]any{"description": "Blocked egress information"}},
+			"summary":   "List persisted denied egress audit events",
+			"responses": map[string]any{"200": map[string]any{"description": "Blocked egress audit events"}},
 		},
 	}
 }

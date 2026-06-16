@@ -106,7 +106,7 @@ docker compose -f docker-compose.dev.yml up -d postgres redis minio
 # 手动启动 SaaS API
 export DATABASE_URL="postgres://hermes:hermes@127.0.0.1:5432/hermes?sslmode=disable"
 export HERMES_ACP_TOKEN="admin-test-token"
-export SAAS_ALLOWED_ORIGINS="*"
+export SAAS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
 export SAAS_STATIC_DIR="./internal/dashboard/static"
 ./hermesx saas-api
 ```
@@ -210,22 +210,50 @@ deploy/helm/hermesx/
 ### 安装
 
 ```bash
+kubectl create secret generic hermesx-runtime \
+  --namespace hermesx \
+  --from-literal=DATABASE_URL="postgres://user:pass@pg-host:5432/hermes?sslmode=require" \
+  --from-literal=HERMES_ACP_TOKEN="$(openssl rand -hex 32)" \
+  --from-literal=HERMES_API_KEY="$(openssl rand -hex 32)" \
+  --from-literal=REDIS_URL="redis://redis:6379" \
+  --from-literal=LLM_API_KEY="replace-me" \
+  --from-literal=MINIO_ACCESS_KEY="replace-me" \
+  --from-literal=MINIO_SECRET_KEY="replace-me"
+
 helm install hermesx deploy/helm/hermesx/ \
   --namespace hermesx \
   --create-namespace \
-  --set env.DATABASE_URL="postgres://user:pass@pg-host:5432/hermes?sslmode=require" \
-  --set env.HERMES_ACP_TOKEN="production-strong-token"
+  --set image.tag="v2.4.0-dev" \
+  --set secretEnv.existingSecret="hermesx-runtime" \
+  --set env.SAAS_ALLOWED_ORIGINS="https://your-domain.example.com"
 ```
 
-### values.yaml 关键配置（v2.0.0）
+### values.yaml 关键配置
 
 ```yaml
-replicaCount: 2          # v2.0.0 默认 2（v1.x 为 1）
+replicaCount: 2
 
 image:
-  repository: hermesx/hermesx-saas  # v2.0.0 镜像名变更
-  tag: latest
+  repository: hermesx/hermesx-saas
+  # 空值默认使用 Chart.appVersion；生产环境应固定 release tag 或 digest。
+  tag: ""
   pullPolicy: IfNotPresent
+
+secretEnv:
+  # 生产环境优先引用预创建的 Kubernetes Secret。
+  existingSecret: "hermesx-runtime"
+  keys:
+    DATABASE_URL: DATABASE_URL
+    HERMES_ACP_TOKEN: HERMES_ACP_TOKEN
+    HERMES_API_KEY: HERMES_API_KEY
+    REDIS_URL: REDIS_URL
+    LLM_API_KEY: LLM_API_KEY
+    MINIO_ACCESS_KEY: MINIO_ACCESS_KEY
+    MINIO_SECRET_KEY: MINIO_SECRET_KEY
+
+serviceAccount:
+  create: true
+  automountServiceAccountToken: false
 
 service:
   type: ClusterIP
@@ -235,16 +263,28 @@ args:
   - saas-api
 
 env:
-  DATABASE_URL: ""              # 必填
-  HERMES_ACP_TOKEN: ""          # 必填
   SAAS_API_PORT: "8080"
   SAAS_ALLOWED_ORIGINS: "https://your-domain.example.com"  # 生产必须设置具体域名
   SAAS_STATIC_DIR: "/static"
-  REDIS_URL: "redis://redis:6379"  # v2.0.0 新增
   HERMES_API_PORT: "8081"
   LLM_API_URL: ""
-  LLM_API_KEY: ""
   LLM_MODEL: ""
+
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+
+containerSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop:
+      - ALL
+
+networkPolicy:
+  enabled: false  # 生产命名空间应启用并收紧 ingressFrom/egressTo。
 
 resources:
   limits:
@@ -390,7 +430,7 @@ docker compose -f docker-compose.multi-replica.yml up -d --build
 |----------|---------|-------------|
 | `HERMES_ACP_TOKEN` | — | 静态管理员 Token（必填） |
 | `SAAS_API_PORT` | `8080` | SaaS API 端口 |
-| `SAAS_ALLOWED_ORIGINS` | `*` | CORS 允许的源（生产必须设置具体域名） |
+| `SAAS_ALLOWED_ORIGINS` | —（不启用 CORS） | CORS 允许的源（生产必须设置具体域名） |
 | `SAAS_STATIC_DIR` | — | 静态文件目录 |
 | `HERMES_API_PORT` | `8081` | HTTP API 端口（v2.0.0 新增） |
 | `HERMES_API_KEY` | — | API 认证 Token（v2.0.0 新增） |

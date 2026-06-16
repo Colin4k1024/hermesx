@@ -91,6 +91,10 @@ Specialized integrations or workflows should usually start as skills unless they
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
 
+HermesX does not currently require a CLA. Contributions use the inbound-equals-outbound model: your contribution is accepted under the same MIT license as the project.
+
+Do not commit local AI-agent configuration or scratch files such as `.claude/`, `.deepseek/`, `.cursor/`, `.copilot/`, or `user_notes.md`. These paths are ignored to prevent accidental tool configuration or prompt artifacts from entering release branches.
+
 ## 中文
 
 感谢你对 HermesX 的贡献兴趣。本指南说明当前仓库的公开贡献流程。
@@ -181,3 +185,7 @@ scripts/                 运维与验证脚本
 ### 许可证
 
 提交贡献即表示你同意贡献内容按 [MIT License](LICENSE) 授权。
+
+HermesX 当前不要求 CLA。贡献采用 inbound-equals-outbound 模型：你的贡献按项目相同的 MIT 许可证接收。
+
+不要提交本地 AI Agent 配置或草稿文件，例如 `.claude/`、`.deepseek/`、`.cursor/`、`.copilot/` 或 `user_notes.md`。这些路径已被忽略，用于避免工具配置或 prompt 草稿误入发布分支。

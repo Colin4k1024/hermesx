@@ -867,9 +867,9 @@ histogram_quantile(0.95, rate(hermes_pg_query_duration_seconds_bucket[5m]))
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `DATABASE_URL` | Yes | — | PostgreSQL connection string. Format: `postgres://user:pass@host:5432/dbname?sslmode=disable` |
-| `HERMES_ACP_TOKEN` | Yes | `dev-token-...` | Static bearer token for ACP admin endpoints |
+| `HERMES_ACP_TOKEN` | Yes | — | Static bearer token for ACP admin endpoints. Store in a Secret and use a high-entropy value |
 | `SAAS_API_PORT` | No | `8080` | Port for the SaaS API server |
-| `SAAS_ALLOWED_ORIGINS` | No | `*` | CORS allowed origins (comma-separated or `*`) |
+| `SAAS_ALLOWED_ORIGINS` | No | — (CORS disabled) | CORS allowed origins. Use explicit origins in production; avoid `*` |
 | `SAAS_STATIC_DIR` | No | `/static` | Directory for static file serving; empty = disabled |
 | `HERMES_API_PORT` | No | `8081` | Port for the OpenAI-compatible adapter |
 | `HERMES_API_KEY` | No | `dev-api-key-...` | API key for the OpenAI-compatible adapter |

@@ -1,0 +1,57 @@
+name: Supply Chain Artifacts
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+jobs:
+  sbom:
+    name: Generate SBOMs
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: |
+            package-lock.json
+            webui/package-lock.json
+
+      - name: Generate Go CycloneDX SBOM
+        run: |
+          mkdir -p sbom
+          go install github.com/CycloneDX/cyclonedx-gomod/cmd/cyclonedx-gomod@v1.10.0
+          cyclonedx-gomod mod -licenses -json -output sbom/hermesx-go.cdx.json
+
+      - name: Generate root npm CycloneDX SBOM
+        run: |
+          npm ci
+          npx --yes @cyclonedx/cyclonedx-npm@5.0.0 --package-lock-only --output-file sbom/hermesx-root-npm.cdx.json
+
+      - name: Generate WebUI npm CycloneDX SBOM
+        working-directory: webui
+        run: |
+          npm ci
+          npx --yes @cyclonedx/cyclonedx-npm@5.0.0 --package-lock-only --output-file ../sbom/hermesx-webui-npm.cdx.json
+
+      - name: Upload SBOM artifacts
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: hermesx-sbom
+          path: sbom/*.cdx.json
+          retention-days: 30

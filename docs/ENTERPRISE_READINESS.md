@@ -17,12 +17,12 @@
 | 执行回执与审计 | Done | Released baseline | Execution receipt store/API、Audit middleware/store、API 文档中的 trace 关联说明 | 如面向强监管部署，补充更长保留期与外部导出策略 |
 | 工作流与人工任务 | Done | Released baseline + Unreleased Eino 默认执行器 | `internal/workflow/`、workflow stores、OpenAPI workflow paths、`workflow-guide.md` | 将 workflow Eino executor 的发布说明与稳定 workflow API 分开 |
 | 沙箱隔离 | Done | Released baseline + Unreleased K8s Job mode | Local/Docker sandbox policy、租户级沙箱控制；K8s Job mode 位于 Unreleased | 生产前验证集群 RBAC、镜像策略、网络策略和资源限制 |
-| Egress 控制 | Done | 当前分支 `v2.4.0-dev` | `SecureTransport`、租户 allowlist、生产 `deny-all` 默认值、`HERMES_EGRESS_DEFAULT` override | 在生产类环境补 allowlist smoke test |
+| Egress 控制 | Done | 当前分支 `v2.4.0-dev` | `SecureTransport`、租户 allowlist、生产 `deny-all` 默认值、`HERMES_EGRESS_DEFAULT` override、`/admin/v1/egress/blocked-log` 暴露持久化 `egress.denied` 审计事件 | 在生产类环境补 allowlist smoke test |
 | Metering 与 Usage | Partial | Released tenant usage + Unreleased admin aggregation | `usage_records`、租户 usage API、Unreleased admin aggregation | 明确 billing/invoicing 不属于当前能力边界 |
 | 可观测性 | Done | Released baseline + Unreleased 预置观测包 | Prometheus metrics、OTel tracing、结构化日志、[Grafana dashboard](../deploy/grafana/dashboards/hermesx-overview.json)、[alerts](../deploy/prometheus/alerts.yml)、[Prometheus config](../deploy/prometheus/prometheus.yml)、Helm/Compose 渲染证据 | 在 staging 导入 dashboard 并 dry-run alerts |
 | 备份与灾备 | Partial | Released PG backup baseline + Unreleased Redis/MinIO scripts | PG backup/restore 文档、[scripts/dr-test.sh](../scripts/dr-test.sh)、[scripts/pitr-drill.sh](../scripts/pitr-drill.sh)、[PITR runbook](runbooks/pg-pitr-recovery.md)、[2026-06-09 本地证据](artifacts/2026-06-09-enterprise-release-evidence/README.md) | 当前本地 DR 未通过，因为没有备份目录/PITR 容器；企业放行前必须在预备环境记录 RTO/RPO |
 | OpenAPI 契约 | Done | 当前文档/API 基线 `v2.4.0-dev` | `internal/api/openapi.go`、`GET /v1/openapi`、OpenAPI tests | 保持 `info.version` 与 README 发布状态说明一致 |
-| CI 与安全门禁 | Done | Released baseline | Go tests、integration tests、race/coverage workflow、安全 workflow 文档 | 如生产策略要求，补 DAST/container runtime checks |
+| CI 与安全门禁 | Done | Released baseline + 当前分支供应链产物 | Go tests、integration tests、race/coverage workflow、govulncheck、gosec、Trivy、CodeQL、Dependabot、CycloneDX SBOM workflow、release provenance attestation | 如生产策略要求，补 DAST/container runtime checks 和镜像签名 |
 
 ## 发布状态说明
 
@@ -44,3 +44,4 @@
 | Grafana/Prometheus 配置需要 live validation | Low | JSON/YAML 已本地检查；需要导入 staging 并记录 dashboard/alert 证据 |
 | Backup/DR 在不同数据存储之间不均衡 | Medium | 2026-06-09 本地 DR 检查因缺少备份和 PITR 容器未通过；Redis/MinIO scripts 在自动恢复演练前保持 Unreleased |
 | Billing 仍是用量记录，不是开票系统 | Low | 将 usage API 描述为计量/控制平面能力，而非 billing platform |
+| 供应链签名仍是部分完成 | Medium | 已生成 SBOM 与 release provenance；需要 cosign 策略的环境仍应补容器/镜像签名 |

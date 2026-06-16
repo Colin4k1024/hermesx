@@ -13,7 +13,7 @@ Use the channel that matches the kind of help you need:
 
 Before opening an issue, please check the [README](README.md), [documentation site](docs/index.en.md), and existing issues. For setup problems, include the exact command, operating system, Go version, and full error output.
 
-HermesX is open source software. Support is best effort unless you have a separate support agreement with a maintainer or vendor.
+HermesX is open source software. Community support is best effort unless you have a separate support agreement with a maintainer or vendor. Security reports follow the response targets in [SECURITY_RESPONSE.md](SECURITY_RESPONSE.md).
 
 ## 中文
 
@@ -28,4 +28,4 @@ HermesX is open source software. Support is best effort unless you have a separa
 
 提交 issue 前，请先查看 [README](README.md)、[文档入口](docs/index.md) 和已有 issue。安装或构建问题请提供完整命令、操作系统、Go 版本和完整错误输出。
 
-HermesX 是开源软件。除非你与维护者或供应方另有支持协议，否则支持以社区 best effort 为准。
+HermesX 是开源软件。除非你与维护者或供应方另有支持协议，否则社区支持以 best effort 为准。安全报告遵循 [SECURITY_RESPONSE.md](SECURITY_RESPONSE.md) 中的响应目标。

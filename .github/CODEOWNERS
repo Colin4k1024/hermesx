@@ -1,0 +1,15 @@
+# Default code ownership for review routing.
+* @Colin4k1024
+
+# Security-sensitive surfaces.
+/.github/ @Colin4k1024
+/internal/auth/ @Colin4k1024
+/internal/middleware/ @Colin4k1024
+/internal/safety/ @Colin4k1024
+/internal/secrets/ @Colin4k1024
+/internal/egress/ @Colin4k1024
+/internal/store/ @Colin4k1024
+/deploy/ @Colin4k1024
+/Dockerfile* @Colin4k1024
+/SECURITY.md @Colin4k1024
+/SECURITY_RESPONSE.md @Colin4k1024

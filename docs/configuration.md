@@ -320,7 +320,7 @@ services:
       - "6379:6379"
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:<pinned-release-tag-or-digest>
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: hermes
@@ -337,6 +337,7 @@ services:
 - `DATABASE_URL` 中的密码建议通过 Kubernetes Secret 或 Vault 注入
 - API Key 以 SHA-256 哈希存储，无法逆向获取原始值
 - 设置 `SAAS_ALLOWED_ORIGINS` 为具体域名，避免在生产环境使用 `*`
+- 生产环境基础设施镜像必须固定 release tag 或 digest，不要部署 `:latest`
 - MinIO 凭证应与 PostgreSQL 凭证独立管理
 
 ## 相关文档

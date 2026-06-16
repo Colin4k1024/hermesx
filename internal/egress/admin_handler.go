@@ -4,16 +4,31 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/store"
 )
 
 type AdminHandler struct {
-	store  RuleAdminStore
-	policy EgressPolicy
+	store      RuleAdminStore
+	policy     EgressPolicy
+	auditStore store.AuditLogStore
 }
 
-func NewAdminHandler(store RuleAdminStore, policy EgressPolicy) *AdminHandler {
-	return &AdminHandler{store: store, policy: policy}
+type AdminOption func(*AdminHandler)
+
+func WithAuditStore(s store.AuditLogStore) AdminOption {
+	return func(h *AdminHandler) { h.auditStore = s }
+}
+
+func NewAdminHandler(store RuleAdminStore, policy EgressPolicy, opts ...AdminOption) *AdminHandler {
+	h := &AdminHandler{store: store, policy: policy}
+	for _, opt := range opts {
+		opt(h)
+	}
+	return h
 }
 
 // RegisterRoutes registers admin egress endpoints.
@@ -63,29 +78,58 @@ func (h *AdminHandler) deleteRuleV1(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// blockedLog returns recent blocked-egress events. Currently returns the
-// in-memory allowlist policy state as a placeholder; a persistent blocked-log
-// table can be wired in here once the schema migration lands.
+// blockedLog returns recent denied egress decisions persisted as audit logs.
 func (h *AdminHandler) blockedLog(w http.ResponseWriter, r *http.Request) {
-	if h.policy == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`[]`))
+	if h.auditStore == nil {
+		http.Error(w, "egress audit store not configured", http.StatusServiceUnavailable)
 		return
 	}
 
-	// Surface the current loaded rules so operators can see what is active.
 	tenantID := r.URL.Query().Get("tenant_id")
-	rules, err := h.store.ListRules(r.Context(), tenantID)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+	if limit <= 0 || limit > 100 {
+		limit = 50
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	opts := store.AuditListOptions{
+		Action: EgressDeniedAuditAction,
+		Limit:  limit,
+		Offset: offset,
+	}
+	if fromStr := r.URL.Query().Get("from"); fromStr != "" {
+		from, err := time.Parse(time.RFC3339, fromStr)
+		if err != nil {
+			http.Error(w, "invalid 'from' parameter: use RFC3339 format", http.StatusBadRequest)
+			return
+		}
+		opts.From = &from
+	}
+	if toStr := r.URL.Query().Get("to"); toStr != "" {
+		to, err := time.Parse(time.RFC3339, toStr)
+		if err != nil {
+			http.Error(w, "invalid 'to' parameter: use RFC3339 format", http.StatusBadRequest)
+			return
+		}
+		opts.To = &to
+	}
+
+	events, total, err := h.auditStore.List(r.Context(), tenantID, opts)
 	if err != nil {
-		slog.Error("list egress rules for blocked log failed", "error", err)
+		slog.Error("list egress blocked log failed", "error", err)
 		http.Error(w, "operation failed", http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"note":  "persistent blocked-log table pending migration; showing active rules",
-		"rules": rules,
+		"blocked_events": events,
+		"total":          total,
+		"limit":          limit,
+		"offset":         offset,
 	})
 }
 

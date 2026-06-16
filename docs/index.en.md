@@ -18,7 +18,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 | [Configuration](configuration.md) | All environment variables and config options |
 | [Deployment](deployment.md) | Docker, Kubernetes, and bare-metal guides |
 | [Security Model](SECURITY_MODEL.md) | Threat model, RLS + FORCE RLS, sandbox, redirect bypass guard, MCP safety gates |
-| [RBAC Matrix](RBAC_MATRIX.md) | 5 roles × 10 resources permission matrix |
+| [RBAC Matrix](RBAC_MATRIX.md) | Governance roles and resource permission matrix |
 | [Skills Guide](skills-guide.md) | Skill system user guide |
 | [Workflow Engine Guide](workflow-guide.en.md) | Fixed SOP workflow usage guide |
 | [Scheduler Guide](scheduler-guide.en.md) | Distributed scheduler deployment & testing |
@@ -73,7 +73,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 - **Multi-tenant isolation** — PostgreSQL Row-Level Security (RLS), per-transaction `SET LOCAL app.current_tenant`, 11 RLS-protected tables (including `FORCE ROW LEVEL SECURITY`)
 - **Auth chain** — Static Token → API Key (SHA-256 hashed) → JWT/OIDC, multi-level fallback
 - **API Key scopes** — `read` / `write` / `execute` / `admin` / `audit` / `gdpr` — six-dimensional fine-grained authorization
-- **5 roles** — `super_admin`, `admin`, `owner`, `user`, `auditor`, covering all operational paths
+- **Governance roles** — tenant, platform, security, billing, ops, owner, user, auditor, and break-glass admin roles documented in the RBAC matrix
 - **Dual-layer rate limiting** — atomic Redis Lua script (tenant + user sliding windows), auto-fallback to local LRU when Redis is unavailable
 - **Token metering** — async batch persistence, DB-first + hardcoded dual-layer cost calculation, supports custom pricing rules
 - **Execution receipts** — auditable tool call records with idempotent deduplication and OpenTelemetry trace correlation
