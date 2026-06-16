@@ -8,7 +8,7 @@ const { Title, Text } = Typography
 
 const CHANNEL_PLATFORMS = [
   { key: 'feishu', label: 'Feishu / Lark' },
-  { key: 'wework', label: 'WeCom' },
+  { key: 'wecom', label: 'WeCom' },
   { key: 'weixin', label: 'WeChat' },
 ]
 

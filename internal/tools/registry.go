@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/Colin4k1024/hermesx/internal/objstore"
+	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
 	"github.com/Colin4k1024/hermesx/internal/store"
 )
@@ -40,6 +41,59 @@ type ToolContext struct {
 	// ObjectStore is non-nil in SaaS mode. Skill management tools use it to
 	// install tenant/user skills into S3-compatible object storage.
 	ObjectStore objstore.ObjectStore
+	// Interceptor provides safety scanning for skill content. Tools that
+	// install user-supplied content should call ScanSkillContent before
+	// persisting.
+	Interceptor SafetyInterceptor
+	// AllowPrivateIPs disables SSRF protection for testing. Must only be
+	// used in test environments with httptest servers.
+	AllowPrivateIPs bool
+}
+
+// SafetyInterceptor is the subset of safety interceptor functionality needed by tools.
+// It extends the base SafetyInterceptor interface with ScanSkillContent for
+// skill installation security scanning.
+type SafetyInterceptor interface {
+	ScanSkillContent(ctx context.Context, tenantID, skillName, content string) (*SafetyScanResult, error)
+}
+
+// SafetyScanResult mirrors safety.SafetyResult for tool-layer consumption.
+type SafetyScanResult struct {
+	Allowed bool
+	Reason  string
+}
+
+// safetyInterceptorAdapter wraps a safety.SafetyInterceptor that also implements
+// ScanSkillContent (e.g., *safety.InterceptorChain) into the tools.SafetyInterceptor
+// interface. If the underlying interceptor does not support ScanSkillContent,
+// skill scanning is silently skipped.
+type safetyInterceptorAdapter struct {
+	inner interface {
+		ScanSkillContent(ctx context.Context, tenantID, skillName, content string) (*safety.SafetyResult, error)
+	}
+}
+
+func (a *safetyInterceptorAdapter) ScanSkillContent(ctx context.Context, tenantID, skillName, content string) (*SafetyScanResult, error) {
+	result, err := a.inner.ScanSkillContent(ctx, tenantID, skillName, content)
+	if err != nil {
+		return nil, err
+	}
+	return &SafetyScanResult{Allowed: result.Allowed, Reason: result.Reason}, nil
+}
+
+// WrapSafetyInterceptor wraps a safety.SafetyInterceptor into tools.SafetyInterceptor.
+// If the interceptor supports ScanSkillContent (e.g., *safety.InterceptorChain),
+// it is wrapped; otherwise nil is returned.
+func WrapSafetyInterceptor(si safety.SafetyInterceptor) SafetyInterceptor {
+	if si == nil {
+		return nil
+	}
+	if sc, ok := si.(interface {
+		ScanSkillContent(ctx context.Context, tenantID, skillName, content string) (*safety.SafetyResult, error)
+	}); ok {
+		return &safetyInterceptorAdapter{inner: sc}
+	}
+	return nil
 }
 
 // ToolEntry holds metadata for a registered tool.

@@ -827,6 +827,7 @@ func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Me
 		MemoryProvider: a.memoryProvider,
 		HTTPClient:     httpClient,
 		SecretResolver: a.secretResolver, // B-1: inject resolver so tools skip os.Getenv
+		Interceptor:    tools.WrapSafetyInterceptor(a.safetyInterceptor),
 	}
 
 	toolResult := tools.Registry().Dispatch(ctx, toolName, args, toolCtx)

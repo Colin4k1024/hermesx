@@ -367,6 +367,63 @@ var migrations = []string{
 		UNIQUE KEY uk_browser_session_token (token_hash),
 		INDEX idx_browser_sessions_tenant_user (tenant_id, user_id)
 	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v32: tenant egress allowlist rules (parity with PG v108).
+	`CREATE TABLE IF NOT EXISTS egress_rules (
+		id           CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id    CHAR(36)     NOT NULL,
+		host_pattern VARCHAR(500) NOT NULL,
+		path_prefix  VARCHAR(500) NOT NULL DEFAULT '/',
+		action       VARCHAR(10)  NOT NULL,
+		priority     INT          NOT NULL DEFAULT 0,
+		created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		CHECK (action IN ('allow', 'deny')),
+		INDEX idx_egress_rules_tenant_priority (tenant_id, priority DESC),
+		INDEX idx_egress_rules_tenant_host (tenant_id, host_pattern)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v33: alert rules table for usage alerting (parity with PG v115).
+	`CREATE TABLE IF NOT EXISTS alert_rules (
+		id           VARCHAR(255) NOT NULL PRIMARY KEY,
+		tenant_id    CHAR(36)     NOT NULL,
+		metric       VARCHAR(255) NOT NULL,
+		threshold    DECIMAL(14,4) NOT NULL DEFAULT 0,
+		alert_window VARCHAR(50)  NOT NULL DEFAULT 'daily',
+		enabled      TINYINT(1)   NOT NULL DEFAULT 1,
+		created_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		updated_at   DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		INDEX idx_alert_rules_tenant (tenant_id),
+		INDEX idx_alert_rules_enabled (enabled)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v34: alert events table for usage alerting (parity with PG v116).
+	`CREATE TABLE IF NOT EXISTS alert_events (
+		id          VARCHAR(255) NOT NULL PRIMARY KEY,
+		tenant_id   CHAR(36)     NOT NULL,
+		rule_id     VARCHAR(255) NOT NULL,
+		metric      VARCHAR(255) NOT NULL,
+		threshold   DECIMAL(14,4) NOT NULL DEFAULT 0,
+		current_val DECIMAL(14,4) NOT NULL DEFAULT 0,
+		percentage  DECIMAL(10,2) NOT NULL DEFAULT 0,
+		fired_at    DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		INDEX idx_alert_events_tenant (tenant_id, fired_at DESC),
+		INDEX idx_alert_events_rule (tenant_id, rule_id)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+
+	// v35: per-tenant safety policy store (parity with PG v123).
+	`CREATE TABLE IF NOT EXISTS safety_policies (
+		id             CHAR(36)     NOT NULL PRIMARY KEY,
+		tenant_id      CHAR(36)     NOT NULL,
+		mode           VARCHAR(20)  NOT NULL DEFAULT 'log_only',
+		input_patterns JSON         NOT NULL,
+		output_rules   JSON         NOT NULL,
+		created_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+		updated_at     DATETIME(3)  NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+		CHECK (mode IN ('enforce', 'log_only', 'disabled')),
+		UNIQUE KEY uk_safety_policies_tenant (tenant_id),
+		INDEX idx_safety_policies_tenant (tenant_id),
+		INDEX idx_safety_policies_updated (updated_at)
+	) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
 }
 
 func runMigrations(ctx context.Context, db *sql.DB) error {

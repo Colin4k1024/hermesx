@@ -74,7 +74,7 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 	if providerUserID == "" {
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "无法识别当前渠道用户，请联系管理员检查渠道回调配置。",
+			Message: "Unable to identify the channel user. Please contact the administrator to check the channel callback configuration.",
 		}
 	}
 	platform := string(event.Source.Platform)
@@ -83,7 +83,7 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 		r.audit(ctx, "", "", "CHANNEL_AUTH_FAILED", "gateway channel app disabled or not found: platform="+platform)
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "当前渠道应用未启用或未绑定租户，请联系管理员配置 HermesX 渠道应用。",
+			Message: "The channel application is not enabled or not bound to a tenant. Please contact the administrator to configure the HermesX channel application.",
 		}
 	}
 	providerHash, err := channel.HashProviderUser(r.hashSecret, platform, app.AppKey, providerUserID)
@@ -91,7 +91,7 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 		r.audit(ctx, app.TenantID, "", "CHANNEL_AUTH_FAILED", "gateway provider hash failed: "+err.Error())
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "当前渠道登录配置不完整，请联系管理员。",
+			Message: "Channel login configuration is incomplete. Please contact the administrator.",
 		}
 	}
 	identity, err := r.identities.GetByProviderHash(ctx, app.ID, providerHash)
@@ -108,7 +108,7 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 		r.audit(ctx, app.TenantID, "", "CHANNEL_AUTH_FAILED", "gateway binding lookup failed: "+err.Error())
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "绑定状态查询失败，请稍后再试。",
+			Message: "Failed to query binding status. Please try again later.",
 		}
 	}
 
@@ -117,7 +117,7 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 		r.audit(ctx, app.TenantID, "", "CHANNEL_AUTH_FAILED", "gateway challenge failed: "+err.Error())
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "登录链接生成失败，请稍后再试。",
+			Message: "Failed to generate login link. Please try again later.",
 		}
 	}
 	loginURL, err := r.loginURL(platform, app.AppKey, challenge.ID)
@@ -125,14 +125,14 @@ func (r *GatewayIdentityResolver) Resolve(ctx context.Context, event *MessageEve
 		r.audit(ctx, app.TenantID, "", "CHANNEL_AUTH_FAILED", "gateway login url failed: "+err.Error())
 		return GatewayIdentityResult{
 			Status:  GatewayIdentityRejected,
-			Message: "HermesX 登录入口未配置，请联系管理员配置 SAAS_PUBLIC_URL。",
+			Message: "HermesX login endpoint is not configured. Please contact the administrator to configure SAAS_PUBLIC_URL.",
 		}
 	}
 	r.audit(ctx, app.TenantID, "", "GATEWAY_UNBOUND_MESSAGE", "platform="+platform+",app_id="+app.ID)
 	return GatewayIdentityResult{
 		Status: GatewayIdentityUnbound,
-		Message: "请先完成 HermesX 登录与渠道绑定：\n" + loginURL +
-			"\n\n该链接短时间内有效，完成后你在此渠道发送消息会自动进入对应 SaaS 租户。",
+		Message: "Please complete HermesX login and channel binding first:\n" + loginURL +
+			"\n\nThis link is valid for a limited time. Once completed, messages sent via this channel will automatically route to the corresponding SaaS tenant.",
 	}
 }
 

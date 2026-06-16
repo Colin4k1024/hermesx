@@ -10,6 +10,11 @@ import (
 	"time"
 )
 
+// MaxCanaryTokens is the upper bound on the number of active canary tokens
+// held in memory. When the limit is reached, GenerateToken evicts the oldest
+// entries before adding a new one.
+const MaxCanaryTokens = 100_000
+
 // canaryEntry holds a canary token alongside the tenant it belongs to, the
 // wall-clock time it was issued, and an opaque handle (first 8 hex bytes of
 // SHA-256). The handle is safe to expose via the admin API without leaking the
@@ -43,12 +48,17 @@ func (cd *CanaryDetector) GenerateToken(tenantID string) string {
 	token := "CANARY-" + hex.EncodeToString(b) + "-CANARY"
 
 	cd.mu.Lock()
+	defer cd.mu.Unlock()
+
+	if len(cd.tokens) >= MaxCanaryTokens {
+		cd.evictOldest(len(cd.tokens) - MaxCanaryTokens + 1)
+	}
+
 	cd.tokens[token] = canaryEntry{
 		id:        tokenHandle(token),
 		tenantID:  tenantID,
 		createdAt: time.Now(),
 	}
-	cd.mu.Unlock()
 
 	return token
 }
@@ -136,6 +146,30 @@ func (cd *CanaryDetector) evictExpired(ttl time.Duration) int {
 		}
 	}
 	return removed
+}
+
+// evictOldest removes the n oldest tokens by creation time. Called under write lock.
+func (cd *CanaryDetector) evictOldest(n int) {
+	if n <= 0 || len(cd.tokens) == 0 {
+		return
+	}
+	type tokenAge struct {
+		token string
+		at    time.Time
+	}
+	ages := make([]tokenAge, 0, len(cd.tokens))
+	for token, entry := range cd.tokens {
+		ages = append(ages, tokenAge{token: token, at: entry.createdAt})
+	}
+	// Sort ascending by creation time so oldest come first.
+	for i := 1; i < len(ages); i++ {
+		for j := i; j > 0 && ages[j].at.Before(ages[j-1].at); j-- {
+			ages[j], ages[j-1] = ages[j-1], ages[j]
+		}
+	}
+	for i := 0; i < n && i < len(ages); i++ {
+		delete(cd.tokens, ages[i].token)
+	}
 }
 
 // StartCleanupLoop launches a background goroutine that evicts tokens older

@@ -112,7 +112,7 @@ func handleSkillInstall(ctx context.Context, args map[string]any, tctx *ToolCont
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 
-	files, resolvedName, err := downloadSkillFiles(ctx, client, sourceURL, skillName)
+	files, resolvedName, err := downloadSkillFiles(ctx, client, sourceURL, skillName, tctx.AllowPrivateIPs)
 	if err != nil {
 		return toJSON(map[string]any{"error": err.Error()})
 	}
@@ -122,6 +122,18 @@ func handleSkillInstall(ctx context.Context, args map[string]any, tctx *ToolCont
 	}
 	if !hasSkillMD(files) {
 		return `{"error":"downloaded skill does not contain SKILL.md"}`
+	}
+
+	// Security scan: check SKILL.md content for injection before persisting.
+	if tctx.Interceptor != nil {
+		skillContent := extractSkillMDContent(files)
+		result, err := tctx.Interceptor.ScanSkillContent(ctx, tctx.TenantID, resolvedName, skillContent)
+		if err != nil {
+			return toJSON(map[string]any{"error": fmt.Sprintf("security scan failed: %v", err)})
+		}
+		if !result.Allowed {
+			return toJSON(map[string]any{"error": fmt.Sprintf("skill blocked by security policy: %s", result.Reason)})
+		}
 	}
 
 	uploaded, keys, err := uploadSkillFiles(ctx, tctx.ObjectStore, tctx.TenantID, tctx.UserID, scope, resolvedName, files)
@@ -159,7 +171,7 @@ func parseSkillAddCommand(command string) (string, string) {
 	return sourceURL, skillName
 }
 
-func downloadSkillFiles(ctx context.Context, client *http.Client, sourceURL, skillName string) ([]skillInstallFile, string, error) {
+func downloadSkillFiles(ctx context.Context, client *http.Client, sourceURL, skillName string, allowPrivateIPs ...bool) ([]skillInstallFile, string, error) {
 	u, err := url.Parse(sourceURL)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return nil, "", fmt.Errorf("invalid source_url")
@@ -168,19 +180,19 @@ func downloadSkillFiles(ctx context.Context, client *http.Client, sourceURL, ski
 		return nil, "", fmt.Errorf("source_url must be http or https")
 	}
 	if strings.EqualFold(u.Host, "github.com") {
-		return downloadGitHubSkillFiles(ctx, client, u, skillName)
+		return downloadGitHubSkillFiles(ctx, client, u, skillName, allowPrivateIPs...)
 	}
 	if skillName == "" {
 		skillName = deriveSkillNameFromURLPath(u.Path)
 	}
-	data, err := downloadFile(ctx, client, sourceURL, maxSkillInstallFileBytes)
+	data, err := downloadFile(ctx, client, sourceURL, maxSkillInstallFileBytes, allowPrivateIPs...)
 	if err != nil {
 		return nil, "", err
 	}
 	return []skillInstallFile{{RelPath: "SKILL.md", Data: data}}, skillName, nil
 }
 
-func downloadGitHubSkillFiles(ctx context.Context, client *http.Client, u *url.URL, skillName string) ([]skillInstallFile, string, error) {
+func downloadGitHubSkillFiles(ctx context.Context, client *http.Client, u *url.URL, skillName string, allowPrivateIPs ...bool) ([]skillInstallFile, string, error) {
 	parts := strings.Split(strings.Trim(u.Path, "/"), "/")
 	if len(parts) < 2 {
 		return nil, "", fmt.Errorf("github source must include owner and repo")
@@ -200,7 +212,7 @@ func downloadGitHubSkillFiles(ctx context.Context, client *http.Client, u *url.U
 	candidates := githubSkillCandidatePaths(basePath, skillName)
 	var lastErr error
 	for _, candidate := range candidates {
-		files, err := githubCollectDir(ctx, client, owner, repo, ref, candidate, candidate)
+		files, err := githubCollectDir(ctx, client, owner, repo, ref, candidate, candidate, allowPrivateIPs...)
 		if err == nil {
 			resolvedName := skillName
 			if resolvedName == "" {
@@ -230,7 +242,7 @@ func githubSkillCandidatePaths(basePath, skillName string) []string {
 	return []string{path.Join(basePath, skillName), path.Join(basePath, "skills", skillName)}
 }
 
-func githubCollectDir(ctx context.Context, client *http.Client, owner, repo, ref, dirPath, rootPath string) ([]skillInstallFile, error) {
+func githubCollectDir(ctx context.Context, client *http.Client, owner, repo, ref, dirPath, rootPath string, allowPrivateIPs ...bool) ([]skillInstallFile, error) {
 	items, err := githubListContents(ctx, client, owner, repo, ref, dirPath)
 	if err != nil {
 		return nil, err
@@ -252,7 +264,7 @@ func githubCollectDir(ctx context.Context, client *http.Client, owner, repo, ref
 			if item.Size > maxSkillInstallFileBytes {
 				return nil, fmt.Errorf("skill file too large: %s", item.Path)
 			}
-			data, err := downloadFile(ctx, client, item.DownloadURL, maxSkillInstallFileBytes)
+			data, err := downloadFile(ctx, client, item.DownloadURL, maxSkillInstallFileBytes, allowPrivateIPs...)
 			if err != nil {
 				return nil, fmt.Errorf("download %s: %w", item.Path, err)
 			}
@@ -301,7 +313,12 @@ func githubListContents(ctx context.Context, client *http.Client, owner, repo, r
 	return items, nil
 }
 
-func downloadFile(ctx context.Context, client *http.Client, rawURL string, maxBytes int64) ([]byte, error) {
+func downloadFile(ctx context.Context, client *http.Client, rawURL string, maxBytes int64, allowPrivateIPs ...bool) ([]byte, error) {
+	if len(allowPrivateIPs) == 0 || !allowPrivateIPs[0] {
+		if safe, reason := IsSafeURL(rawURL); !safe {
+			return nil, fmt.Errorf("blocked unsafe URL: %s", reason)
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
 		return nil, err
@@ -323,6 +340,25 @@ func downloadFile(ctx context.Context, client *http.Client, rawURL string, maxBy
 		return nil, fmt.Errorf("downloaded file exceeds size limit")
 	}
 	return data, nil
+}
+
+func hasSkillMD(files []skillInstallFile) bool {
+	for _, file := range files {
+		if strings.EqualFold(path.Base(file.RelPath), "SKILL.md") {
+			return true
+		}
+	}
+	return false
+}
+
+// extractSkillMDContent returns the body of SKILL.md from the file set.
+func extractSkillMDContent(files []skillInstallFile) string {
+	for _, file := range files {
+		if strings.EqualFold(path.Base(file.RelPath), "SKILL.md") {
+			return string(file.Data)
+		}
+	}
+	return ""
 }
 
 func uploadSkillFiles(ctx context.Context, store objstore.ObjectStore, tenantID, userID, scope, skillName string, files []skillInstallFile) (int, []string, error) {
@@ -357,15 +393,6 @@ func cleanSkillRelPath(rel string) (string, bool) {
 		return "", false
 	}
 	return clean, true
-}
-
-func hasSkillMD(files []skillInstallFile) bool {
-	for _, file := range files {
-		if strings.EqualFold(path.Base(file.RelPath), "SKILL.md") {
-			return true
-		}
-	}
-	return false
 }
 
 func sanitizeSkillName(name string) string {

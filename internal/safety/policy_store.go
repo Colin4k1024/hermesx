@@ -103,7 +103,74 @@ func (ps *PostgresPolicyStore) GetPolicy(ctx context.Context, tenantID string) (
 	return policy, nil
 }
 
+// maxRegexPatternLength is the maximum allowed length for a regex pattern string.
+const maxRegexPatternLength = 512
+
+// validateRegexpPattern compiles and validates a regex pattern, rejecting
+// patterns that are too long or contain dangerous nested quantifiers that
+// could cause catastrophic backtracking (e.g. (a+)+ or (a*)* ).
+func validateRegexpPattern(pattern string) (*regexp.Regexp, error) {
+	if len(pattern) > maxRegexPatternLength {
+		return nil, fmt.Errorf("regex pattern exceeds maximum length of %d characters", maxRegexPatternLength)
+	}
+	// Detect nested quantifiers: a group ending with a quantifier followed by
+	// an outer quantifier, e.g. (a+)+  (a*)*  (a{1,}){2,}
+	nestedQuantifier := regexp.MustCompile(`\([^)]*[+*]\s*\)[+*?]|\([^)]*\{[^}]+\}\s*\)[+*?]`)
+	if nestedQuantifier.MatchString(pattern) {
+		return nil, fmt.Errorf("regex pattern contains nested quantifiers which may cause catastrophic backtracking")
+	}
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
+	}
+	return re, nil
+}
+
+// validatePolicyRegexes validates all regex patterns in a policy's input
+// patterns and output rules before persisting.
+func validatePolicyRegexes(policy *Policy) error {
+	for i, ip := range policy.InputPatterns {
+		if ip.Regex != nil {
+			if _, err := validateRegexpPattern(ip.Regex.String()); err != nil {
+				return fmt.Errorf("input pattern[%d] invalid regex: %w", i, err)
+			}
+		}
+	}
+	for i, or := range policy.OutputRules {
+		if or.Regex != nil {
+			if _, err := validateRegexpPattern(or.Regex.String()); err != nil {
+				return fmt.Errorf("output rule[%d] invalid regex: %w", i, err)
+			}
+		}
+	}
+	return nil
+}
+
+// validateStoredRegexStrings validates raw regex strings from stored JSON
+// representations (used when patterns are passed as string fields).
+func validateStoredRegexStrings(patterns []storedInputPattern, rules []storedOutputRule) error {
+	for i, p := range patterns {
+		if p.Regex != "" {
+			if _, err := validateRegexpPattern(p.Regex); err != nil {
+				return fmt.Errorf("input pattern[%d] invalid regex: %w", i, err)
+			}
+		}
+	}
+	for i, r := range rules {
+		if r.Regex != "" {
+			if _, err := validateRegexpPattern(r.Regex); err != nil {
+				return fmt.Errorf("output rule[%d] invalid regex: %w", i, err)
+			}
+		}
+	}
+	return nil
+}
+
 func (ps *PostgresPolicyStore) UpsertPolicy(ctx context.Context, policy *Policy) error {
+	if err := validatePolicyRegexes(policy); err != nil {
+		return fmt.Errorf("policy validation failed: %w", err)
+	}
+
 	inputPatternsJSON, err := marshalInputPatterns(policy.InputPatterns)
 	if err != nil {
 		return fmt.Errorf("marshal input patterns: %w", err)
@@ -249,6 +316,9 @@ func (s *InMemoryPolicyStore) GetPolicy(_ context.Context, tenantID string) (*Po
 }
 
 func (s *InMemoryPolicyStore) UpsertPolicy(_ context.Context, policy *Policy) error {
+	if err := validatePolicyRegexes(policy); err != nil {
+		return fmt.Errorf("policy validation failed: %w", err)
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.policies[policy.TenantID] = policy

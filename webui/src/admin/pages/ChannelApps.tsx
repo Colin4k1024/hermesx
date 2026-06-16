@@ -43,7 +43,7 @@ interface ListResponse<T> {
   offset: number
 }
 
-const PLATFORMS = ['feishu', 'wework', 'weixin']
+const PLATFORMS = ['feishu', 'wecom', 'weixin']
 
 function unavailable(error: unknown) {
   return error instanceof ApiError && error.status === 503

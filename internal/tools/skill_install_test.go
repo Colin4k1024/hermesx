@@ -72,10 +72,11 @@ func TestSkillInstall_DirectURLUploadsToTenantObjectStore(t *testing.T) {
 		"source_url": server.URL + "/frontend-design/SKILL.md",
 		"skill":      "frontend-design",
 	}, &ToolContext{
-		TenantID:    "tenant-1",
-		UserID:      "user-1",
-		ObjectStore: store,
-		HTTPClient:  server.Client(),
+		TenantID:        "tenant-1",
+		UserID:          "user-1",
+		ObjectStore:     store,
+		HTTPClient:      server.Client(),
+		AllowPrivateIPs: true,
 	})
 
 	if !jsonContains(result, `"success":true`) {
