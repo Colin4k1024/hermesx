@@ -1,0 +1,12 @@
+{
+  "id": "enterprise-readiness-fixes",
+  "title": "修复企业开源就绪度第一批问题",
+  "status": "completed",
+  "complexity": "L",
+  "risk": "high",
+  "domain": "backend",
+  "currentPhase": "completed",
+  "nextAction": "归档任务",
+  "createdAt": "2026-06-16T13:23:39Z",
+  "branch": "main"
+}
