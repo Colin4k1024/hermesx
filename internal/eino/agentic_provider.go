@@ -50,18 +50,27 @@ func NewAgenticProviderModel(ctx context.Context, cfg AgenticProviderConfig) (mo
 		if err != nil {
 			return nil, err
 		}
-		return agenticgemini.NewAgenticModel(ctx, &agenticgemini.Config{
-			Client: client,
-			Model:  cfg.Model,
+		return agenticgemini.New(ctx, &agenticgemini.Config{
+			Client:    client,
+			Model:     cfg.Model,
+			MaxTokens: positiveIntPtr(cfg.MaxTokens),
 		})
 	case provider == "openai" || mode == "openai" || mode == "responses" || mode == "codex" || provider == "":
-		return agenticopenai.New(ctx, &agenticopenai.Config{
+		return agenticopenai.NewResponsesModel(ctx, &agenticopenai.ResponsesConfig{
 			BaseURL:    cfg.BaseURL,
 			APIKey:     cfg.APIKey,
 			Model:      cfg.Model,
 			HTTPClient: cfg.HTTPClient,
+			MaxTokens:  positiveIntPtr(cfg.MaxTokens),
 		})
 	default:
 		return nil, fmt.Errorf("unsupported agentic provider %q", cfg.Provider)
 	}
+}
+
+func positiveIntPtr(v int) *int {
+	if v <= 0 {
+		return nil
+	}
+	return &v
 }

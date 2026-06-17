@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Colin4k1024/hermesx/internal/gateway"
@@ -88,28 +89,45 @@ func (s *SlackAdapter) SendTyping(ctx context.Context, chatID string) error {
 }
 
 func (s *SlackAdapter) SendImage(ctx context.Context, chatID string, imagePath string, caption string, metadata map[string]string) (*gateway.SendResult, error) {
-	return s.uploadFile(chatID, imagePath, caption, metadata)
+	return s.uploadFile(ctx, chatID, imagePath, caption, metadata)
 }
 
 func (s *SlackAdapter) SendVoice(ctx context.Context, chatID string, audioPath string, metadata map[string]string) (*gateway.SendResult, error) {
-	return s.uploadFile(chatID, audioPath, "", metadata)
+	return s.uploadFile(ctx, chatID, audioPath, "", metadata)
 }
 
 func (s *SlackAdapter) SendDocument(ctx context.Context, chatID string, filePath string, metadata map[string]string) (*gateway.SendResult, error) {
-	return s.uploadFile(chatID, filePath, "", metadata)
+	return s.uploadFile(ctx, chatID, filePath, "", metadata)
 }
 
-func (s *SlackAdapter) uploadFile(chatID, filePath, comment string, metadata map[string]string) (*gateway.SendResult, error) {
+func (s *SlackAdapter) uploadFile(ctx context.Context, chatID, filePath, comment string, metadata map[string]string) (*gateway.SendResult, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	f, err := os.Open(filePath)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error()}, err
 	}
 	defer f.Close()
 
-	params := slack.UploadFileV2Parameters{
+	info, err := f.Stat()
+	if err != nil {
+		return &gateway.SendResult{Error: err.Error()}, err
+	}
+	if info.Size() <= 0 {
+		err := fmt.Errorf("file %q is empty", filePath)
+		return &gateway.SendResult{Error: err.Error()}, err
+	}
+	if info.Size() > int64(^uint(0)>>1) {
+		err := fmt.Errorf("file %q is too large to upload", filePath)
+		return &gateway.SendResult{Error: err.Error()}, err
+	}
+
+	params := slack.UploadFileParameters{
 		Channel:        chatID,
 		Reader:         f,
-		Filename:       filePath,
+		Filename:       filepath.Base(filePath),
+		FileSize:       int(info.Size()),
 		InitialComment: comment,
 	}
 
@@ -117,7 +135,7 @@ func (s *SlackAdapter) uploadFile(chatID, filePath, comment string, metadata map
 		params.ThreadTimestamp = threadTS
 	}
 
-	summary, err := s.api.UploadFileV2(params)
+	summary, err := s.api.UploadFileContext(ctx, params)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}
