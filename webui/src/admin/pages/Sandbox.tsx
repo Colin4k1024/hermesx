@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Typography, Select, Button, Space, Input, message, Alert, Popconfirm } from 'antd'
 import { useTenants } from '../hooks/useTenants'
 import { useSandboxPolicy, useSetSandboxPolicy, useDeleteSandboxPolicy } from '../hooks/useSandboxPolicy'
@@ -14,29 +14,22 @@ const DEFAULT_POLICY = JSON.stringify(
 export default function Sandbox() {
   const { data: tenantsData } = useTenants()
   const [selectedTenant, setSelectedTenant] = useState('')
-
-  useEffect(() => {
-    const first = tenantsData?.tenants?.[0]
-    if (!selectedTenant && first) {
-      setSelectedTenant(first.id)
-    }
-  }, [tenantsData, selectedTenant])
-  const { data: policyData } = useSandboxPolicy(selectedTenant)
-  const setPolicy = useSetSandboxPolicy(selectedTenant)
-  const deletePolicy = useDeleteSandboxPolicy(selectedTenant)
-  const [editor, setEditor] = useState('')
-  const [jsonError, setJsonError] = useState('')
-
-  useEffect(() => {
-    setEditor(policyData?.policy ?? DEFAULT_POLICY)
-    setJsonError('')
-  }, [policyData])
+  const effectiveTenant = selectedTenant || tenantsData?.tenants?.[0]?.id || ''
+  const { data: policyData } = useSandboxPolicy(effectiveTenant)
+  const setPolicy = useSetSandboxPolicy(effectiveTenant)
+  const deletePolicy = useDeleteSandboxPolicy(effectiveTenant)
+  const policyText = policyData?.policy ?? DEFAULT_POLICY
+  const policySource = `${effectiveTenant}:${policyText}`
+  const [editorDraft, setEditorDraft] = useState({ source: '', value: '' })
+  const [jsonErrorDraft, setJsonErrorDraft] = useState({ source: '', message: '' })
+  const editor = editorDraft.source === policySource ? editorDraft.value : policyText
+  const jsonError = jsonErrorDraft.source === policySource ? jsonErrorDraft.message : ''
 
   const handleSave = async () => {
     try {
       JSON.parse(editor)
     } catch {
-      setJsonError('Invalid JSON')
+      setJsonErrorDraft({ source: policySource, message: 'Invalid JSON' })
       return
     }
     try {
@@ -63,16 +56,19 @@ export default function Sandbox() {
         <Select
           placeholder="Select tenant"
           style={{ width: 280 }}
-          value={selectedTenant || undefined}
+          value={effectiveTenant || undefined}
           onChange={setSelectedTenant}
           options={tenantsData?.tenants.map((t) => ({ label: t.name, value: t.id })) ?? []}
         />
       </Space>
-      {selectedTenant ? (
+      {effectiveTenant ? (
         <Space direction="vertical" style={{ width: '100%' }}>
           <Input.TextArea
             value={editor}
-            onChange={(e) => { setEditor(e.target.value); setJsonError('') }}
+            onChange={(e) => {
+              setEditorDraft({ source: policySource, value: e.target.value })
+              setJsonErrorDraft({ source: policySource, message: '' })
+            }}
             rows={14}
             style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 13 }}
           />

@@ -45,6 +45,7 @@ interface RollbackTarget {
 export default function Governance() {
   const { data: tenantsData } = useTenants()
   const [selectedTenant, setSelectedTenant] = useState('')
+  const effectiveTenant = selectedTenant || tenantsData?.tenants?.[0]?.id || ''
   const [rollbackTarget, setRollbackTarget] = useState<RollbackTarget | null>(null)
   const [globalForm] = Form.useForm()
   const [tenantForm] = Form.useForm()
@@ -55,16 +56,11 @@ export default function Governance() {
   const globalHistory = useGlobalSharingPolicyHistory()
   const updateGlobal = useUpdateGlobalSharingPolicy()
   const rollbackGlobal = useRollbackGlobalSharingPolicy()
-  const tenantPolicy = useTenantSharingPolicy(selectedTenant)
-  const tenantHistory = useTenantSharingPolicyHistory(selectedTenant)
-  const updateTenant = useUpdateTenantSharingPolicy(selectedTenant)
-  const rollbackTenant = useRollbackTenantSharingPolicy(selectedTenant)
+  const tenantPolicy = useTenantSharingPolicy(effectiveTenant)
+  const tenantHistory = useTenantSharingPolicyHistory(effectiveTenant)
+  const updateTenant = useUpdateTenantSharingPolicy(effectiveTenant)
+  const rollbackTenant = useRollbackTenantSharingPolicy(effectiveTenant)
   const revokeShared = useRevokeSharedKnowledge()
-
-  useEffect(() => {
-    const first = tenantsData?.tenants?.[0]
-    if (!selectedTenant && first) setSelectedTenant(first.id)
-  }, [selectedTenant, tenantsData])
 
   useEffect(() => {
     if (globalPolicy.data) {
@@ -126,7 +122,7 @@ export default function Governance() {
   }
 
   const saveTenant = async () => {
-    if (!selectedTenant) return
+    if (!effectiveTenant) return
     try {
       const values = await tenantForm.validateFields()
       await updateTenant.mutateAsync(values)
@@ -238,7 +234,7 @@ export default function Governance() {
                 <Select
                   placeholder="Select tenant"
                   style={{ width: 300 }}
-                  value={selectedTenant || undefined}
+                  value={effectiveTenant || undefined}
                   onChange={setSelectedTenant}
                   options={tenantsData?.tenants.map((t) => ({ label: t.name, value: t.id })) ?? []}
                 />
@@ -262,7 +258,7 @@ export default function Governance() {
                   <Form.Item name="reason" label="Reason">
                     <Input style={{ width: 300 }} placeholder="operator note" />
                   </Form.Item>
-                  <Button type="primary" onClick={saveTenant} loading={updateTenant.isPending} disabled={!selectedTenant}>Save</Button>
+                  <Button type="primary" onClick={saveTenant} loading={updateTenant.isPending} disabled={!effectiveTenant}>Save</Button>
                 </Form>
                 <Table
                   rowKey="version"
