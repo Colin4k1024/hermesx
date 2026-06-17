@@ -1,5 +1,5 @@
 # WebUI build stage. The SaaS image serves these static files from /static.
-FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS webui-builder
+FROM --platform=$BUILDPLATFORM node:26-bookworm-slim AS webui-builder
 
 WORKDIR /webui
 COPY webui/package.json webui/package-lock.json ./
