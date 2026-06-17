@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Table, Button, Space, Typography, Modal, Input, Select, message, Tag, Popconfirm, Alert } from 'antd'
 import { Plus } from 'lucide-react'
 import { useApiKeys, useCreateApiKey, useRevokeApiKey, useRotateApiKey } from '../hooks/useApiKeys'
@@ -11,17 +11,11 @@ const { Title, Text } = Typography
 export default function ApiKeys() {
   const { data: tenantsData } = useTenants()
   const [selectedTenant, setSelectedTenant] = useState('')
-
-  useEffect(() => {
-    const first = tenantsData?.tenants?.[0]
-    if (!selectedTenant && first) {
-      setSelectedTenant(first.id)
-    }
-  }, [tenantsData, selectedTenant])
-  const { data, isLoading } = useApiKeys(selectedTenant)
-  const createKey = useCreateApiKey(selectedTenant)
-  const revokeKey = useRevokeApiKey(selectedTenant)
-  const rotateKey = useRotateApiKey(selectedTenant)
+  const effectiveTenant = selectedTenant || tenantsData?.tenants?.[0]?.id || ''
+  const { data, isLoading } = useApiKeys(effectiveTenant)
+  const createKey = useCreateApiKey(effectiveTenant)
+  const revokeKey = useRevokeApiKey(effectiveTenant)
+  const rotateKey = useRotateApiKey(effectiveTenant)
   const [modalOpen, setModalOpen] = useState(false)
   const [keyName, setKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState('')
@@ -97,15 +91,15 @@ export default function ApiKeys() {
         <Select
           placeholder="Select tenant"
           style={{ width: 280 }}
-          value={selectedTenant || undefined}
+          value={effectiveTenant || undefined}
           onChange={setSelectedTenant}
           options={tenantsData?.tenants.map((t) => ({ label: t.name, value: t.id })) ?? []}
         />
-        <Button type="primary" icon={<Plus size={16} />} disabled={!selectedTenant} onClick={() => setModalOpen(true)}>
+        <Button type="primary" icon={<Plus size={16} />} disabled={!effectiveTenant} onClick={() => setModalOpen(true)}>
           Create Key
         </Button>
       </Space>
-      {selectedTenant ? (
+      {effectiveTenant ? (
         <Table dataSource={data?.api_keys ?? []} columns={columns} rowKey="id" loading={isLoading} pagination={false} size="middle" />
       ) : (
         <Text type="secondary">Select a tenant to manage its API keys</Text>

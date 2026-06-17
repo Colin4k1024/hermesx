@@ -2,6 +2,13 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { resolve } from 'path'
 
+const chunkGroups = [
+  { name: 'vendor-react', packages: ['react', 'react-dom', 'react-router-dom'] },
+  { name: 'vendor-antd', packages: ['antd', '@ant-design/icons'] },
+  { name: 'vendor-query', packages: ['@tanstack/react-query'] },
+  { name: 'vendor-charts', packages: ['recharts'] },
+]
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -18,11 +25,11 @@ export default defineConfig({
         admin: resolve(__dirname, 'admin.html'),
       },
       output: {
-        manualChunks: {
-          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
-          'vendor-antd': ['antd', '@ant-design/icons'],
-          'vendor-query': ['@tanstack/react-query'],
-          'vendor-charts': ['recharts'],
+        manualChunks(id) {
+          const normalizedId = id.replaceAll('\\', '/')
+          return chunkGroups.find((group) =>
+            group.packages.some((pkg) => normalizedId.includes(`/node_modules/${pkg}/`)),
+          )?.name
         },
       },
     },

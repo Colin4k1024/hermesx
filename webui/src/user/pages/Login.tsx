@@ -35,7 +35,7 @@ export default function Login() {
   }
 
   const handleChannelLogin = (platform: string) => {
-    window.location.href = `/auth/channel/${platform}/start?return_to=/chat`
+    window.location.assign(`/auth/channel/${platform}/start?return_to=/chat`)
   }
 
   return (
