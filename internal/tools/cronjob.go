@@ -75,7 +75,7 @@ func handleCronjob(ctx context.Context, args map[string]any, tctx *ToolContext) 
 		return handleCronjobSaaS(ctx, action, args, tctx)
 	}
 
-	// CLI mode: original file-system implementation.
+	// Legacy fallback: original file-system implementation.
 	switch action {
 	case "create":
 		return createCronJob(args)

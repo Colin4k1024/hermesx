@@ -66,41 +66,65 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "hermesx",
-	Short: "HermesX - enterprise agent runtime",
-	Long: `HermesX is an enterprise agent runtime and multi-tenant SaaS control plane.
-It supports interactive CLI, messaging gateways, scheduled tasks, and governed SaaS deployments.`,
+	Short: "HermesX - SaaS control plane",
+	Long: `HermesX is a multi-tenant SaaS control plane for governed agent automation.
+The supported runtime entry point is the SaaS API server: hermesx saas-api.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runInteractiveCLI()
+		return saasOnlyError(cmd.CommandPath())
 	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
+	},
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&flagProfile, "profile", "p", "", "Configuration profile to use")
-	rootCmd.PersistentFlags().StringVarP(&flagModel, "model", "m", "", "Override the model for this session")
-	rootCmd.PersistentFlags().BoolVarP(&flagQuiet, "quiet", "q", false, "Quiet mode (suppress UI output)")
 	rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug logging")
-	rootCmd.PersistentFlags().StringVar(&flagBaseURL, "base-url", "", "API base URL")
-	rootCmd.PersistentFlags().StringVar(&flagAPIKey, "api-key", "", "API key")
-	rootCmd.PersistentFlags().StringVar(&flagAPIMode, "api-mode", "", "API mode: openai or anthropic")
-	rootCmd.PersistentFlags().StringVar(&flagProvider, "provider", "", "Provider name")
 
-	rootCmd.AddCommand(chatCmd)
-	rootCmd.AddCommand(modelCmd)
-	rootCmd.AddCommand(toolsCmd)
-	rootCmd.AddCommand(skillsCmd)
-	rootCmd.AddCommand(configCmd)
-	rootCmd.AddCommand(gatewayCmd)
-	rootCmd.AddCommand(setupCmd)
-	rootCmd.AddCommand(doctorCmd)
-	rootCmd.AddCommand(updateCmd)
 	rootCmd.AddCommand(versionCmd)
-	rootCmd.AddCommand(cronCmd)
-	rootCmd.AddCommand(clawCmd)
-	rootCmd.AddCommand(batchCmd)
-	rootCmd.AddCommand(profileCmd)
-	rootCmd.AddCommand(themeCmd)
+	registerDisabledStandaloneCommands(
+		chatCmd,
+		modelCmd,
+		toolsCmd,
+		skillsCmd,
+		configCmd,
+		gatewayCmd,
+		setupCmd,
+		doctorCmd,
+		updateCmd,
+		cronCmd,
+		clawCmd,
+		batchCmd,
+		profileCmd,
+		themeCmd,
+	)
+}
+
+const saasOnlyMessage = "local standalone mode has been removed; use `hermesx saas-api` and the SaaS HTTP API instead"
+
+func saasOnlyError(commandPath string) error {
+	return fmt.Errorf("%s: %s", commandPath, saasOnlyMessage)
+}
+
+func registerDisabledStandaloneCommands(cmds ...*cobra.Command) {
+	for _, cmd := range cmds {
+		disableStandaloneCommand(cmd)
+		rootCmd.AddCommand(cmd)
+	}
+}
+
+func disableStandaloneCommand(cmd *cobra.Command) {
+	cmd.Hidden = true
+	cmd.Deprecated = "local standalone mode has been removed; use hermesx saas-api"
+	cmd.Args = cobra.ArbitraryArgs
+	cmd.Run = nil
+	cmd.RunE = func(cmd *cobra.Command, args []string) error {
+		return saasOnlyError(cmd.CommandPath())
+	}
+	for _, child := range cmd.Commands() {
+		disableStandaloneCommand(child)
+	}
 }
 
 func setupLogging() {
@@ -649,6 +673,7 @@ func init() {
 	clawMigrateCmd.Flags().Bool("dry-run", false, "Show what would be migrated without making changes")
 	clawMigrateCmd.Flags().Bool("overwrite", false, "Overwrite existing files in target")
 	clawCmd.AddCommand(clawMigrateCmd)
+	disableStandaloneCommand(clawMigrateCmd)
 }
 
 // --- Batch command ---

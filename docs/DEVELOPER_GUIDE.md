@@ -109,9 +109,9 @@
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────┐
-│  阶段 1：个人 CLI 助手 (hermes-agent)                                    │
-│  ─ 单用户交互式 Agent                                                    │
-│  ─ SQLite 本地存储                                                        │
+│  阶段 1：遗留个人助手原型 (hermes-agent)                                  │
+│  ─ 单用户 Agent 原型                                                     │
+│  ─ 本地状态存储                                                          │
 │  ─ 无租户概念、无审计                                                    │
 │  ─ 直接调用 LLM API                                                      │
 └────────────────────┬─────────────────────────────────────────────────────┘
@@ -229,10 +229,9 @@ make test-infra-up            # 启动 PG/Redis/MinIO (隔离端口)
 make test-integration         # 运行集成测试
 make test-infra-down          # 清理
 
-# 交叉编译
+# SaaS 服务发布二进制
 make build-linux              # amd64 + arm64
-make build-darwin             # amd64 + arm64
-make build-all                # 全平台
+make build-all                # Linux SaaS 服务产物
 ```
 
 ### 3.2 前端 (WebUI)
@@ -263,21 +262,17 @@ mkdocs build                  # 输出到 site/
 # .github/workflows/pages.yml 在 push main 时触发
 ```
 
-### 3.4 Docker 一键启动
+### 3.4 Docker SaaS 启动
 
 ```bash
-# 快速体验 (API + 基础设施 + Bootstrap)
-make quickstart               # 首次会自动创建 .env
-
-# WebUI 完整体验
-make webui                    # http://localhost:3000
+# SaaS API + 基础设施；API 服务内嵌 WebUI
+make saas-up                  # http://localhost:18080
 
 # E2E 测试
 make test-e2e                 # 13 个 Playwright 隔离测试
 
 # 清理
-make teardown                 # 清除所有 quickstart 容器和卷
-make webui-teardown           # 清除 webui 容器
+make saas-down                # 停止 SaaS compose 栈
 ```
 
 ### 3.5 可观测性栈
@@ -411,7 +406,7 @@ ADR 模板位于 `docs/adr/`，编号递增。
 | 代码格式 | `make fmt && make lint` |
 | 安全漏洞 | `govulncheck ./...` |
 | 前端构建 | `cd webui && npm run build` |
-| E2E 通过 | `make quickstart && make test-e2e` |
+| E2E 通过 | `make saas-up && make test-e2e` |
 | 文档同步 | `mkdocs build` (无 warning) |
 | CHANGELOG 更新 | 手动确认 unreleased 段落完整 |
 
@@ -424,14 +419,14 @@ ADR 模板位于 `docs/adr/`，编号递增。
 | 语言 | Go 1.25 (后端), TypeScript 5.6 (前端) |
 | 前端框架 | React 18 + Ant Design 5 + TanStack Query + Zustand |
 | 构建工具 | Vite 6 + Tailwind CSS 3 |
-| 数据库 | PostgreSQL 16 (主) / MySQL 8 / SQLite (CLI) |
+| 数据库 | PostgreSQL 16 (主) / MySQL 8 |
 | 缓存 | Redis 7 |
 | 对象存储 | MinIO (S3 兼容) |
 | 可观测 | OpenTelemetry + Prometheus + Grafana + Jaeger |
 | CI/CD | GitHub Actions (test/lint/security/release/pages) |
 | 文档 | MkDocs Material (中英双语) |
 | 测试 | Go test + Playwright E2E |
-| 容器 | Docker Compose (7 profile) |
+| 容器 | Docker Compose (SaaS/prod/test) |
 
 ---
 

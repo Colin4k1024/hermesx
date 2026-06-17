@@ -201,7 +201,7 @@ func exaSearch(query string, numResults int, apiKey string, client *http.Client)
 func fallbackSearch(query string, numResults int) string {
 	return toJSON(map[string]any{
 		"error":   "No search API configured",
-		"message": "Set EXA_API_KEY in ~/.hermes/.env to enable web search",
+		"message": "Set EXA_API_KEY in the SaaS deployment environment or Secret to enable web search",
 		"query":   query,
 	})
 }
@@ -353,7 +353,7 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 	if firecrawlKey == "" {
 		return toJSON(map[string]any{
 			"error":   "FIRECRAWL_API_KEY is not set",
-			"message": "Set FIRECRAWL_API_KEY in ~/.hermes/.env to enable web crawling",
+			"message": "Set FIRECRAWL_API_KEY in the SaaS deployment environment or Secret to enable web crawling",
 		})
 	}
 

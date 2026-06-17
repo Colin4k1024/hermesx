@@ -9,10 +9,10 @@ A company (ACME Corp) deploys Hermes as their internal agent platform, with mult
 ## Prerequisites
 
 ```bash
-# Start infrastructure
-docker compose -f docker-compose.dev.yml up -d
+# Start the SaaS stack for local development
+docker compose -f docker-compose.saas.yml up -d --build
 
-# Or use production stack
+# Or use the production SaaS stack
 docker compose -f docker-compose.prod.yml up -d
 ```
 

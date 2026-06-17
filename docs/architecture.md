@@ -1,17 +1,16 @@
 # 架构概览
 
-> HermesX 的系统设计、两种运行模式和 SaaS 多租户架构。
+> HermesX 的 SaaS-only 系统设计和多租户架构。
 
-## 两种运行模式
+## SaaS-only 运行模型
 
-HermesX 支持两种独立的运行模式：
+HermesX 对外只支持 SaaS 服务形态：
 
-| 模式 | 命令 | 用途 | 存储 |
-|------|------|------|------|
-| CLI 模式 | `hermesx` | 本地交互式 Agent | SQLite / 文件系统 |
-| SaaS 模式 | `hermesx saas-api` | 多租户 HTTP API 服务 | PostgreSQL |
+| 入口 | 用途 | 存储 |
+|------|------|------|
+| `hermesx saas-api` | 多租户 HTTP API + 内嵌 WebUI | PostgreSQL 或 MySQL，Redis，MinIO/S3 |
 
-两种模式共享 LLM 集成层和 Skills 系统，但网络层、存储层和认证体系完全独立。
+旧本地助手命令、一次性对话命令、gateway 运行时和分离前端容器不再是受支持的公开运行模式。内部 agent、tool、skills、scheduler 等包继续作为 SaaS API 的实现模块复用。
 
 ## SaaS 模式架构
 
@@ -141,10 +140,10 @@ type Store interface {
 
 | 后端 | 用途 | 包路径 |
 |------|------|--------|
-| PostgreSQL | SaaS 模式（多租户） | `internal/store/pg/` |
-| SQLite | CLI 模式（单用户） | `internal/store/sqlite/` |
+| PostgreSQL | SaaS 多租户生产后端 | `internal/store/pg/` |
+| MySQL | SaaS 多租户生产后端 | `internal/store/mysql/` |
 
-PostgreSQL 后端在启动时自动执行 106+ 个 migration（含 RLS policies、pricing_rules、sandbox_policy、cron scheduler 等）。
+SaaS API 启动时必须提供 `DATABASE_URL`，并通过 `DATABASE_DRIVER` 选择 `postgres` 或 `mysql`。遗留 SQLite 包仍留在源码中作为内部兼容实现，不是公开部署后端。
 
 ## 分布式 Cron Scheduler
 
@@ -290,20 +289,21 @@ hermesx/
 │   ├── store/            # 数据存储抽象
 │   │   ├── types.go      # 数据模型定义
 │   │   ├── pg/           # PostgreSQL 实现
-│   │   └── sqlite/       # SQLite 实现
+│   │   ├── mysql/        # MySQL 实现
+│   │   └── sqlite/       # 遗留内部兼容实现
 │   ├── skills/           # Skills 系统
 │   │   ├── hub.go        # Skills Hub 发现与安装
 │   │   ├── scanner.go    # 安全扫描
-│   │   └── loader.go     # 本地加载
+│   │   └── loader.go     # SaaS 租户加载
 │   ├── observability/    # 可观测性
 │   │   ├── tracer.go     # OpenTelemetry 初始化
 │   │   └── logger.go     # Context-enriched 日志
 │   ├── objstore/         # MinIO/S3 对象存储
-│   ├── gateway/          # CLI 模式 Gateway, media dispatch, lifecycle hooks
+│   ├── gateway/          # 内部通道适配、media dispatch、lifecycle hooks
 │   │   └── platforms/    # 15 platform adapters + registry
 │   ├── config/           # 配置管理
-│   └── dashboard/        # 管理面板静态文件
-│       └── static/       # HTML/CSS/JS
+│   └── dashboard/        # 管理面板静态文件（历史路径）
+│       └── static/       # HTML/CSS/JS；发布镜像使用 /static
 ├── skills/               # 81 个内置 Skills
 ├── deploy/               # 部署配置
 │   ├── helm/             # Helm Chart

@@ -3,7 +3,7 @@ VERSION=2.0.0
 BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
 
-.PHONY: all build test test-short test-race test-cover clean install run lint quickstart test-e2e test-e2e-headed teardown bootstrap test-k8s webui webui-teardown test-infra-up test-infra-down test-integration
+.PHONY: all build build-linux build-all test test-short test-race test-cover clean install run lint saas-up saas-down test-e2e test-e2e-headed test-k8s test-infra-up test-infra-down test-integration
 
 all: build
 
@@ -15,7 +15,7 @@ install: build
 	cp $(BINARY) ~/.local/bin/
 
 run: build
-	./$(BINARY)
+	./$(BINARY) saas-api
 
 test:
 	go test ./... -v -count=1
@@ -45,43 +45,24 @@ deps:
 fmt:
 	go fmt ./...
 
-# Cross-compilation
+# SaaS service release binaries
 build-linux:
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-linux-amd64 ./cmd/hermesx/
-	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-linux-arm64 ./cmd/hermesx/
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-saas-linux-amd64 ./cmd/hermesx/
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-saas-linux-arm64 ./cmd/hermesx/
 
-build-darwin:
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-darwin-amd64 ./cmd/hermesx/
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-darwin-arm64 ./cmd/hermesx/
+build-all: build-linux
 
-build-all: build-linux build-darwin
+# ─── SaaS Deployment (Docker Compose) ────────────────────────────────────────
 
-# ─── Quickstart (Docker) ─────────────────────────────────────────────────────
+saas-up: ## Start the SaaS API stack (API serves embedded WebUI from /static)
+	docker compose -f docker-compose.saas.yml up -d --build
 
-quickstart: ## One-click: build + start infra + bootstrap test tenants
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo ""; \
-		echo "⚠️  .env created from .env.example"; \
-		echo "   Edit .env with your LLM credentials, then run 'make quickstart' again."; \
-		echo ""; \
-		exit 1; \
-	fi
-	@mkdir -p tests/fixtures
-	docker compose -f docker-compose.quickstart.yml up -d --build
-	@echo "⏳ Waiting for bootstrap to complete..."
-	docker compose -f docker-compose.quickstart.yml wait bootstrap
-	@echo ""
-	@echo "✅ Quickstart ready! Run: make test-e2e"
-	@echo ""
-
-bootstrap: ## Re-run bootstrap only (tenants/souls/skills). Requires quickstart infra running.
-	docker compose -f docker-compose.quickstart.yml run --rm bootstrap \
-		sh -c "apk add --no-cache bash curl wget python3 ca-certificates 2>/dev/null && /scripts/bootstrap.sh"
+saas-down: ## Stop and remove the SaaS API stack
+	docker compose -f docker-compose.saas.yml down
 
 test-e2e: ## Run Playwright isolation tests (13 tests)
 	@if [ ! -f tests/fixtures/tenants.json ]; then \
-		echo "❌ tests/fixtures/tenants.json not found. Run 'make quickstart' first."; \
+		echo "❌ tests/fixtures/tenants.json not found. Bootstrap a SaaS test tenant first."; \
 		exit 1; \
 	fi
 	node_modules/.bin/playwright test --project=api-isolation
@@ -92,35 +73,6 @@ test-e2e-headed: ## Run E2E tests with browser visible
 test-k8s: ## Run E2E tests against a remote deployment (set K8S_BASE_URL)
 	BASE_URL=$${K8S_BASE_URL:-http://localhost:8080} \
 		node_modules/.bin/playwright test --project=api-isolation
-
-teardown: ## Stop and remove all quickstart containers and volumes
-	docker compose -f docker-compose.quickstart.yml down -v
-	@echo "✅ All quickstart resources removed."
-
-# ─── WebUI (Docker, with UI) ─────────────────────────────────────────────────
-
-webui: ## One-click: start infra + bootstrap + WebUI at http://localhost:3000
-	@if [ ! -f .env ]; then \
-		cp .env.example .env; \
-		echo ""; \
-		echo "⚠️  .env created from .env.example"; \
-		echo "   Edit .env with your LLM credentials, then run 'make webui' again."; \
-		echo ""; \
-		exit 1; \
-	fi
-	@mkdir -p tests/fixtures
-	docker compose -f docker-compose.webui.yml up -d --build
-	@echo "⏳ Waiting for bootstrap to complete..."
-	docker compose -f docker-compose.webui.yml wait bootstrap
-	@echo ""
-	@echo "✅ WebUI ready at http://localhost:3000"
-	@echo "   API endpoint: http://localhost:8080"
-	@echo "   Admin token: $${HERMES_ACP_TOKEN:-dev-bootstrap-token}"
-	@echo ""
-
-webui-teardown: ## Stop and remove webui containers and volumes
-	docker compose -f docker-compose.webui.yml down -v
-	@echo "✅ All webui resources removed."
 
 # ─── Integration Tests (real PG/Redis/MinIO) ────────────────────────────────
 

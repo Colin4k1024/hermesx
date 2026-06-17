@@ -26,10 +26,10 @@ body:
     id: solution
     attributes:
       label: Proposed Solution
-      description: How do you think this should work? Be as specific as you can — CLI flags, config options, API design.
+      description: How do you think this should work? Be as specific as you can — SaaS API shape, admin behavior, config options, or data model.
       placeholder: |
-        Add a `--foo` flag to `hermesx chat` that enables...
-        Or: Add a new tool `bar_tool` that...
+        Add a new `/admin/v1/...` endpoint that...
+        Or: Add a new tenant-scoped tool `bar_tool` that...
     validations:
       required: true
 
@@ -47,11 +47,11 @@ body:
         - New tool
         - New bundled skill
         - Agent core improvement (context, routing, fallback)
-        - CLI improvement
-        - Gateway / messaging improvement
+        - SaaS API / admin improvement
+        - Channel / messaging integration
         - Platform adapter (new or enhanced)
         - ACP / editor integration
-        - Configuration / profiles
+        - SaaS configuration
         - Performance / reliability
         - Security
         - Developer experience (tests, docs, CI)

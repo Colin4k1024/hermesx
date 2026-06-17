@@ -1,17 +1,16 @@
 # Architecture Overview
 
-> HermesX system design, two run modes, and SaaS multi-tenant architecture.
+> HermesX SaaS-only system design and multi-tenant architecture.
 
-## Two Run Modes
+## SaaS-only Runtime Model
 
-HermesX supports two independent run modes:
+HermesX exposes one supported product runtime:
 
-| Mode | Command | Use Case | Storage |
-|------|---------|----------|---------|
-| CLI Mode | `hermesx` | Local interactive Agent | SQLite / filesystem |
-| SaaS Mode | `hermesx saas-api` | Multi-tenant HTTP API service | PostgreSQL |
+| Entry point | Purpose | Storage |
+|-------------|---------|---------|
+| `hermesx saas-api` | Multi-tenant HTTP API + embedded WebUI | PostgreSQL or MySQL, Redis, MinIO/S3 |
 
-Both modes share the LLM integration layer and Skills system, but have completely independent networking, storage, and authentication systems.
+Former local assistant commands, one-shot conversation commands, the gateway runtime, and a separate frontend container are no longer supported public run modes. Internal agent, tool, skills, and scheduler packages remain implementation modules used by the SaaS API.
 
 ## SaaS Mode Architecture
 
@@ -141,10 +140,10 @@ type Store interface {
 
 | Backend | Use Case | Package Path |
 |---------|----------|-------------|
-| PostgreSQL | SaaS mode (multi-tenant) | `internal/store/pg/` |
-| SQLite | CLI mode (single user) | `internal/store/sqlite/` |
+| PostgreSQL | SaaS multi-tenant production backend | `internal/store/pg/` |
+| MySQL | SaaS multi-tenant production backend | `internal/store/mysql/` |
 
-The PostgreSQL backend automatically runs 106+ migrations on startup (including RLS policies, pricing_rules, sandbox_policy, cron scheduler, etc.).
+The SaaS API requires `DATABASE_URL` on startup and selects `postgres` or `mysql` via `DATABASE_DRIVER`. The legacy SQLite package remains in source as an internal compatibility implementation, not a public deployment backend.
 
 ## Distributed Cron Scheduler
 
@@ -290,20 +289,21 @@ hermesx/
 │   ├── store/            # Data storage abstraction
 │   │   ├── types.go      # Data model definitions
 │   │   ├── pg/           # PostgreSQL implementation
-│   │   └── sqlite/       # SQLite implementation
+│   │   ├── mysql/        # MySQL implementation
+│   │   └── sqlite/       # Legacy internal compatibility implementation
 │   ├── skills/           # Skills system
 │   │   ├── hub.go        # Skills Hub discovery and installation
 │   │   ├── scanner.go    # Security scanning
-│   │   └── loader.go     # Local loading
+│   │   └── loader.go     # SaaS tenant loading
 │   ├── observability/    # Observability
 │   │   ├── tracer.go     # OpenTelemetry initialization
 │   │   └── logger.go     # Context-enriched logging
 │   ├── objstore/         # MinIO/S3 object storage
-│   ├── gateway/          # CLI mode Gateway, media dispatch, lifecycle hooks
+│   ├── gateway/          # Internal channel adapters, media dispatch, lifecycle hooks
 │   │   └── platforms/    # 15 platform adapters + registry
 │   ├── config/           # Configuration management
-│   └── dashboard/        # Admin panel static files
-│       └── static/       # HTML/CSS/JS
+│   └── dashboard/        # Admin panel static files (historical path)
+│       └── static/       # HTML/CSS/JS; release image serves /static
 ├── skills/               # 81 built-in Skills
 ├── deploy/               # Deployment configuration
 │   ├── helm/             # Helm Chart

@@ -150,8 +150,8 @@ func migrateFile(sourceDir, targetDir, relSource, relTarget string, dryRun, over
 	return 1, 0, 0
 }
 
-// migrateSkills copies skill directories from the OpenClaw skills folder
-// into ~/.hermes/skills/openclaw-imports/.
+// migrateSkills copies skill directories from the OpenClaw skills folder into
+// the legacy local import path.
 func migrateSkills(sourceDir, targetDir string, dryRun, overwrite bool) (int, int, int) {
 	srcSkills := filepath.Join(sourceDir, "skills")
 	if _, err := os.Stat(srcSkills); os.IsNotExist(err) {

@@ -47,15 +47,9 @@ The Markdown body is the instruction content the Agent actually reads. It should
 
 ## Skill Sources
 
-### 1. Local Skills
+### 1. Tenant Skills
 
-Stored in the user's home directory:
-
-```
-~/.hermes/skills/{skill-name}/SKILL.md
-```
-
-CLI mode loads local Skills directly.
+In the supported SaaS runtime, custom Skills belong to a tenant and are managed through the Skills API or tenant-scoped object storage. The public product no longer loads user-home Skills through a standalone CLI runtime.
 
 ### 2. Built-in Skills
 
@@ -208,31 +202,15 @@ Hermes supports discovering and installing Skills from an online Hub.
 | agentskills.io | URL | community | Community Skill marketplace |
 | hermes-official | GitHub | trusted | Official optional Skills |
 
-#### Search Skills
+#### Discover and Install Skills
 
-```bash
-hermes skill search "code review"
-```
-
-The search engine queries all configured Hub sources and returns a list of matching Skills.
-
-#### Install a Skill
-
-```bash
-hermes skill install <skill-name> --source <source-url>
-```
+Hub discovery is exposed through SaaS control-plane workflows. Standalone `hermes skill ...` commands are no longer supported public interfaces.
 
 Installation process:
-1. Download `SKILL.md` from Hub
-2. Run security scan (based on trust level)
-3. Write to `~/.hermes/skills/{name}/SKILL.md`
-4. Update lock file `~/.hermes/skills/.hub/lock.json`
-
-#### Uninstall a Skill
-
-```bash
-hermes skill uninstall <skill-name>
-```
+1. Resolve `SKILL.md` from a trusted Hub source
+2. Run security scan based on trust level
+3. Upload the Skill to the tenant through `PUT /v1/skills/{name}` or the tenant MinIO/S3 prefix
+4. Update the tenant `.manifest.json` object for audit and sync tracking
 
 ## Security Scanning
 
@@ -251,12 +229,12 @@ Scan checks include:
 
 When the security scan decision is `InstallBlock`, the Skill file is automatically deleted.
 
-## Lock File
+## Tenant Manifest
 
-Installed Hub Skills are recorded in the lock file:
+Installed Skills are recorded in the tenant manifest object:
 
 ```
-~/.hermes/skills/.hub/lock.json
+MinIO/S3: {tenant-id}/.manifest.json
 ```
 
 ```json
@@ -269,7 +247,7 @@ Installed Hub Skills are recorded in the lock file:
 ]
 ```
 
-The lock file is used to:
+The tenant manifest is used to:
 - Track installed Skills and their sources
 - Support batch updates and version management
 - Audit Skill installation history
@@ -324,11 +302,11 @@ Both tenants call the same Chat API, but the Agent exhibits different personalit
 
 ## Creating Custom Skills
 
-### 1. Create Directory and File
+### 1. Create a Skill File
 
 ```bash
-mkdir -p ~/.hermes/skills/my-custom-skill
-cat > ~/.hermes/skills/my-custom-skill/SKILL.md << 'EOF'
+mkdir -p ./my-custom-skill
+cat > ./my-custom-skill/SKILL.md << 'EOF'
 ---
 name: "my-custom-skill"
 description: "Custom business Skill"
@@ -351,24 +329,25 @@ Output results in Markdown format.
 EOF
 ```
 
-### 2. Verify Loading
-
-```bash
-hermes skill list
-```
-
-### 3. Deploy to SaaS (Recommended: Use API)
+### 2. Upload to the SaaS API
 
 ```bash
 curl -X PUT http://localhost:8080/v1/skills/my-custom-skill \
   -H "Authorization: Bearer hk_your_api_key" \
-  --data-binary @~/.hermes/skills/my-custom-skill/SKILL.md
+  --data-binary @./my-custom-skill/SKILL.md
+```
+
+### 3. Verify Loading
+
+```bash
+curl http://localhost:8080/v1/skills \
+  -H "Authorization: Bearer hk_your_api_key"
 ```
 
 Or directly via MinIO:
 
 ```bash
-mc cp ~/.hermes/skills/my-custom-skill/SKILL.md \
+mc cp ./my-custom-skill/SKILL.md \
   hermes/hermes-skills/${TENANT_ID}/my-custom-skill/SKILL.md
 ```
 

@@ -173,7 +173,7 @@ func makeRLStubHandler(toolName string) ToolHandler {
 			"setup": map[string]any{
 				"step_1": "Install Python 3.10+ and pip",
 				"step_2": "pip install tinker-atropos",
-				"step_3": "Configure the RL environment in ~/.hermes/config.yaml under 'rl_training' section",
+				"step_3": "Configure the RL environment through SaaS deployment configuration under the 'rl_training' section",
 				"step_4": "Restart Hermes to enable RL tools",
 			},
 		})

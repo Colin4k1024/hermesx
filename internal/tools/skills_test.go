@@ -129,3 +129,33 @@ func TestSkillManageDelete(t *testing.T) {
 		t.Errorf("Expected delete success, got: %s", result)
 	}
 }
+
+func TestSkillManageSaaSUsesObjectStore(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		ObjectStore: store,
+	}
+
+	create := handleSkillManage(context.Background(), map[string]any{
+		"action":  "create",
+		"name":    "tenant-skill",
+		"content": "---\ndescription: Tenant skill\n---\n# Tenant Skill\n",
+	}, tctx)
+	if !jsonContains(create, `"success":true`) {
+		t.Fatalf("expected create success, got %s", create)
+	}
+	if _, ok := store.objects["tenant-1/tenant-skill/SKILL.md"]; !ok {
+		t.Fatalf("expected tenant skill object, objects=%#v", store.objects)
+	}
+
+	list := handleSkillsList(context.Background(), map[string]any{}, tctx)
+	if !jsonContains(list, `"tenant_id":"tenant-1"`) || !jsonContains(list, `"name":"tenant-skill"`) {
+		t.Fatalf("expected tenant skill in list, got %s", list)
+	}
+
+	view := handleSkillView(context.Background(), map[string]any{"name": "tenant-skill"}, tctx)
+	if !jsonContains(view, `"key":"tenant-1/tenant-skill/SKILL.md"`) {
+		t.Fatalf("expected tenant skill object key, got %s", view)
+	}
+}

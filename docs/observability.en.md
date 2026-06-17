@@ -89,7 +89,7 @@ export OTEL_SERVICE_NAME="hermesx"
 ### Integration with Jaeger
 
 ```yaml
-# Append to docker-compose.dev.yml
+# Append to docker-compose.saas.yml or a production override file
 services:
   jaeger:
     image: jaegertracing/all-in-one:latest

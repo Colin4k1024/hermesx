@@ -93,7 +93,7 @@
 - **执行回执** — 可审计的工具调用记录，含幂等去重和 OpenTelemetry 链路追踪关联
 - **审计追踪** — 所有状态变更操作的不可变日志，支持跨租户查询（`super_admin`）
 - **GDPR 合规** — 全链路数据导出（JSON）+ 事务性删除 + MinIO 对象存储清理
-- **沙箱隔离** — 按租户的代码执行环境，支持本地进程 / Docker / K8s Job 三种模式（`SANDBOX_MODE` 环境变量切换），Docker 网络/资源限制，可通过 Admin API 管理策略
+- **沙箱隔离** — 按租户的代码执行环境，`execute_code` 必须显式设置 `SANDBOX_MODE`；生产推荐 K8s Job，Docker 可用于容器隔离，本地进程仅允许非生产 SaaS 开发显式 opt-in
 - **引导保护** — Bootstrap 端点双重 IP 限速（应用层 + Nginx），跨副本幂等
 - **分布式定时调度** — gocron + Redis 分布式锁实现多 Pod 定时任务执行，PG 轮询同步、幂等去重、SECURITY DEFINER 跨租户清理、结果自动投递回源平台
 
@@ -203,7 +203,7 @@ URL 安全检测（`url_safety`），防止 SSRF 和恶意重定向。
 
 **代码执行（1 个）**
 
-`execute_code` — 沙箱隔离执行（Python/Bash），支持 `local` / `docker` / `k8s-job` 三种后端（通过 `SANDBOX_MODE` 切换），含资源限制、环境变量清理、输出截断。K8s Job 模式无需特权容器，兼容 GKE Autopilot / EKS Fargate。
+`execute_code` — 沙箱隔离执行（Python/Bash）。未设置 `SANDBOX_MODE` 时拒绝执行，不回退到宿主机；生产推荐 `k8s-job`，也可显式使用 `docker`。`local` 仅用于非生产 SaaS 开发并要求 `HERMESX_ALLOW_LOCAL_SANDBOX=true`。
 
 **平台消息（3 个）**
 
@@ -292,17 +292,15 @@ URL 安全检测（`url_safety`），防止 SSRF 和恶意重定向。
 3. **Pre-Turn 增强** — 下次同类任务开始前，自动注入高置信度策略摘要，引导 Agent 复用已验证经验
 4. **安全隔离** — 基因按 `tenantID + taskClass + insight` 的 SHA-256 派生 ID 存储，租户间严格隔离（防 B2 跨租户污染），注入前经 prompt injection 清洗（防 B1 注入攻击）
 
-**存储后端：** SQLite（本地单机）或 MySQL（多节点），可通过配置切换。
+**存储后端：** SaaS 部署使用 PostgreSQL 或 MySQL，通过 `DATABASE_DRIVER` 和 `DATABASE_URL` 配置。基因按租户隔离存储并在 API 请求上下文中回放。
 
 **配置：**
 
 ```yaml
-# ~/.hermes/config.yaml
+# SaaS 环境变量 / Secret
 evolution:
   enabled: true
-  storage_mode: "sqlite"     # sqlite 或 mysql
-  db_path: ""                # 空 = SQLite 默认路径
-  mysql_dsn: ""              # storage_mode=mysql 时必填
+  storage_mode: "mysql"      # postgres 或 mysql
   min_confidence: 0.7        # 低于此阈值的基因不参与回放
   max_genes_prompt: 3        # 每轮最多注入的策略数
   sharing_mode: "disabled"   # disabled / anonymous / trusted
@@ -318,7 +316,7 @@ evolution:
 
 - goroutine 池控制（默认 4 并发，可配置）
 - 每个 Prompt 独立运行完整 Agent 循环（含工具调用）
-- 轨迹自动持久化到 `~/.hermes/batch_output`（JSON Lines 格式）
+- 轨迹写入租户隔离的 SaaS 存储或显式配置的评估输出目录
 - 生成摘要报告（成功率、平均轮次、总 Token 消耗）
 
 **配置：**
@@ -551,20 +549,18 @@ reasoning: high   # .hermes/config.yaml
 
 ---
 
-### 3. Project-Scoped Config（项目级配置）
-
-自动发现项目根目录（git root 或含 `.hermes/` 的目录）下的 `.hermes/config.yaml`：
+### 3. SaaS Service Config（服务配置）
 
 **安全设计：**
 
-- 仅允许安全字段覆盖：`model`、`max_iterations`、`max_tokens`、`reasoning`、`toolsets`、`plugins`、`cache` 等
-- 自动清空敏感字段：`api_key`、`database`、`redis`、`objstore`、`provider`、`base_url`
-- 项目配置可安全提交到版本控制
+- 生产配置通过环境变量、Kubernetes Secret、Compose env 文件或托管 Secret Manager 注入
+- `DATABASE_URL`、API Key、OIDC、MinIO、LLM Key 等敏感值不写入项目仓库
+- 本地 profile/config 文件属于遗留内部实现，不是公开运行时接口
 
 **优先级（从低到高）：**
 
 ```
-全局默认 → ~/.hermes/config.yaml → {project}/.hermes/config.yaml → 环境变量 → CLI 参数
+服务默认值 → 环境变量 / Secret → 显式部署覆盖
 ```
 
 ---
@@ -589,9 +585,7 @@ rules:
     reason: "浏览器操作需人工确认"
 ```
 
-**分层加载：**
-1. 用户级：`~/.hermes/permissions.yaml`（全局基线）
-2. 项目级：`{project}/.hermes/permissions.yaml`（覆盖用户级）
+**加载方式：** 策略通过 SaaS 管理 API、租户存储或部署配置注入，并按租户隔离生效。
 
 ---
 
@@ -617,7 +611,7 @@ rules:
 1. CLI 请求设备码 → Anthropic 返回 user_code + verification_uri
 2. 用户在浏览器中输入验证码
 3. CLI 轮询 token 端点（间隔 5s）
-4. 获取 tokens → 持久化到 ~/.hermes/anthropic.json（权限 0600）
+4. 获取 tokens → 写入租户 Secret/凭据存储（权限和轮换由 SaaS 控制平面管理）
 5. 到期前 30s 自动刷新
 ```
 
@@ -643,28 +637,12 @@ SSE 传输层 MCP 连接的生产级可靠性：
 ## 安装
 
 ```bash
-# 从源码编译（需要 Go 1.23+）
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermesx/
-
-# 全局安装
-sudo cp hermesx /usr/local/bin/
-```
-
-### CLI 模式
-
-```bash
-./hermesx setup   # 配置向导
-./hermesx         # 交互式 CLI
-./hermesx chat "你有什么工具？"
-```
-
-### SaaS 模式
-
-```bash
 docker compose -f docker-compose.prod.yml up -d
 ./examples/enterprise-saas-demo/demo.sh   # 11 步企业 Demo
 ```
+
+`hermesx saas-api` 是唯一受支持的服务入口。本地交互式 CLI、单次 chat 命令和独立 Gateway 不再是公开接口。
 
 完整部署流程请参阅 [SaaS 快速开始](saas-quickstart.md)。

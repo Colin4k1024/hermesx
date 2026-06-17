@@ -9,11 +9,11 @@ namespace: hermesx
 #   3. kubectl apply -k deploy/k8s/quickstart/
 #   4. kubectl wait --for=condition=complete job/hermesx-bootstrap --timeout=120s
 
-# Note: hermesx deployment already exists in the cluster (created separately).
-# This overlay deploys: bootstrap Job + LLM Secret + WebUI.
+# Note: hermesx SaaS deployment already exists in the cluster (created
+# separately from Dockerfile.saas). This overlay deploys bootstrap Job and
+# LLM Secret only; the WebUI is served from the SaaS API image.
 resources:
   - bootstrap-job.yaml
-  - webui-deployment.yaml
 
 # Inject LLM credentials + admin token from config.env as a Secret
 secretGenerator:

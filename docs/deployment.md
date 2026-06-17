@@ -1,6 +1,6 @@
 # 部署指南
 
-> HermesX v2.0.0 SaaS API 的所有部署方式：Docker Compose、Kind 本地 K8s、Helm 生产部署。
+> HermesX v2.4.0-dev SaaS API 的 SaaS-only 部署方式：Docker Compose、Kubernetes 和 Helm。
 
 ## HermesX v2.0.0 部署说明
 
@@ -24,23 +24,18 @@ HermesX v2.0.0 相比 v1.x 版本有以下关键变化：
 - [ ] Kubernetes 1.28+（若使用 Helm 部署）
 - [ ] Docker 24+（若使用 Docker Compose 部署）
 
-## Dockerfile 选择
+## SaaS 镜像
 
-| Dockerfile | 用途 | 产物大小 |
-|------------|------|----------|
-| `Dockerfile` | 通用构建，CLI + 全功能 | ~50MB |
-| `Dockerfile.local` | 本地开发，Docker Compose 用 | ~50MB |
-| `Dockerfile.k8s` | Kubernetes 部署，含 health probe | ~50MB |
-| `Dockerfile.k8s-slim` | 精简 K8s 镜像，多阶段构建 | ~30MB |
-| `Dockerfile.saas` | SaaS API 专用，含静态文件 | ~55MB |
+`Dockerfile.saas` 是唯一受支持的发布镜像。它会构建 Go SaaS API 二进制、构建 React WebUI、将 WebUI 产物复制到 `/static`、打包默认 Skills 用于租户初始化，并默认执行 `CMD ["saas-api"]`。
 
 ### Dockerfile.saas 特性
 
 ```dockerfile
 # 多阶段构建
-# Stage 1: 编译 Go 二进制
-# Stage 2: 复制二进制 + 静态文件到 distroless 基础镜像
-# 包含 /static 目录供 SAAS_STATIC_DIR 使用
+# Stage 1: 构建 WebUI
+# Stage 2: 编译 Go 二进制
+# Stage 3: 复制二进制 + WebUI 静态文件到运行时镜像
+# 包含 /static 供 SAAS_STATIC_DIR 使用
 # 默认 CMD: ["saas-api"]
 ```
 
@@ -48,12 +43,9 @@ HermesX v2.0.0 相比 v1.x 版本有以下关键变化：
 
 | 配置 | 用途 | 包含服务 | API 端口 | 健康检查 |
 |------|------|----------|----------|----------|
-| `docker-compose.quickstart.yml` | 单机快速体验 | hermesx + postgres + redis + minio + bootstrap | 8080 | curl health/ready |
-| `docker-compose.dev.yml` | 本地开发（Gateway 模式） | hermesx-gateway + postgres + redis + minio | 8080 | 无 |
 | `docker-compose.prod.yml` | 生产部署 | hermesx-saas + postgres + redis + minio + OTel + Jaeger + Nginx LB | 8080/8081 | wget health/live |
-| `docker-compose.saas.yml` | SaaS 全栈 | hermesx-saas + postgres + redis + minio + hermesx-webui + bootstrap | 8080/3000 | curl health/ready |
+| `docker-compose.saas.yml` | SaaS 预发或本地 SaaS 验证 | hermesx-saas + postgres + redis + minio | 18080/18081 | curl health/ready |
 | `docker-compose.test.yml` | 集成测试 | postgres-test + redis-test + minio-test（tmpfs 无持久化） | 测试端口隔离 | pg_isready |
-| `docker-compose.webui.yml` | 独立 Web UI | hermesx-webui（需要外部 hermesx-saas） | 3000 | 无 |
 
 ### 生产级配置（docker-compose.prod.yml）
 
@@ -83,45 +75,17 @@ open http://localhost:16686
 curl http://localhost:8889/metrics | grep hermesx
 ```
 
-## 方式一：Docker Compose 本地开发
+## 方式一：Docker Compose SaaS
 
-最快的本地开发环境搭建方式。
-
-### 启动全部服务
+`docker-compose.prod.yml` 用于生产化部署，`docker-compose.saas.yml` 用于预发或本地 SaaS 验证。两者都运行 `hermesx saas-api`，API 服务从 `/static` 提供内嵌 WebUI。
 
 ```bash
-# 启动 PostgreSQL 16 + Redis 7 + MinIO + Gateway
-docker compose -f docker-compose.dev.yml up -d
-
-# 查看日志
-docker compose -f docker-compose.dev.yml logs -f hermes-gateway
+docker compose -f docker-compose.saas.yml up -d --build
+curl http://localhost:18080/health/ready
+open http://localhost:18080/admin.html
 ```
 
-### 仅启动基础设施
-
-```bash
-# 启动数据层，手动运行 hermes
-docker compose -f docker-compose.dev.yml up -d postgres redis minio
-
-# 手动启动 SaaS API
-export DATABASE_URL="postgres://hermes:hermes@127.0.0.1:5432/hermes?sslmode=disable"
-export HERMES_ACP_TOKEN="admin-test-token"
-export SAAS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-export SAAS_STATIC_DIR="./internal/dashboard/static"
-./hermesx saas-api
-```
-
-### 服务地址
-
-| 服务 | 地址 | 说明 |
-|------|------|------|
-| PostgreSQL | `localhost:5432` | 用户 `hermes`，密码 `hermes`，数据库 `hermes` |
-| Redis | `localhost:6379` | 无密码 |
-| MinIO API | `localhost:9000` | 用户 `hermes`，密码 `hermespass` |
-| MinIO Console | `localhost:9001` | Web 管理界面 |
-| Hermes API | `localhost:8080` | SaaS API 端点 |
-
-## 方式二：Kind 本地 K8s
+## 方式二：Kubernetes / Kind 验证
 
 使用 [Kind](https://kind.sigs.k8s.io/) 在本地运行 Kubernetes 集群。
 

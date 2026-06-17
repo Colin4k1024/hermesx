@@ -5,8 +5,10 @@
 ## Configuration Priority
 
 ```
-Environment variables > config.yaml > defaults
+Environment variables > service defaults
 ```
+
+SaaS deployments should inject configuration through environment variables or secrets. Legacy local config files are not part of the supported public runtime.
 
 ## SaaS Service Configuration
 
@@ -17,7 +19,7 @@ Environment variables > config.yaml > defaults
 | `HERMES_BOOTSTRAP_RATE_LIMIT_RPM` | No | `5` | Per-IP attempts per minute for `POST /admin/v1/bootstrap` |
 | `SAAS_API_PORT` | No | `8080` | SaaS API server port |
 | `SAAS_ALLOWED_ORIGINS` | No | - (CORS disabled) | CORS allowed origins; `*` for all, or comma-separated domain list |
-| `SAAS_STATIC_DIR` | No | - (no static files) | Static files directory path, e.g. `./internal/dashboard/static` |
+| `SAAS_STATIC_DIR` | No | - (no static files) | Static files directory path. The release image uses `/static` for the embedded WebUI |
 | `HERMES_API_PORT` | No | `8081` | OpenAI-compatible adapter port |
 | `HERMES_API_KEY` | No | - | Bearer Token for the OpenAI-compatible adapter |
 | `HERMES_ACP_PORT` | No | - | ACP server port (not started if not set) |
@@ -29,10 +31,10 @@ Environment variables > config.yaml > defaults
 | `LLM_API_URL` | No | - | LLM API endpoint URL |
 | `LLM_API_KEY` | No | - | LLM API authentication key |
 | `LLM_MODEL` | No | - | Default LLM model name |
-| `HERMES_MODEL` | No | - | Default model for CLI mode |
+| `HERMES_MODEL` | No | - | Default model for the SaaS agent runtime |
 | `HERMES_PROVIDER` | No | - | LLM provider (openai / anthropic / auto) |
-| `HERMES_BASE_URL` | No | - | LLM API Base URL for CLI mode |
-| `HERMES_API_KEY_LLM` | No | - | LLM API Key for CLI mode |
+| `HERMES_BASE_URL` | No | - | LLM API Base URL for the SaaS agent runtime |
+| `HERMES_API_KEY_LLM` | No | - | LLM API Key for the SaaS agent runtime |
 | `HERMES_API_MODE` | No | - | API protocol mode (openai / anthropic) |
 | `HERMES_MAX_ITERATIONS` | No | `20` | Maximum agent iterations |
 | `HERMES_MAX_TOKENS` | No | `4096` | Maximum tokens per response |
@@ -105,8 +107,7 @@ When MinIO is configured, skills are automatically synced at:
 |----------|----------|---------|-------------|
 | `HERMES_DEBUG` | No | `false` | Enable debug logging (LLM request/response details) |
 | `HERMES_DEFAULT_MODEL` | No | - | Global default model (config fallback) |
-| `HERMES_FILE_STATE` | No | - | Enable file state tracking |
-| `HERMES_GATEWAY_URL` | No | - | Gateway URL for messaging platform integration |
+| `HERMES_FILE_STATE` | No | - | Enable file state tracking for SaaS agent execution |
 
 ## Memory System
 
@@ -135,9 +136,9 @@ Hermes supports multiple external memory providers, configured as needed:
 | `SUPERMEMORY_API_KEY` | Supermemory service API Key |
 | `SUPERMEMORY_BASE_URL` | Supermemory service URL |
 
-## Gateway Platforms
+## Channel and Messaging Integrations
 
-The message gateway (`hermes gateway`) supports multiple platform adapters:
+Channel and messaging integrations are configured through the SaaS service. The former standalone gateway subcommand is no longer a supported public runtime.
 
 | Variable | Description |
 |----------|-------------|
@@ -199,15 +200,17 @@ API keys required for various tool integrations:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SANDBOX_MODE` | No | `local` | Code execution backend mode |
+| `SANDBOX_MODE` | Yes when `execute_code` is enabled | - | Code execution backend mode |
 
 Available modes:
 
 | Mode | Description | Use Case |
 |------|-------------|----------|
-| `local` | Execute directly on host (default) | Development, CI/CD |
-| `docker` | Execute via Docker container | Local isolation, requires Docker daemon |
+| `local` | Execute directly on host only when `HERMESX_ALLOW_LOCAL_SANDBOX=true` and the environment is not production | Explicit local SaaS development only |
+| `docker` | Execute via Docker container | Container isolation, requires Docker daemon |
 | `k8s-job` | Execute via Kubernetes Job | Production environments, no DinD or privileged containers needed |
+
+If `SANDBOX_MODE` is unset, `execute_code` returns an error instead of falling back to host execution. `local` mode is blocked when any of `HERMES_ENV`, `HERMESX_ENV`, `APP_ENV`, or `GO_ENV` is `production`.
 
 ### K8s Job Mode Configuration
 
@@ -223,112 +226,17 @@ When `SANDBOX_MODE=k8s-job`, the following optional variables are available:
 
 > Note: K8s Job mode requires `kubectl` to be configured and able to reach the target cluster. When deployed inside a cluster, this is typically handled automatically via in-cluster config.
 
-## Terminal and SSH
+## Local SaaS Development
 
-| Variable | Description |
-|----------|-------------|
-| `TERMINAL_CWD` | Terminal tool working directory |
-| `SSH_PASSWORD` | SSH authentication password |
+Local development should still run the SaaS service shape:
 
-## CLI Mode Configuration
-
-The following variables only apply in CLI interactive mode:
-
-| Variable | Description |
-|----------|-------------|
-| `HERMES_HOME` | Hermes home directory (default `~/.hermes`) |
-| `HERMES_PROFILE` | Current profile name |
-| `HERMES_DISPLAY_THEME` | CLI theme |
-| `HERMES_TERMINAL_BACKEND` | Terminal backend type (local/docker/ssh/modal/daytona/singularity/persistent) |
-
-## config.yaml Reference
-
-The main configuration file for CLI mode, located at `~/.hermes/config.yaml`:
-
-```yaml
-# LLM configuration
-model: "gpt-4o"
-provider: "openai"
-base_url: "https://api.openai.com/v1"
-api_mode: "openai"
-
-# Agent behavior
-max_iterations: 20
-max_tokens: 4096
-context_compression: true
-compression_threshold: 80000
-memory_curator: true
-max_memories: 100
-self_improve: true
-review_interval: 10
-max_insights: 50
-
-# Terminal
-terminal:
-  backend: "local"
-  timeout: 30
-
-# Display
-display:
-  theme: "default"
-  show_tool_calls: true
-  show_reasoning: false
-
-# Model routing
-smart_routing:
-  enabled: false
-  cheap_model: "gpt-4o-mini"
-  threshold: 0.3
-
-# Fallback chain
-fallback:
-  enabled: true
-  models:
-    - "gpt-4o"
-    - "claude-sonnet-4-20250514"
-
-# Evolution shared learning governance
-evolution:
-  enabled: false
-  storage_mode: "sqlite"     # sqlite or mysql
-  db_path: ""                # empty = ~/.hermes/evolution.db
-  mysql_dsn: ""              # required when storage_mode=mysql
-  min_confidence: 0.5
-  replay_threshold: 0.75
-  max_genes_prompt: 3
-  sharing_mode: "disabled"   # disabled / anonymous / trusted
+```bash
+docker compose -f docker-compose.saas.yml up -d --build
+# or, with external backing services:
+SAAS_STATIC_DIR=./webui/dist ./hermesx saas-api
 ```
 
-## Docker Compose Configuration Example
-
-`docker-compose.dev.yml` provides a complete local development environment:
-
-```yaml
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: hermes
-      POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes
-    ports:
-      - "5432:5432"
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-
-  minio:
-    image: minio/minio:<pinned-release-tag-or-digest>
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: hermes
-      MINIO_ROOT_PASSWORD: hermespass
-    ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Console
-```
+Do not document or rely on former local assistant, gateway runtime, or separate frontend container configuration.
 
 ## Security Notes
 

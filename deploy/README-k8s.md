@@ -1,7 +1,7 @@
-# Hermes Agent — Kubernetes Deployment Guide
+# HermesX — Kubernetes SaaS Deployment Guide
 
-Comprehensive guide for deploying the Hermes Agent SaaS platform on Kubernetes,
-covering Helm (recommended), Kustomize (alternative), monitoring, ingress, autoscaling, and common troubleshooting.
+Comprehensive guide for deploying the HermesX SaaS service on Kubernetes,
+covering Helm (recommended), Kustomize bootstrap overlays, monitoring, ingress, autoscaling, and common troubleshooting.
 
 ---
 
@@ -26,10 +26,9 @@ covering Helm (recommended), Kustomize (alternative), monitoring, ingress, autos
 
 ## 1. Overview
 
-Hermes Agent is a multi-tenant AI agent platform that can operate in SaaS mode on Kubernetes. This guide covers:
+HermesX is deployed as a SaaS-only, multi-tenant AI agent service on Kubernetes. This guide covers:
 
-- **Hermes Agent** (`hermes-agent-saas` binary): Core SaaS API server exposing REST endpoints, health probes, and Prometheus metrics.
-- **Hermes WebUI**: Multi-tenant React frontend for agent chat.
+- **HermesX SaaS API** (`hermesx saas-api`): Core service exposing REST endpoints, embedded WebUI static files, health probes, and Prometheus metrics.
 - **PostgreSQL 16**: Per-tenant data store (user memory, conversation history, skills registry).
 - **MinIO**: Object storage for per-tenant soul files and skill bundles.
 - **Bootstrap Job**: Idempotent job that seeds two test tenants (IsolationTest-Pirate, IsolationTest-Academic) and writes `tests/fixtures/tenants.json`.
@@ -70,55 +69,46 @@ Hermes Agent is a multi-tenant AI agent platform that can operate in SaaS mode o
 
 ## 3. Quick Start — Helm (Recommended)
 
-This is the recommended deployment path. It uses the Helm chart at `deploy/helm/hermes-agent/` and the `values.local.yaml` overlay for local Kind/Minikube clusters.
+This is the recommended deployment path. It uses the Helm chart at `deploy/helm/hermesx/` and the `deploy/kind/values.local.yaml` overlay for local Kind/Minikube clusters.
 
 ### Step 1 — Create the namespace
 
 ```bash
-kubectl create namespace hermes
+kubectl create namespace hermesx
 ```
 
-### Step 2 — Build the hermes-agent Docker image
+### Step 2 — Build the HermesX SaaS image
 
 From the repository root:
 
 ```bash
-docker build -f Dockerfile.saas -t hermes-agent-saas:local .
+docker build -f Dockerfile.saas -t hermesx/hermesx-saas:local .
 ```
 
-### Step 3 — Build the hermes-webui Docker image
+### Step 3 — Load the image into Kind (if using Kind)
 
 ```bash
-docker build -f webui/Dockerfile -t hermes-webui:local .
-```
-
-### Step 4 — Load images into Kind (if using Kind)
-
-```bash
-kind load docker-image hermes-agent-saas:local --name kind-hermes
-kind load docker-image hermes-webui:local --name kind-hermes
+kind load docker-image hermesx/hermesx-saas:local --name kind-hermes
 ```
 
 Replace `--name kind-hermes` with your actual Kind cluster name if different.
 
-### Step 5 — Install with Helm
+### Step 4 — Install with Helm
 
 ```bash
-cd deploy/helm/hermes-agent
-helm dependency build
-helm install hermes ./hermes-agent \
-  -f ./values.local.yaml \
-  --namespace hermes \
+helm install hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
+  --namespace hermesx \
   --create-namespace \
   --wait --timeout 5m
 ```
 
-> **Note:** `values.local.yaml` is pre-configured for a Kind cluster with PostgreSQL (`postgres-postgresql` headless service) and MinIO running locally. It sets `postgresql.enabled: false` and `service.type: NodePort`.
+> **Note:** `deploy/kind/values.local.yaml` is pre-configured for a Kind cluster with external MySQL, Redis, and S3-compatible object storage services. It sets `service.type: NodePort` and serves the WebUI from `SAAS_STATIC_DIR=/static` inside the SaaS image.
 
-### Step 6 — Check pod status
+### Step 5 — Check pod status
 
 ```bash
-kubectl get pods -n hermes
+kubectl get pods -n hermesx
 ```
 
 All pods should reach `Running` with all containers ready. Allow ~30 seconds for MinIO to initialize on first deploy.
@@ -127,23 +117,20 @@ Expected output:
 
 ```
 NAME                            READY   STATUS    RESTARTS   AGE
-hermes-agent-xxxxxxxxxx-xxxxx   1/1     Running   0          30s
-hermes-postgresql-0             1/1     Running   0          30s
-hermes-webui-xxxxxxxxxx-xxxxx   1/1     Running   0          20s
-minio-0                         1/1     Running   0          30s
+hermesx-xxxxxxxxxx-xxxxx        1/1     Running   0          30s
+mysql-0                         1/1     Running   0          30s
+redis-0                         1/1     Running   0          30s
+rustfs-0                        1/1     Running   0          30s
 ```
 
-### Step 7 — Port-forward for local access
+### Step 6 — Port-forward for local access
 
 ```bash
-# Hermes Agent SaaS API
-kubectl port-forward svc/hermes-agent 8080:8080 -n hermes &
-
-# Hermes WebUI
-kubectl port-forward svc/hermes-webui 3000:80 -n hermes &
+# HermesX SaaS API and embedded WebUI
+kubectl port-forward svc/hermesx 8080:8080 -n hermesx &
 ```
 
-### Step 8 — Verify the deployment
+### Step 7 — Verify the deployment
 
 ```bash
 # Liveness probe — confirms the process is alive
@@ -161,7 +148,7 @@ curl http://localhost:8080/metrics | head -20
 
 ## 4. Quick Start — Kustomize (Alternative)
 
-Use this path if you prefer Kustomize overlays over Helm templating, or if you are deploying the flat K8s manifests directly.
+Use this path after deploying the base SaaS service with Helm when you need to run the bootstrap Job and inject local LLM configuration through Kustomize.
 
 ### Step 1 — Copy and edit the environment config
 
@@ -186,36 +173,33 @@ kubectl apply -k deploy/k8s/quickstart/
 ```
 
 This deploys:
-- `hermes-bootstrap` Job
-- `hermes-webui` Deployment + Service
+- `hermesx-bootstrap` Job
 - `hermes-llm-config` Secret (from `config.env`)
-- `hermes-bootstrap-script` ConfigMap
+- `hermesx-bootstrap-script` ConfigMap
 
-> **Prerequisite:** `hermes-agent` Deployment must already exist in the cluster. If using the Helm path (Section 3), run `helm install` first before applying Kustomize overlays.
+> **Prerequisite:** `hermesx` SaaS Deployment must already exist in the cluster. If using the Helm path (Section 3), run `helm install` first before applying Kustomize overlays.
 
 ### Step 3 — Check status
 
 ```bash
-kubectl get all -n hermes
-kubectl get pods -n hermes --watch
+kubectl get all -n hermesx
+kubectl get pods -n hermesx --watch
 ```
 
 ### Step 4 — Access services
 
 | Service | Local URL |
 |---|---|
-| hermes-agent | http://localhost:30080 |
-| hermes-webui | http://localhost:30081 |
+| hermesx SaaS API and WebUI | http://localhost:30080 |
 | minio-api | http://localhost:30090 |
 | minio-console | http://localhost:30091 |
 
 Port-forward if needed:
 
 ```bash
-kubectl port-forward svc/hermes-agent 30080:8080 -n hermes &
-kubectl port-forward svc/hermes-webui 30081:80 -n hermes &
-kubectl port-forward svc/minio-api 30090:9000 -n hermes &
-kubectl port-forward svc/minio-console 30091:9001 -n hermes &
+kubectl port-forward svc/hermesx 30080:8080 -n hermesx &
+kubectl port-forward svc/minio-api 30090:9000 -n hermesx &
+kubectl port-forward svc/minio-console 30091:9001 -n hermesx &
 ```
 
 ---
@@ -224,8 +208,7 @@ kubectl port-forward svc/minio-console 30091:9001 -n hermes &
 
 | Service | Type | Internal Port | NodePort | Local Access URL | Path |
 |---|---|---|---|---|---|
-| hermes-agent | NodePort | 8080 | 30080 | http://localhost:30080 | / |
-| hermes-webui | NodePort | 80 | 30081 | http://localhost:30081 | / |
+| hermesx | NodePort | 8080 | 30080 | http://localhost:30080 | / |
 | minio-api | NodePort | 9000 | 30090 | http://localhost:30090 | / |
 | minio-console | NodePort | 9001 | 30091 | http://localhost:30091 | / |
 | postgres | Headless | 5432 | N/A | Via ClusterIP only | N/A |
@@ -340,12 +323,11 @@ kubectl wait --namespace ingress-nginx \
 ### Step 2 — Enable Ingress via Helm upgrade
 
 ```bash
-cd deploy/helm/hermes-agent
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
+helm upgrade hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
   --set ingress.enabled=true \
   --set ingress.host=hermes.local \
-  -n hermes \
+  -n hermesx \
   --wait
 ```
 
@@ -362,10 +344,10 @@ ingress:
 ```
 
 ```bash
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
+helm upgrade hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
   -f ./values-ingress.yaml \
-  -n hermes \
+  -n hermesx \
   --wait
 ```
 
@@ -389,7 +371,7 @@ curl -H "Host: hermes.local" http://localhost/
 
 ## 9. Running the Bootstrap Job
 
-The bootstrap Job (`hermes-bootstrap`) is idempotent — running it multiple times is safe. It creates:
+The bootstrap Job (`hermesx-bootstrap`) is idempotent — running it multiple times is safe. It creates:
 
 - Tenant: `IsolationTest-Pirate` (Captain Hermes persona, Treasure Hunt skill)
 - Tenant: `IsolationTest-Academic` (Professor Hermes persona, Academic Research skill)
@@ -397,51 +379,38 @@ The bootstrap Job (`hermes-bootstrap`) is idempotent — running it multiple tim
 - Per-tenant soul files in MinIO (`SOUL.md`)
 - Test fixtures file: `tests/fixtures/tenants.json`
 
-### Option A — Helm (recommended)
-
-```bash
-cd deploy/helm/hermes-agent
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
-  --set bootstrap.enabled=true \
-  -n hermes \
-  --wait
-```
-
-The Helm chart must be installed first (Section 3). The bootstrap Job reads `HERMES_ACP_TOKEN` from the `hermes-llm-config` Secret created by the chart.
-
-### Option B — Standalone Kustomize
+### Apply the Kustomize Overlay
 
 ```bash
 # Apply quickstart overlay (includes bootstrap Job)
 kubectl apply -k deploy/k8s/quickstart/
 
 # Wait for completion
-kubectl wait --for=condition=complete job/hermes-bootstrap --timeout=120s -n hermes
+kubectl wait --for=condition=complete job/hermesx-bootstrap --timeout=120s -n hermesx
 ```
 
 ### Verify bootstrap success
 
 ```bash
 # Check job status
-kubectl get job hermes-bootstrap -n hermes
+kubectl get job hermesx-bootstrap -n hermesx
 
 # View logs
-kubectl logs job/hermes-bootstrap -n hermes
+kubectl logs job/hermesx-bootstrap -n hermesx
 
 # Read test fixtures
-kubectl exec -n hermes deploy/hermes-agent -- cat /var/lib/hermes/tests/fixtures/tenants.json
+kubectl exec -n hermesx deploy/hermesx -- cat /var/lib/hermes/tests/fixtures/tenants.json
 ```
 
 Expected log output:
 
 ```
 🚀 Hermes Quickstart Bootstrap
-   BASE_URL:        http://hermes-agent:8080
+   BASE_URL:        http://hermesx:8080
    MINIO_ENDPOINT:  minio:9000
    FIXTURES_DIR:    /tmp/fixtures
-⏳ Waiting for hermes-saas at http://hermes-agent:8080 ...
-✅ hermes-saas is ready
+⏳ Waiting for hermesx at http://hermesx:8080 ...
+✅ hermesx is ready
 ⬇️  Downloading MinIO mc client...
 ✅ mc installed
 🏴‍☠️  Creating IsolationTest-Pirate tenant...
@@ -465,12 +434,8 @@ Expected log output:
 ### Run bootstrap again (idempotent)
 
 ```bash
-kubectl delete job hermes-bootstrap -n hermes
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
-  --set bootstrap.enabled=true \
-  -n hermes \
-  --wait
+kubectl delete job hermesx-bootstrap -n hermesx
+kubectl apply -k deploy/k8s/quickstart/
 ```
 
 ---
@@ -480,14 +445,13 @@ helm upgrade hermes ./hermes-agent \
 ### Enable autoscaling via Helm
 
 ```bash
-cd deploy/helm/hermes-agent
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
+helm upgrade hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
   --set autoscaling.enabled=true \
   --set autoscaling.minReplicas=1 \
   --set autoscaling.maxReplicas=5 \
   --set autoscaling.targetCPUUtilizationPercentage=70 \
-  -n hermes \
+  -n hermesx \
   --wait
 ```
 
@@ -503,18 +467,18 @@ autoscaling:
 ```
 
 ```bash
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
+helm upgrade hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
   -f ./values-hpa.yaml \
-  -n hermes \
+  -n hermesx \
   --wait
 ```
 
 ### Verify HPA status
 
 ```bash
-kubectl get hpa -n hermes
-kubectl describe hpa hermes-agent -n hermes
+kubectl get hpa -n hermesx
+kubectl describe hpa hermesx -n hermesx
 ```
 
 ### Load testing
@@ -527,7 +491,7 @@ go install github.com/rakyll/hey@latest
 hey -n 1000 -c 20 http://localhost:8080/health/ready
 
 # Observe HPA scaling
-kubectl get hpa hermes-agent -n hermes --watch
+kubectl get hpa hermesx -n hermesx --watch
 ```
 
 ### HPA with custom metrics (optional)
@@ -560,10 +524,10 @@ metrics:
 Always start from `values.local.yaml` and layer your overrides:
 
 ```bash
-helm upgrade hermes ./hermes-agent \
-  -f ./values.local.yaml \
+helm upgrade hermesx deploy/helm/hermesx \
+  -f deploy/kind/values.local.yaml \
   -f ./values-custom.yaml \
-  -n hermes \
+  -n hermesx \
   --wait
 ```
 
@@ -643,10 +607,10 @@ resources:
 
 ```bash
 # Check pod events and status
-kubectl describe pod <pod-name> -n hermes
+kubectl describe pod <pod-name> -n hermesx
 
 # Check container logs
-kubectl logs <pod-name> -n hermes --previous
+kubectl logs <pod-name> -n hermesx --previous
 
 # Check if images exist in the cluster
 kubectl get nodes -o wide
@@ -657,10 +621,10 @@ docker images | grep hermes
 
 | Cause | Fix |
 |---|---|
-| Image not loaded in Kind | `kind load docker-image hermes-agent-saas:local --name kind-hermes` |
+| Image not loaded in Kind | `kind load docker-image hermesx/hermesx-saas:local --name kind-hermes` |
 | `imagePullPolicy` is not `Never` for local images | Ensure `image.pullPolicy: Never` in values |
 | Out-of-memory kill | Increase `resources.limits.memory` |
-| Missing secret or configmap | Check `kubectl get secret -n hermes` and `kubectl get cm -n hermes` |
+| Missing secret or configmap | Check `kubectl get secret -n hermesx` and `kubectl get cm -n hermesx` |
 
 ---
 
@@ -672,20 +636,20 @@ docker images | grep hermes
 
 ```bash
 # Port-forward and test manually
-kubectl port-forward svc/hermes-agent 8080:8080 -n hermes
+kubectl port-forward svc/hermesx 8080:8080 -n hermesx
 curl -v http://localhost:8080/health/live
 curl -v http://localhost:8080/health/ready
 
 # Check pod probe configuration
-kubectl get pod <pod-name> -n hermes -o jsonpath='{.spec.containers[*].livenessProbe}'
-kubectl get pod <pod-name> -n hermes -o jsonpath='{.spec.containers[*].readinessProbe}'
+kubectl get pod <pod-name> -n hermesx -o jsonpath='{.spec.containers[*].livenessProbe}'
+kubectl get pod <pod-name> -n hermesx -o jsonpath='{.spec.containers[*].readinessProbe}'
 ```
 
 **Common causes and fixes:**
 
 | Cause | Fix |
 |---|---|
-| Database not ready | Ensure PostgreSQL pod is `Running` before hermes-agent starts. Add `initContainers` or increase `initialDelaySeconds` |
+| Database not ready | Ensure PostgreSQL pod is `Running` before hermesx starts. Add `initContainers` or increase `initialDelaySeconds` |
 | `DATABASE_URL` incorrect | Verify `env.DATABASE_URL` in values matches the PostgreSQL service address |
 | Readiness probe too aggressive | Increase `readiness.initialDelaySeconds` (default: 10s) or `periodSeconds` |
 
@@ -699,10 +663,10 @@ kubectl get pod <pod-name> -n hermes -o jsonpath='{.spec.containers[*].readiness
 
 ```bash
 # Check MinIO pod
-kubectl get pod minio-0 -n hermes
+kubectl get pod minio-0 -n hermesx
 
 # Test MinIO health endpoint
-kubectl port-forward svc/minio-api 9000:9000 -n hermes &
+kubectl port-forward svc/minio-api 9000:9000 -n hermesx &
 curl http://localhost:9000/minio/health/live
 ```
 
@@ -715,30 +679,29 @@ curl http://localhost:9000/minio/health/live
 
 ### Bootstrap Job fails
 
-**Symptom:** `hermes-bootstrap` Job stays in `Running` or `Failed` state.
+**Symptom:** `hermesx-bootstrap` Job stays in `Running` or `Failed` state.
 
 **Diagnosis:**
 
 ```bash
-kubectl logs job/hermes-bootstrap -n hermes
+kubectl logs job/hermesx-bootstrap -n hermesx
 ```
 
 **Common causes and fixes:**
 
 | Cause | Fix |
 |---|---|
-| `hermes-agent` not ready | Ensure hermes-agent is `Running` and `/health/ready` returns 200 before applying bootstrap |
+| `hermesx` not ready | Ensure hermesx is `Running` and `/health/ready` returns 200 before applying bootstrap |
 | Wrong `HERMES_ACP_TOKEN` | Ensure `HERMES_ACP_TOKEN` in `config.env` / Secret matches `env.HERMES_ACP_TOKEN` in values |
 | MinIO not initialized | Wait 30s, then re-run the Job |
-| Network policy blocking | Ensure the Job pod can reach `hermes-agent:8080` and `minio:9000` |
+| Network policy blocking | Ensure the Job pod can reach `hermesx:8080` and `minio:9000` |
 | Image pull failure | Ensure `alpine:3.19` is accessible or pull it manually: `docker pull alpine:3.19` |
 
 **Re-run the Job:**
 
 ```bash
-kubectl delete job hermes-bootstrap -n hermes
-# Then re-apply via helm upgrade with --set bootstrap.enabled=true
-# or via kubectl apply -k deploy/k8s/quickstart/
+kubectl delete job hermesx-bootstrap -n hermesx
+kubectl apply -k deploy/k8s/quickstart/
 ```
 
 ---
@@ -751,13 +714,13 @@ kubectl delete job hermes-bootstrap -n hermes
 
 ```bash
 # For Kind — ensure the image is loaded
-kind load docker-image hermes-agent-saas:local --name kind-hermes
+kind load docker-image hermesx/hermesx-saas:local --name kind-hermes
 
 # For Minikube — use the internal registry
-minikube image load hermes-agent-saas:local
+minikube image load hermesx/hermesx-saas:local
 
 # Verify image is available in the cluster node
-kubectl run debug --image=hermes-agent-saas:local --rm -it --restart=Never -- echo "image exists"
+kubectl run debug --image=hermesx/hermesx-saas:local --rm -it --restart=Never -- echo "image exists"
 ```
 
 ---
@@ -767,9 +730,9 @@ kubectl run debug --image=hermes-agent-saas:local --rm -it --restart=Never -- ec
 **Diagnosis:**
 
 ```bash
-kubectl describe hpa hermes-agent -n hermes
-kubectl top pods -n hermes
-kubectl describe deployment hermes-agent -n hermes
+kubectl describe hpa hermesx -n hermesx
+kubectl top pods -n hermesx
+kubectl describe deployment hermesx -n hermesx
 ```
 
 **Common causes:**
@@ -785,13 +748,13 @@ kubectl describe deployment hermes-agent -n hermes
 ### Helm uninstall
 
 ```bash
-helm uninstall hermes -n hermes
+helm uninstall hermesx -n hermesx
 ```
 
 ### Delete namespaces
 
 ```bash
-kubectl delete namespace hermes
+kubectl delete namespace hermesx
 kubectl delete namespace monitoring
 ```
 
@@ -817,7 +780,7 @@ sudo sed -i '' '/hermes.local/d' /etc/hosts
 
 ## 14. Prometheus Metrics Reference
 
-The following metrics are exposed by `hermes-agent` at `GET /metrics`.
+The following metrics are exposed by `hermesx` at `GET /metrics`.
 
 ### Database Metrics
 
@@ -890,7 +853,7 @@ histogram_quantile(0.95, rate(hermes_pg_query_duration_seconds_bucket[5m]))
 deploy/
 ├── README-k8s.md              ← This guide
 ├── helm/
-│   └── hermes-agent/
+│   └── hermesx/
 │       ├── Chart.yaml
 │       ├── values.yaml        ← Default values
 │       └── templates/
@@ -898,15 +861,14 @@ deploy/
 │           └── service.yaml
 ├── kind/
 │   ├── values.local.yaml      ← Kind/Minikube overlay
-│   ├── postgres.yaml          ← PostgreSQL StatefulSet
-│   └── minio.yaml             ← MinIO StatefulSet + Secret
+│   ├── mysql.yaml             ← MySQL StatefulSet
+│   ├── redis.yaml             ← Redis deployment
+│   └── rustfs.yaml            ← S3-compatible object storage
 └── k8s/
     ├── quickstart/
     │   ├── kustomization.yaml
     │   ├── config.env.example  ← LLM credentials template
     │   ├── bootstrap.sh       ← Idempotent tenant seeder
-    │   ├── bootstrap-job.yaml
-    │   └── webui-deployment.yaml
-    └── full/
-        └── (all-in-one overlay for production-style deploy)
+    │   └── bootstrap-job.yaml
+    └── gvisor-runtimeclass.yaml
 ```

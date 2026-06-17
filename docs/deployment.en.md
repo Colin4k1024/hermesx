@@ -1,6 +1,6 @@
 # Deployment Guide
 
-> All deployment methods for the HermesX v2.0.0 SaaS API: Docker Compose, Kind local K8s, and Helm production deployment.
+> SaaS-only deployment methods for the HermesX v2.4.0-dev SaaS API: Docker Compose, Kubernetes, and Helm.
 
 ## HermesX v2.0.0 Deployment Notes
 
@@ -24,23 +24,18 @@ HermesX v2.0.0 introduces the following key changes compared to v1.x:
 - [ ] Kubernetes 1.28+ (if using Helm deployment)
 - [ ] Docker 24+ (if using Docker Compose deployment)
 
-## Dockerfile Options
+## SaaS Image
 
-| Dockerfile | Use Case | Artifact Size |
-|------------|----------|--------------|
-| `Dockerfile` | General build, CLI + full features | ~50MB |
-| `Dockerfile.local` | Local development, Docker Compose | ~50MB |
-| `Dockerfile.k8s` | Kubernetes deployment with health probe | ~50MB |
-| `Dockerfile.k8s-slim` | Slim K8s image, multi-stage build | ~30MB |
-| `Dockerfile.saas` | SaaS API dedicated, includes static files | ~55MB |
+`Dockerfile.saas` is the only supported release image. It builds the Go SaaS API binary, builds the React WebUI, copies the WebUI output to `/static`, bundles default skills for tenant provisioning, and defaults to `CMD ["saas-api"]`.
 
 ### Dockerfile.saas Features
 
 ```dockerfile
 # Multi-stage build
-# Stage 1: Compile Go binary
-# Stage 2: Copy binary + static files to distroless base image
-# Includes /static directory for SAAS_STATIC_DIR
+# Stage 1: Build WebUI
+# Stage 2: Compile Go binary
+# Stage 3: Copy binary + WebUI static files to runtime image
+# Includes /static for SAAS_STATIC_DIR
 # Default CMD: ["saas-api"]
 ```
 
@@ -48,12 +43,9 @@ HermesX v2.0.0 introduces the following key changes compared to v1.x:
 
 | Config | Use Case | Services | API Port | Health Check |
 |--------|----------|----------|----------|--------------|
-| `docker-compose.quickstart.yml` | Single-machine quick start | hermesx + postgres + redis + minio + bootstrap | 8080 | curl health/ready |
-| `docker-compose.dev.yml` | Local development (Gateway mode) | hermesx-gateway + postgres + redis + minio | 8080 | None |
 | `docker-compose.prod.yml` | Production deployment | hermesx-saas + postgres + redis + minio + OTel + Jaeger + Nginx LB | 8080/8081 | wget health/live |
-| `docker-compose.saas.yml` | Full SaaS stack | hermesx-saas + postgres + redis + minio + hermesx-webui + bootstrap | 8080/3000 | curl health/ready |
+| `docker-compose.saas.yml` | SaaS stack for staging or local SaaS validation | hermesx-saas + postgres + redis + minio | 18080/18081 | curl health/ready |
 | `docker-compose.test.yml` | Integration testing | postgres-test + redis-test + minio-test (tmpfs, no persistence) | Isolated test ports | pg_isready |
-| `docker-compose.webui.yml` | Standalone Web UI | hermesx-webui (requires external hermesx-saas) | 3000 | None |
 
 ### Production Configuration (docker-compose.prod.yml)
 
@@ -83,45 +75,17 @@ open http://localhost:16686
 curl http://localhost:8889/metrics | grep hermesx
 ```
 
-## Method 1: Docker Compose Local Development
+## Method 1: Docker Compose SaaS
 
-The fastest way to set up a local development environment.
-
-### Start All Services
+Use `docker-compose.prod.yml` for production-like deployments and `docker-compose.saas.yml` for staging or local SaaS validation. Both run `hermesx saas-api`; the API service serves the embedded WebUI from `/static`.
 
 ```bash
-# Start PostgreSQL 16 + Redis 7 + MinIO + Gateway
-docker compose -f docker-compose.dev.yml up -d
-
-# View logs
-docker compose -f docker-compose.dev.yml logs -f hermes-gateway
+docker compose -f docker-compose.saas.yml up -d --build
+curl http://localhost:18080/health/ready
+open http://localhost:18080/admin.html
 ```
 
-### Start Infrastructure Only
-
-```bash
-# Start data layer, run hermes manually
-docker compose -f docker-compose.dev.yml up -d postgres redis minio
-
-# Manually start SaaS API
-export DATABASE_URL="postgres://hermes:hermes@127.0.0.1:5432/hermes?sslmode=disable"
-export HERMES_ACP_TOKEN="admin-test-token"
-export SAAS_ALLOWED_ORIGINS="http://localhost:3000,http://localhost:5173"
-export SAAS_STATIC_DIR="./internal/dashboard/static"
-./hermesx saas-api
-```
-
-### Service Addresses
-
-| Service | Address | Notes |
-|---------|---------|-------|
-| PostgreSQL | `localhost:5432` | User `hermes`, password `hermes`, database `hermes` |
-| Redis | `localhost:6379` | No password |
-| MinIO API | `localhost:9000` | User `hermes`, password `hermespass` |
-| MinIO Console | `localhost:9001` | Web management UI |
-| Hermes API | `localhost:8080` | SaaS API endpoint |
-
-## Method 2: Kind Local K8s
+## Method 2: Kubernetes / Kind Validation
 
 Use [Kind](https://kind.sigs.k8s.io/) to run a Kubernetes cluster locally.
 

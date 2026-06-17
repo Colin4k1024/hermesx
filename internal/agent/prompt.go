@@ -124,7 +124,8 @@ func BuildSystemPrompt(opts SystemPromptOptions) string {
 		sb.WriteString(hint)
 	}
 
-	// Memory guidance — SaaS mode uses PG-backed storage, CLI mode uses local files
+	// Memory guidance — SaaS requests use store-backed memory; legacy local
+	// fallbacks use filesystem context files.
 	if !opts.SkipMemory {
 		if opts.SkipContextFiles {
 			sb.WriteString(saasMemoryGuidance)

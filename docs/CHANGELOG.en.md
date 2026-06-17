@@ -21,6 +21,12 @@ Release state: these entries describe current-branch changes after the latest re
 - **Redis/MinIO Backup Scripts** — `scripts/redis-backup.sh` (BGSAVE + S3), `scripts/minio-backup.sh` (mc mirror), `scripts/dr-test.sh` (disaster recovery verification)
 - **Eino 0.9 Agent Main Path** — native provider model, AgenticMessage blocks, TurnLoop checkpoint resume, and PG/MySQL checkpoint stores; `/v1/agent/chat` supports `include_agentic_blocks` debug output
 
+### Breaking
+
+- **SaaS-only product surface** — the public entry points are now `hermesx saas-api`, HTTP APIs, embedded WebUI, and SaaS Docker/Helm/K8s deployments; former local assistant commands, the gateway runtime, quickstart stack, separate frontend container, and non-SaaS Dockerfiles are no longer supported interfaces
+- **Release artifact consolidation** — Release/CI artifacts now build only Linux SaaS service binaries; `Dockerfile.saas` is the only published image path, defaults to `saas-api`, and bundles `webui/dist` into `/static`
+- **Code execution no longer falls back to host execution** — `execute_code` returns an error when `SANDBOX_MODE` is unset; production should use `SANDBOX_MODE=k8s-job`, while `local` mode requires explicit local SaaS development opt-in outside production
+
 ### Fixed
 
 - **API Key Generation Safety** — `generateRawKey()` changed from panic to returning `(string, error)`; `rand.Read` failure now returns HTTP 500 instead of crashing the process

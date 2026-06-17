@@ -51,11 +51,11 @@ Fixes #
 - [ ] `go vet ./...` — no issues
 - [ ] No unrelated changes included in this PR
 
-### Cross-platform (if touching build tags, CGo, or platform-specific code)
+### SaaS release build (if touching build tags, CGo, Docker, or deployment code)
 
 - [ ] `GOOS=linux GOARCH=amd64 go build ./cmd/hermesx/` — Linux OK
-- [ ] `GOOS=darwin GOARCH=arm64 go build ./cmd/hermesx/` — macOS OK
-- [ ] `GOOS=windows GOARCH=amd64 go build ./cmd/hermesx/` — Windows OK
+- [ ] `GOOS=linux GOARCH=arm64 go build ./cmd/hermesx/` — Linux arm64 OK
+- [ ] `docker build -f Dockerfile.saas .` — SaaS image OK
 
 ### Quality (strongly encouraged)
 
@@ -76,7 +76,7 @@ Fixes #
 - [ ] SKILL.md follows the standard format (YAML frontmatter + Markdown body)
 - [ ] Skill is broadly useful to most users
 - [ ] No external dependencies beyond what's already available
-- [ ] Tested end-to-end: `./hermesx chat "Use the X skill to do Y"`
+- [ ] Tested end-to-end through the SaaS API (`POST /v1/chat/completions` or `POST /v1/agent/chat`)
 
 ## Screenshots / Logs
 

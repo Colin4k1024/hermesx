@@ -67,6 +67,22 @@ spec:
               value: {{ .Values.env.SAAS_ALLOWED_ORIGINS | quote }}
             - name: SAAS_STATIC_DIR
               value: {{ .Values.env.SAAS_STATIC_DIR | quote }}
+            - name: SANDBOX_MODE
+              value: {{ .Values.sandbox.mode | quote }}
+            {{- if eq .Values.sandbox.mode "k8s-job" }}
+            - name: K8S_JOB_NAMESPACE
+              value: {{ .Values.sandbox.k8sJob.namespace | default .Release.Namespace | quote }}
+            - name: K8S_JOB_IMAGE
+              value: {{ .Values.sandbox.k8sJob.image | quote }}
+            - name: K8S_JOB_CPU_LIMIT
+              value: {{ .Values.sandbox.k8sJob.cpuLimit | quote }}
+            - name: K8S_JOB_MEMORY_LIMIT
+              value: {{ .Values.sandbox.k8sJob.memoryLimit | quote }}
+            - name: K8S_JOB_SERVICE_ACCOUNT
+              value: {{ .Values.sandbox.k8sJob.serviceAccount | default (.Values.serviceAccount.name | default .Release.Name) | quote }}
+            - name: K8S_JOB_RUNTIME_CLASS
+              value: {{ .Values.sandbox.k8sJob.runtimeClass | quote }}
+            {{- end }}
             - name: HERMES_API_PORT
               value: {{ .Values.env.HERMES_API_PORT | quote }}
             - name: HERMES_API_KEY

@@ -79,7 +79,7 @@ A production-grade platform for deploying, isolating, and governing AI agents at
 - **Execution receipts** — auditable tool call records with idempotent deduplication and OpenTelemetry trace correlation
 - **Audit trail** — immutable logs for all state-changing operations, cross-tenant queries for `super_admin`
 - **GDPR compliance** — full-chain data export (JSON) + transactional deletion + MinIO object storage cleanup
-- **Sandbox isolation** — per-tenant code execution supporting local / Docker / K8s Job modes (`SANDBOX_MODE` env var), Docker network/resource limits, policy manageable via Admin API
+- **Sandbox isolation** — per-tenant code execution requires an explicit `SANDBOX_MODE`; production should use K8s Job, Docker is available for container isolation, and local host execution requires explicit non-production SaaS development opt-in
 - **Bootstrap protection** — bootstrap endpoint dual IP rate limiting (application layer + Nginx), cross-replica idempotent
 - **Distributed cron scheduling** — gocron + Redis distributed lock for multi-pod scheduled task execution, PG poll-sync, idempotent dedup, SECURITY DEFINER cross-tenant cleanup, automatic result delivery to source platform
 
@@ -189,7 +189,7 @@ URL safety detection (`url_safety`) prevents SSRF and malicious redirects.
 
 **Code Execution (1)**
 
-`execute_code` — sandboxed execution (Python/Bash) supporting `local` / `docker` / `k8s-job` backends (via `SANDBOX_MODE`), with resource limits, environment variable stripping, and output truncation. K8s Job mode requires no privileged containers and is compatible with GKE Autopilot / EKS Fargate.
+`execute_code` — sandboxed execution (Python/Bash). When `SANDBOX_MODE` is unset it refuses execution instead of falling back to the host; production should use `k8s-job`, and `docker` is available for container isolation. `local` is limited to non-production SaaS development with `HERMESX_ALLOW_LOCAL_SANDBOX=true`.
 
 **Platform Messaging (3)**
 
@@ -278,17 +278,15 @@ Behavioral gene (Gene) learning and replay mechanism, providing an independent e
 3. **Pre-Turn Augmentation** — before the next similar task begins, high-confidence strategy summaries are automatically injected, guiding the agent to reuse validated experience
 4. **Secure Isolation** — genes are stored with SHA-256-derived IDs from `tenantID + taskClass + insight`, strictly isolated between tenants (preventing B2 cross-tenant contamination), sanitized for prompt injection before injection (preventing B1 injection attacks)
 
-**Storage backends:** SQLite (local single-node) or MySQL (multi-node), switchable via configuration.
+**Storage backends:** SaaS deployments use PostgreSQL or MySQL through `DATABASE_DRIVER` and `DATABASE_URL`. Genes are tenant-isolated and replayed from the API request context.
 
 **Configuration:**
 
 ```yaml
-# ~/.hermes/config.yaml
+# SaaS environment variables / Secret
 evolution:
   enabled: true
-  storage_mode: "sqlite"     # sqlite or mysql
-  db_path: ""                # empty = SQLite default path
-  mysql_dsn: ""              # required when storage_mode=mysql
+  storage_mode: "mysql"      # postgres or mysql
   min_confidence: 0.7        # genes below this threshold are not replayed
   max_genes_prompt: 3        # max strategies injected per turn
   sharing_mode: "disabled"   # disabled / anonymous / trusted
@@ -304,7 +302,7 @@ Run multiple prompts in parallel to batch-collect agent trajectory data for eval
 
 - Goroutine pool control (default 4 concurrent workers, configurable)
 - Each prompt runs a full independent agent loop (including tool calls)
-- Trajectories automatically persisted to `~/.hermes/batch_output` (JSON Lines format)
+- Trajectories are written to tenant-isolated SaaS storage or an explicitly configured evaluation output directory
 - Summary report generated (success rate, average turns, total token consumption)
 
 **Configuration:**
@@ -537,20 +535,18 @@ Resolution is case-insensitive with automatic whitespace trimming. Unrecognized 
 
 ---
 
-### 3. Project-Scoped Config
-
-Auto-discovers `.hermes/config.yaml` at the project root (git root or directory containing `.hermes/`):
+### 3. SaaS Service Config
 
 **Security by Design:**
 
-- Only safe fields can be overridden: `model`, `max_iterations`, `max_tokens`, `reasoning`, `toolsets`, `plugins`, `cache`, etc.
-- Sensitive fields are automatically sanitized: `api_key`, `database`, `redis`, `objstore`, `provider`, `base_url` are cleared
-- Project configs are safe to commit to version control — no credential leakage possible
+- Production configuration is injected through environment variables, Kubernetes Secrets, Compose env files, or a managed Secret Manager
+- Sensitive values such as `DATABASE_URL`, API keys, OIDC, MinIO, and LLM keys are not stored in the project repository
+- Local profile/config files are legacy internal implementation details, not public runtime interfaces
 
 **Priority (lowest to highest):**
 
 ```
-Global defaults → ~/.hermes/config.yaml → {project}/.hermes/config.yaml → Env vars → CLI flags
+Service defaults → Environment variables / Secrets → explicit deployment overrides
 ```
 
 ---
@@ -575,10 +571,7 @@ rules:
     reason: "Browser actions require human confirmation"
 ```
 
-**Layered Loading:**
-
-1. User-level: `~/.hermes/permissions.yaml` (global baseline)
-2. Project-level: `{project}/.hermes/permissions.yaml` (overrides user-level)
+**Loading:** policies are injected through the SaaS admin API, tenant storage, or deployment configuration, and are enforced per tenant.
 
 ---
 
@@ -606,7 +599,7 @@ Standards-compliant OAuth 2.0 Device Authorization Grant for browser-based Anthr
 1. CLI requests device code → Anthropic returns user_code + verification_uri
 2. User opens URL in browser and enters verification code
 3. CLI polls token endpoint (5s interval)
-4. Receives access_token + refresh_token → persisted to ~/.hermes/anthropic.json (permissions 0600)
+4. Receives access_token + refresh_token → persisted to tenant Secret/credential storage, with access control and rotation handled by the SaaS control plane
 5. Auto-refreshes 30s before expiry
 ```
 
@@ -632,28 +625,12 @@ After reconnection, automatically re-executes `tools/list` to refresh tool defin
 ## Installation
 
 ```bash
-# From source (requires Go 1.23+)
 git clone https://github.com/Colin4k1024/hermesx.git
 cd hermesx
-go build -o hermesx ./cmd/hermesx/
-
-# Global install
-sudo cp hermesx /usr/local/bin/
-```
-
-### CLI Mode
-
-```bash
-./hermesx setup   # configuration wizard
-./hermesx         # interactive CLI
-./hermesx chat "What tools do you have?"
-```
-
-### SaaS Mode
-
-```bash
 docker compose -f docker-compose.prod.yml up -d
 ./examples/enterprise-saas-demo/demo.sh   # 11-step enterprise demo
 ```
+
+`hermesx saas-api` is the only supported service entry point. The local interactive CLI, one-shot chat command, and standalone Gateway are no longer public interfaces.
 
 See the [SaaS Quickstart](saas-quickstart.md) for a full deployment walkthrough.

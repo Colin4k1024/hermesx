@@ -89,7 +89,7 @@ export OTEL_SERVICE_NAME="hermesx"
 ### 与 Jaeger 集成
 
 ```yaml
-# docker-compose.dev.yml 追加
+# docker-compose.saas.yml 或生产覆盖文件中追加
 services:
   jaeger:
     image: jaegertracing/all-in-one:latest

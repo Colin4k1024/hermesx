@@ -8,9 +8,8 @@
 |------|------|------|--------|
 | PostgreSQL 16+ | pgx/v5 | SaaS 多租户生产后端 | `internal/store/pg/` |
 | MySQL 8.4+ | go-sql-driver/mysql | SaaS 多租户生产后端 | `internal/store/mysql/` |
-| SQLite | go-sqlite3 | CLI 单用户模式 | `internal/store/sqlite/` |
 
-SaaS 模式使用 `DATABASE_DRIVER` 选择生产后端，当前支持 `postgres` 与 `mysql`。连接通过 `DATABASE_URL` 环境变量配置。SQLite 仅用于 CLI 单用户模式，不作为 SaaS 隔离后端。
+SaaS 服务使用 `DATABASE_DRIVER` 选择生产后端，当前支持 `postgres` 与 `mysql`。连接通过 `DATABASE_URL` 环境变量配置；启动 SaaS API 时必须提供该变量。
 
 ## 企业支持矩阵
 

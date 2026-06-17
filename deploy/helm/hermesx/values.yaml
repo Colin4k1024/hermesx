@@ -9,7 +9,7 @@ image:
 serviceAccount:
   create: true
   name: ""
-  automountServiceAccountToken: false
+  automountServiceAccountToken: true
 
 args:
   - saas-api
@@ -17,6 +17,7 @@ args:
 service:
   type: ClusterIP
   port: 8080
+  nodePort: null
 
 env:
   DATABASE_URL: "postgres://hermes:changeme@postgres:5432/hermesx?sslmode=disable"
@@ -35,6 +36,21 @@ env:
   MINIO_ACCESS_KEY: "changeme"
   MINIO_SECRET_KEY: "changeme"
   MINIO_BUCKET: "hermesx-skills"
+
+sandbox:
+  # SaaS-only deployments must opt into a non-host execution backend. The
+  # production chart default uses Kubernetes Jobs; set mode to "" to disable
+  # execute_code instead of falling back to local host execution.
+  mode: "k8s-job"
+  k8sJob:
+    namespace: ""
+    image: "python:3.12-slim"
+    cpuLimit: "500m"
+    memoryLimit: "256Mi"
+    serviceAccount: ""
+    runtimeClass: "gvisor"
+    rbac:
+      create: true
 
 # For production, prefer referencing a pre-created Secret instead of putting
 # sensitive values directly in env above. Keys default to the env var names.
@@ -86,6 +102,14 @@ networkPolicy:
   # production namespace to restrict callers and dependency destinations.
   ingressFrom: []
   egressTo: []
+
+ingress:
+  enabled: false
+  className: ""
+  host: ""
+  path: /
+  annotations: {}
+  tls: []
 
 # PodDisruptionBudget — ensures availability during voluntary disruptions.
 pdb:

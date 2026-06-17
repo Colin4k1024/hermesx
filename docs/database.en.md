@@ -8,9 +8,8 @@
 |---------|--------|----------|-------------|
 | PostgreSQL 16+ | pgx/v5 | SaaS multi-tenant production backend | `internal/store/pg/` |
 | MySQL 8.4+ | go-sql-driver/mysql | SaaS multi-tenant production backend | `internal/store/mysql/` |
-| SQLite | go-sqlite3 | CLI single-user mode | `internal/store/sqlite/` |
 
-SaaS mode selects the production backend via `DATABASE_DRIVER`; supported values are `postgres` and `mysql`. The connection is configured via the `DATABASE_URL` environment variable. SQLite is only for CLI single-user mode and is not a SaaS isolation backend.
+The SaaS service selects the production backend via `DATABASE_DRIVER`; supported values are `postgres` and `mysql`. The connection is configured via `DATABASE_URL`, which is required when starting the SaaS API.
 
 ## Enterprise Support Matrix
 

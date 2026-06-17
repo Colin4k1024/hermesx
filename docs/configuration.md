@@ -5,8 +5,10 @@
 ## 配置优先级
 
 ```
-环境变量 > config.yaml > 默认值
+环境变量 > 服务默认值
 ```
+
+SaaS 部署应通过环境变量或 Secret 注入配置。遗留本地配置文件不属于受支持的公开运行时。
 
 ## SaaS 服务配置
 
@@ -17,7 +19,7 @@
 | `HERMES_BOOTSTRAP_RATE_LIMIT_RPM` | 否 | `5` | `POST /admin/v1/bootstrap` 按来源 IP 的每分钟尝试次数 |
 | `SAAS_API_PORT` | 否 | `8080` | SaaS API 服务端口 |
 | `SAAS_ALLOWED_ORIGINS` | 否 | -（不启用 CORS） | CORS 允许的来源，`*` 表示全部，或逗号分隔的域名列表 |
-| `SAAS_STATIC_DIR` | 否 | -（不提供静态文件） | 静态文件目录路径，如 `./internal/dashboard/static` |
+| `SAAS_STATIC_DIR` | 否 | -（不提供静态文件） | 静态文件目录路径；发布镜像使用 `/static` 提供内嵌 WebUI |
 | `HERMES_API_PORT` | 否 | `8081` | OpenAI 兼容适配器端口 |
 | `HERMES_API_KEY` | 否 | - | OpenAI 兼容适配器的 Bearer Token |
 | `HERMES_ACP_PORT` | 否 | - | ACP 服务器端口（不设置则不启动 ACP） |
@@ -29,10 +31,10 @@
 | `LLM_API_URL` | 否 | - | LLM API 端点 URL |
 | `LLM_API_KEY` | 否 | - | LLM API 认证密钥 |
 | `LLM_MODEL` | 否 | - | 默认 LLM 模型名称 |
-| `HERMES_MODEL` | 否 | - | CLI 模式默认模型 |
+| `HERMES_MODEL` | 否 | - | SaaS Agent Runtime 默认模型 |
 | `HERMES_PROVIDER` | 否 | - | LLM 提供商（openai / anthropic / auto） |
-| `HERMES_BASE_URL` | 否 | - | CLI 模式 LLM API Base URL |
-| `HERMES_API_KEY_LLM` | 否 | - | CLI 模式 LLM API Key |
+| `HERMES_BASE_URL` | 否 | - | SaaS Agent Runtime 的 LLM API Base URL |
+| `HERMES_API_KEY_LLM` | 否 | - | SaaS Agent Runtime 的 LLM API Key |
 | `HERMES_API_MODE` | 否 | - | API 协议模式（openai / anthropic） |
 | `HERMES_MAX_ITERATIONS` | 否 | `20` | Agent 最大迭代次数 |
 | `HERMES_MAX_TOKENS` | 否 | `4096` | 单次响应最大 token 数 |
@@ -105,8 +107,7 @@ Scheduler 在 `REDIS_URL` 可用时自动启动。如果 Redis 不可用，sched
 |------|------|--------|------|
 | `HERMES_DEBUG` | 否 | `false` | 启用调试日志（LLM 请求/响应详情） |
 | `HERMES_DEFAULT_MODEL` | 否 | - | 全局默认模型（config fallback） |
-| `HERMES_FILE_STATE` | 否 | - | 启用文件状态跟踪 |
-| `HERMES_GATEWAY_URL` | 否 | - | Gateway URL，用于消息平台集成 |
+| `HERMES_FILE_STATE` | 否 | - | 为 SaaS Agent 执行启用文件状态跟踪 |
 
 ## 记忆系统
 
@@ -135,9 +136,9 @@ Hermes 支持多种外部记忆提供商，按需配置：
 | `SUPERMEMORY_API_KEY` | Supermemory 服务 API Key |
 | `SUPERMEMORY_BASE_URL` | Supermemory 服务地址 |
 
-## Gateway 平台
+## Channel 与消息平台集成
 
-消息网关（`hermes gateway`）支持多个平台适配器：
+Channel 与消息平台集成通过 SaaS 服务配置。旧独立 gateway 子命令不再是受支持的公开运行时。
 
 | 变量 | 说明 |
 |------|------|
@@ -199,15 +200,17 @@ Hermes 支持多种外部记忆提供商，按需配置：
 
 | 变量 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `SANDBOX_MODE` | 否 | `local` | 代码执行后端模式 |
+| `SANDBOX_MODE` | 启用 `execute_code` 时必填 | - | 代码执行后端模式 |
 
 可选值：
 
 | 模式 | 说明 | 适用场景 |
 |------|------|----------|
-| `local` | 直接在宿主机执行（默认） | 开发环境、CI/CD |
-| `docker` | 通过 Docker 容器执行 | 本地隔离执行，需要 Docker 守护进程 |
+| `local` | 仅当 `HERMESX_ALLOW_LOCAL_SANDBOX=true` 且环境不是 production 时直接在宿主机执行 | 显式本地 SaaS 开发 |
+| `docker` | 通过 Docker 容器执行 | 容器隔离执行，需要 Docker 守护进程 |
 | `k8s-job` | 通过 Kubernetes Job 执行 | 生产环境、无需 DinD 或特权容器 |
+
+如果未设置 `SANDBOX_MODE`，`execute_code` 会返回错误，不会回退到宿主机执行。当 `HERMES_ENV`、`HERMESX_ENV`、`APP_ENV` 或 `GO_ENV` 任一值为 `production` 时，`local` 模式会被拒绝。
 
 ### K8s Job 模式配置
 
@@ -223,112 +226,17 @@ Hermes 支持多种外部记忆提供商，按需配置：
 
 > 注意：K8s Job 模式需要 `kubectl` 已配置且可访问目标集群。在集群内部署时，通常通过 in-cluster config 自动完成。
 
-## 终端与 SSH
+## 本地 SaaS 开发
 
-| 变量 | 说明 |
-|------|------|
-| `TERMINAL_CWD` | 终端工具工作目录 |
-| `SSH_PASSWORD` | SSH 认证密码 |
+本地开发仍应运行 SaaS 服务形态：
 
-## CLI 模式配置
-
-以下变量仅在 CLI 交互模式下生效：
-
-| 变量 | 说明 |
-|------|------|
-| `HERMES_HOME` | Hermes 主目录（默认 `~/.hermes`） |
-| `HERMES_PROFILE` | 当前 profile 名称 |
-| `HERMES_DISPLAY_THEME` | CLI 主题 |
-| `HERMES_TERMINAL_BACKEND` | 终端后端类型（local/docker/ssh/modal/daytona/singularity/persistent） |
-
-## config.yaml 参考
-
-CLI 模式的主配置文件位于 `~/.hermes/config.yaml`：
-
-```yaml
-# LLM 配置
-model: "gpt-4o"
-provider: "openai"
-base_url: "https://api.openai.com/v1"
-api_mode: "openai"
-
-# Agent 行为
-max_iterations: 20
-max_tokens: 4096
-context_compression: true
-compression_threshold: 80000
-memory_curator: true
-max_memories: 100
-self_improve: true
-review_interval: 10
-max_insights: 50
-
-# 终端
-terminal:
-  backend: "local"
-  timeout: 30
-
-# 显示
-display:
-  theme: "default"
-  show_tool_calls: true
-  show_reasoning: false
-
-# 模型路由
-smart_routing:
-  enabled: false
-  cheap_model: "gpt-4o-mini"
-  threshold: 0.3
-
-# 回退链
-fallback:
-  enabled: true
-  models:
-    - "gpt-4o"
-    - "claude-sonnet-4-20250514"
-
-# Evolution 共享学习治理
-evolution:
-  enabled: false
-  storage_mode: "sqlite"     # sqlite 或 mysql
-  db_path: ""                # 空 = ~/.hermes/evolution.db
-  mysql_dsn: ""              # storage_mode=mysql 时必填
-  min_confidence: 0.5
-  replay_threshold: 0.75
-  max_genes_prompt: 3
-  sharing_mode: "disabled"   # disabled / anonymous / trusted
+```bash
+docker compose -f docker-compose.saas.yml up -d --build
+# 或在已有外部依赖时：
+SAAS_STATIC_DIR=./webui/dist ./hermesx saas-api
 ```
 
-## Docker Compose 配置示例
-
-`docker-compose.dev.yml` 提供完整的本地开发环境：
-
-```yaml
-services:
-  postgres:
-    image: postgres:16
-    environment:
-      POSTGRES_DB: hermes
-      POSTGRES_USER: hermes
-      POSTGRES_PASSWORD: hermes
-    ports:
-      - "5432:5432"
-
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
-
-  minio:
-    image: minio/minio:<pinned-release-tag-or-digest>
-    command: server /data --console-address ":9001"
-    environment:
-      MINIO_ROOT_USER: hermes
-      MINIO_ROOT_PASSWORD: hermespass
-    ports:
-      - "9000:9000"   # API
-      - "9001:9001"   # Console
-```
+不要再记录或依赖旧本地助手、gateway 运行时或分离前端容器配置。
 
 ## 安全注意事项
 

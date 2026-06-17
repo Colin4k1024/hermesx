@@ -25,34 +25,30 @@ start() {
   kubectl port-forward -n hermesx svc/hermesx 8090:8080 > /dev/null 2>&1 &
   echo $! > "$PID_DIR/hermesx-api.pid"
 
-  # WebUI (hermes namespace)
-  kubectl port-forward -n hermes svc/hermes-webui 8091:80 > /dev/null 2>&1 &
-  echo $! > "$PID_DIR/webui.pid"
-
   sleep 2
 
   # Verify
   HERMESX_OK=$(curl -s http://localhost:8090/health/ready 2>/dev/null)
-  WEBUI_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8091/ 2>/dev/null)
+  WEBUI_OK=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8090/ 2>/dev/null)
 
   if echo "$HERMESX_OK" | grep -q "ready"; then
-    echo "✅ HermesX API:  http://localhost:8090"
+    echo "✅ HermesX SaaS: http://localhost:8090"
   else
-    echo "❌ HermesX API failed to start"
+    echo "❌ HermesX SaaS failed to start"
   fi
 
   if [ "$WEBUI_OK" = "200" ]; then
-    echo "✅ WebUI:       http://localhost:8091"
+    echo "✅ WebUI:       http://localhost:8090"
   else
     echo "❌ WebUI failed to start"
   fi
 
   echo ""
   echo "📌 Available endpoints:"
-  echo "   HermesX API:  http://localhost:8090"
+  echo "   HermesX SaaS: http://localhost:8090"
   echo "   OpenAPI UI:  http://localhost:8090/admin.html"
   echo "   Metrics:     http://localhost:8090/metrics"
-  echo "   WebUI:       http://localhost:8091"
+  echo "   WebUI:       http://localhost:8090"
   echo ""
   echo "💡 To stop: ./scripts/k8s-access.sh stop"
 }
@@ -71,7 +67,7 @@ stop() {
 
 status() {
   echo "📊 Proxy Status:"
-  for name in hermesx-api webui; do
+  for name in hermesx-api; do
     pidf="$PID_DIR/${name}.pid"
     if [ -f "$pidf" ]; then
       pid=$(cat "$pidf")

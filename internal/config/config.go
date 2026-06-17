@@ -186,7 +186,7 @@ func Load() *Config {
 	cfg := DefaultConfig()
 	_ = godotenv.Load(filepath.Join(HermesHome(), ".env"))
 
-	// Layer 1: Global user config (~/.hermes/config.yaml)
+	// Legacy local fallback config.
 	if data, err := os.ReadFile(filepath.Join(HermesHome(), "config.yaml")); err == nil {
 		var fileConfig Config
 		if err := yaml.Unmarshal(data, &fileConfig); err == nil {

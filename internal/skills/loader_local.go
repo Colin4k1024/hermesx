@@ -2,7 +2,7 @@ package skills
 
 import "context"
 
-// LocalSkillLoader loads skills from the local filesystem (~/.hermes/skills/).
+// LocalSkillLoader loads skills from the legacy local filesystem path.
 type LocalSkillLoader struct{}
 
 func NewLocalSkillLoader() *LocalSkillLoader {

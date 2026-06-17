@@ -47,15 +47,9 @@ Markdown 正文是 Agent 实际读取的指令内容，应包含：
 
 ## Skills 来源
 
-### 1. 本地 Skills
+### 1. 租户 Skills
 
-存储在用户主目录下：
-
-```
-~/.hermes/skills/{skill-name}/SKILL.md
-```
-
-CLI 模式下直接加载本地 Skills。
+在受支持的 SaaS 运行时中，自定义 Skills 属于某个租户，并通过 Skills API 或租户隔离的对象存储管理。对外产品不再通过独立 CLI 运行时加载用户主目录中的 Skills。
 
 ### 2. 内置 Skills
 
@@ -208,31 +202,15 @@ Hermes 支持从在线 Hub 发现和安装 Skills。
 | agentskills.io | URL | community | 社区 Skill 市场 |
 | hermes-official | GitHub | trusted | 官方可选 Skills |
 
-#### 搜索 Skills
+#### 发现和安装 Skills
 
-```bash
-hermes skill search "code review"
-```
-
-搜索引擎会查询所有配置的 Hub 源，返回匹配的 Skills 列表。
-
-#### 安装 Skill
-
-```bash
-hermes skill install <skill-name> --source <source-url>
-```
+Hub 发现通过 SaaS 控制平面工作流暴露。独立 `hermes skill ...` 命令不再是受支持的公开接口。
 
 安装过程：
-1. 从 Hub 下载 `SKILL.md`
-2. 执行安全扫描（根据信任级别）
-3. 写入 `~/.hermes/skills/{name}/SKILL.md`
-4. 更新锁文件 `~/.hermes/skills/.hub/lock.json`
-
-#### 卸载 Skill
-
-```bash
-hermes skill uninstall <skill-name>
-```
+1. 从可信 Hub 源解析 `SKILL.md`
+2. 根据信任级别执行安全扫描
+3. 通过 `PUT /v1/skills/{name}` 或租户 MinIO/S3 前缀上传 Skill
+4. 更新租户 `.manifest.json` 对象，用于审计和同步追踪
 
 ## 安全扫描
 
@@ -251,12 +229,12 @@ hermes skill uninstall <skill-name>
 
 当安全扫描决策为 `InstallBlock` 时，Skill 文件会被自动删除。
 
-## 锁文件
+## 租户清单
 
-安装的 Hub Skills 记录在锁文件中：
+安装的 Skills 记录在租户清单对象中：
 
 ```
-~/.hermes/skills/.hub/lock.json
+MinIO/S3: {tenant-id}/.manifest.json
 ```
 
 ```json
@@ -269,7 +247,7 @@ hermes skill uninstall <skill-name>
 ]
 ```
 
-锁文件用于：
+租户清单用于：
 - 跟踪已安装的 Skills 及其来源
 - 支持批量更新和版本管理
 - 审计 Skill 安装历史
@@ -324,11 +302,11 @@ mc cp scientist-skill/SKILL.md hermes/hermes-skills/tenant-${TENANT_B}/scientist
 
 ## 创建自定义 Skill
 
-### 1. 创建目录和文件
+### 1. 创建 Skill 文件
 
 ```bash
-mkdir -p ~/.hermes/skills/my-custom-skill
-cat > ~/.hermes/skills/my-custom-skill/SKILL.md << 'EOF'
+mkdir -p ./my-custom-skill
+cat > ./my-custom-skill/SKILL.md << 'EOF'
 ---
 name: "my-custom-skill"
 description: "自定义业务 Skill"
@@ -351,24 +329,25 @@ tags: ["custom", "business"]
 EOF
 ```
 
-### 2. 验证加载
-
-```bash
-hermes skill list
-```
-
-### 3. 部署到 SaaS（推荐使用 API）
+### 2. 上传到 SaaS API
 
 ```bash
 curl -X PUT http://localhost:8080/v1/skills/my-custom-skill \
   -H "Authorization: Bearer hk_your_api_key" \
-  --data-binary @~/.hermes/skills/my-custom-skill/SKILL.md
+  --data-binary @./my-custom-skill/SKILL.md
+```
+
+### 3. 验证加载
+
+```bash
+curl http://localhost:8080/v1/skills \
+  -H "Authorization: Bearer hk_your_api_key"
 ```
 
 或直接通过 MinIO：
 
 ```bash
-mc cp ~/.hermes/skills/my-custom-skill/SKILL.md \
+mc cp ./my-custom-skill/SKILL.md \
   hermes/hermes-skills/${TENANT_ID}/my-custom-skill/SKILL.md
 ```
 

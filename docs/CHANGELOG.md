@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Redis/MinIO 备份脚本** — `scripts/redis-backup.sh`（BGSAVE + S3）、`scripts/minio-backup.sh`（mc mirror）、`scripts/dr-test.sh`（灾难恢复验证）
 - **Eino 0.9 Agent 主链** — 接入 native provider model、AgenticMessage blocks、TurnLoop checkpoint resume、PG/MySQL checkpoint store；`/v1/agent/chat` 支持 `include_agentic_blocks` 调试输出
 
+### Breaking
+
+- **SaaS-only 产品形态** — 对外入口收敛为 `hermesx saas-api`、HTTP API、内嵌 WebUI 和 SaaS Docker/Helm/K8s 部署；旧本地助手命令、gateway 运行时、quickstart 栈、分离前端容器和非 SaaS Dockerfile 不再是受支持接口
+- **发布产物收口** — Release/CI 产物仅构建 Linux SaaS 服务二进制；唯一发布镜像为 `Dockerfile.saas`，镜像默认命令为 `saas-api` 并内置 `webui/dist` 到 `/static`
+- **代码执行沙箱默认拒绝宿主机执行** — `execute_code` 未设置 `SANDBOX_MODE` 时返回错误；生产推荐 `SANDBOX_MODE=k8s-job`，`local` 模式仅允许显式本地 SaaS 开发 opt-in 且生产环境变量不为 `production`
+
 ### Fixed
 
 - **API Key 生成安全性** — `generateRawKey()` 从 panic 改为返回 `(string, error)`，`rand.Read` 失败时返回 HTTP 500 而非进程崩溃

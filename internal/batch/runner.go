@@ -29,7 +29,7 @@ type BatchConfig struct {
 	MaxWorkers int
 
 	// OutputDir is where trajectory files are saved.
-	// Defaults to ~/.hermes/batch_output if empty.
+	// Defaults to the legacy local batch output directory if empty.
 	OutputDir string
 
 	// ToolSets specifies which toolsets to enable for the batch agents.

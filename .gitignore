@@ -31,8 +31,8 @@ node_modules/
 tests/fixtures/tenants.json
 .worktrees/
 scripts/.k8s-access-pids/
-hermesx
-hermesx-linux-amd64
+/hermesx
+/hermesx-linux-amd64
 deploy/kind/values.local.override.yaml
 .gstack/
 # MkDocs generated site

@@ -49,7 +49,7 @@ Required environment variables:
 Optional environment variables:
   SAAS_API_PORT          API server port (default: 8080)
   SAAS_ALLOWED_ORIGINS    Comma-separated CORS origins, or "*" for all
-  SAAS_STATIC_DIR         Directory for static files (e.g. ./internal/dashboard/static)
+  SAAS_STATIC_DIR         Directory for WebUI static files (release image uses /static)
   HERMES_BOOTSTRAP_RATE_LIMIT_RPM  IP-level bootstrap attempts per minute (default: 5)
   HERMES_API_PORT         OpenAI-compatible adapter port (default: 8081)
   HERMES_API_KEY          Bearer token for OpenAI-compatible adapter
@@ -57,7 +57,7 @@ Optional environment variables:
 
 Examples:
   hermesx saas-api                                           # Basic
-  SAAS_API_PORT=8080 SAAS_STATIC_DIR=./internal/dashboard/static hermesx saas-api
+  SAAS_API_PORT=8080 SAAS_STATIC_DIR=/static hermesx saas-api
 `,
 	RunE: runSaaSAPI,
 }

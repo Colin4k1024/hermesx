@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
@@ -86,12 +87,20 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	// Check SANDBOX_MODE to determine execution backend.
 	sandboxMode := os.Getenv("SANDBOX_MODE")
 	if sandboxMode == "" {
-		sandboxMode = "local" // default to local for backward compatibility
+		return toJSON(map[string]any{
+			"error": "SANDBOX_MODE is required for execute_code in SaaS-only mode",
+			"hint":  "Set SANDBOX_MODE=k8s-job for production, SANDBOX_MODE=docker for container isolation, or explicitly opt into local development with SANDBOX_MODE=local and HERMESX_ALLOW_LOCAL_SANDBOX=true outside production.",
+		})
 	}
 
 	switch sandboxMode {
 	case "local":
-		// Execute directly on the local machine (original behavior).
+		if !localSandboxAllowed() {
+			return toJSON(map[string]any{
+				"error": "local SANDBOX_MODE is disabled by default in SaaS-only mode",
+				"hint":  "For local SaaS development only, set HERMESX_ALLOW_LOCAL_SANDBOX=true and ensure HERMES_ENV/HERMESX_ENV/APP_ENV/GO_ENV are not production.",
+			})
+		}
 		switch language {
 		case "python":
 			return executePython(ctx, code, &cfg)
@@ -107,6 +116,27 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 
 	default:
 		return toJSON(map[string]any{"error": fmt.Sprintf("Unknown SANDBOX_MODE: %s (valid: local, docker, k8s-job)", sandboxMode)})
+	}
+}
+
+func localSandboxAllowed() bool {
+	if !envBool("HERMESX_ALLOW_LOCAL_SANDBOX") {
+		return false
+	}
+	for _, name := range []string{"HERMES_ENV", "HERMESX_ENV", "APP_ENV", "GO_ENV"} {
+		if strings.EqualFold(strings.TrimSpace(os.Getenv(name)), "production") {
+			return false
+		}
+	}
+	return true
+}
+
+func envBool(name string) bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv(name))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }
 

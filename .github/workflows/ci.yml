@@ -74,12 +74,6 @@ jobs:
             arch: amd64
           - os: linux
             arch: arm64
-          - os: darwin
-            arch: amd64
-          - os: darwin
-            arch: arm64
-          - os: windows
-            arch: amd64
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -94,14 +88,12 @@ jobs:
           GOARCH: ${{ matrix.arch }}
           CGO_ENABLED: '0'
         run: |
-          ext=""
-          if [ "${{ matrix.os }}" = "windows" ]; then ext=".exe"; fi
-          go build -ldflags="-s -w" -o hermesx-${{ matrix.os }}-${{ matrix.arch }}${ext} ./cmd/hermesx/
+          go build -ldflags="-s -w" -o hermesx-saas-${{ matrix.os }}-${{ matrix.arch }} ./cmd/hermesx/
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: hermesx-${{ matrix.os }}-${{ matrix.arch }}
-          path: hermesx-*
+          name: hermesx-saas-${{ matrix.os }}-${{ matrix.arch }}
+          path: hermesx-saas-*
 
   docker:
     name: Docker Build & Push
@@ -129,7 +121,8 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ${{ env.IMAGE }}:${{ github.sha }} \
+          docker build -f Dockerfile.saas \
+                       -t ${{ env.IMAGE }}:${{ github.sha }} \
                        -t ${{ env.IMAGE }}:latest .
 
       - name: Smoke test

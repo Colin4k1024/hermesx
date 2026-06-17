@@ -1,4 +1,14 @@
-# Build stage
+# WebUI build stage. The SaaS image serves these static files from /static.
+FROM --platform=$BUILDPLATFORM node:20-bookworm-slim AS webui-builder
+
+WORKDIR /webui
+COPY webui/package.json webui/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+
+COPY webui/ ./
+RUN npm run build
+
+# Go build stage
 FROM --platform=$BUILDPLATFORM golang:1.25-bookworm AS builder
 
 ARG TARGETOS
@@ -17,6 +27,8 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
 # Runtime stage
 FROM debian:bookworm-slim
 
+ARG TARGETARCH
+
 RUN sed -i \
     -e 's|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
     -e 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
@@ -24,14 +36,16 @@ RUN sed -i \
     /etc/apt/sources.list.d/debian.sources \
     && apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
+    && curl -fsSL "https://dl.k8s.io/release/v1.30.14/bin/linux/${TARGETARCH:-amd64}/kubectl" -o /usr/local/bin/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
     && rm -rf /var/lib/apt/lists/* \
     && useradd -m -s /bin/bash hermesx
 
 COPY --from=builder /hermesx /usr/local/bin/hermesx
 
-# Bundle admin SPA static files into the image.
+# Bundle the SaaS WebUI into the API image.
 # SAAS_STATIC_DIR defaults to /static in values.yaml.
-COPY --from=builder /app/internal/dashboard/static /static
+COPY --from=webui-builder /webui/dist /static
 
 # Bundle default skills so the provisioner can seed MinIO on first run.
 # The provisioner reads HERMES_SKILLS_DIR (default: "skills") and uploads

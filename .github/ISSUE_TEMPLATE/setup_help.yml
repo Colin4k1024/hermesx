@@ -11,7 +11,7 @@ body:
         **Quick checks first:**
         - Ensure you have Go 1.25+ installed: `go version`
         - Try building from latest main: `git pull && go build ./cmd/hermesx/`
-        - Run diagnostics: `./hermesx doctor`
+        - Verify the SaaS entry point: `./hermesx saas-api` with `DATABASE_URL` configured
 
   - type: textarea
     id: description
@@ -64,13 +64,6 @@ body:
       placeholder: "go1.25.0 linux/amd64"
     validations:
       required: true
-
-  - type: textarea
-    id: doctor-output
-    attributes:
-      label: Output of `./hermesx doctor`
-      description: If you got far enough to build, paste the output. This will be auto-formatted.
-      render: shell
 
   - type: textarea
     id: error-output
