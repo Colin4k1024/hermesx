@@ -37,6 +37,19 @@ HermesX is not a local standalone assistant. Its supported product surface is th
 2. **Multi-Tenant SaaS Control Plane**: tenants, roles, API keys, quotas, usage records, audit logs, GDPR actions, and admin operations are first-class runtime objects.
 3. **Workflow + Human-in-the-Loop Automation**: fixed SOP workflows persist definitions, immutable versions, runs, step state, retries, and human approval tasks.
 
+### Why HermesX Over Alternatives
+
+| Feature | HermesX | Dify | CrewAI | LangGraph |
+|---------|---------|------|--------|-----------|
+| Runtime | Go (single binary) | Python | Python | Python |
+| Multi-tenant | PG RLS database-level isolation | None | None | None |
+| Tool audit | ExecutionReceipt | None | None | None |
+| Self-hosting | Native | Supported but complex | Not suitable | Not suitable |
+| LLM resilience | Three-layer circuit breaker | Basic retry | None | None |
+| Enterprise ready | RBAC, audit logs, GDPR | Limited | None | None |
+
+HermesX is designed for teams that need to run agents as production infrastructure with enterprise-grade governance, not just for prototyping or local development.
+
 ### Architecture
 
 [![HermesX technical architecture](docs/diagrams/technical-architecture.png)](docs/diagrams/technical-architecture.drawio)

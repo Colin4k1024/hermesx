@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -92,6 +93,60 @@ func (h *chatHandler) handleDeleteMemory(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *chatHandler) handleCreateSession(w http.ResponseWriter, r *http.Request) {
+	ac, ok := auth.FromContext(r.Context())
+	if !ok || ac == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		Model    string         `json:"model"`
+		Metadata map[string]any `json:"metadata,omitempty"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid body", http.StatusBadRequest)
+		return
+	}
+
+	if h.store == nil {
+		http.Error(w, "store not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	ctx := r.Context()
+	userID := ac.Identity
+
+	// Use default model if not specified
+	model := req.Model
+	if model == "" {
+		model = "default"
+	}
+
+	// Create session
+	sess := &store.Session{
+		ID:       fmt.Sprintf("sess-%d", time.Now().UnixNano()),
+		Platform: "api",
+		UserID:   userID,
+		Model:    model,
+	}
+
+	if err := h.store.Sessions().Create(ctx, ac.TenantID, sess); err != nil {
+		http.Error(w, "failed to create session", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":         sess.ID,
+		"tenant_id":  ac.TenantID,
+		"user_id":    userID,
+		"model":      model,
+		"started_at": sess.StartedAt.Format(time.RFC3339),
+	})
 }
 
 func (h *chatHandler) handleListUserSessions(w http.ResponseWriter, r *http.Request) {

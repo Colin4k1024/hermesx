@@ -277,6 +277,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("DELETE /v1/memories/", chatH.handleDeleteMemory)
 
 	// Session history API (per-user session and message history).
+	api.HandleFunc("POST /v1/sessions", chatH.handleCreateSession)
 	api.HandleFunc("GET /v1/sessions", chatH.handleListUserSessions)
 	api.HandleFunc("GET /v1/sessions/", chatH.handleGetSessionMessages)
 

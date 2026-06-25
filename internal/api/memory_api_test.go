@@ -194,3 +194,33 @@ func TestGetSessionMessages_MissingSessionID(t *testing.T) {
 		t.Errorf("expected 400, got %d", w.Code)
 	}
 }
+
+func TestCreateSession_Unauthorized(t *testing.T) {
+	h := &chatHandler{}
+	req := httptest.NewRequest(http.MethodPost, "/v1/sessions", nil)
+	w := httptest.NewRecorder()
+
+	h.handleCreateSession(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected 401, got %d", w.Code)
+	}
+}
+
+func TestCreateSession_InvalidBody(t *testing.T) {
+	h := &chatHandler{}
+	ac := &auth.AuthContext{
+		TenantID: "tenant-1",
+		Identity: "user-1",
+		Roles:    []string{"user"},
+	}
+	req := memoryReq(http.MethodPost, "/v1/sessions", ac)
+	req.Body = http.NoBody
+	w := httptest.NewRecorder()
+
+	h.handleCreateSession(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("expected 400, got %d", w.Code)
+	}
+}

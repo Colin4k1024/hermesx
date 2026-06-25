@@ -1,0 +1,1036 @@
+openapi: 3.0.3
+info:
+  title: HermesX API
+  description: Agent-first Runtime Control Plane for governed, multi-tenant AI automation.
+  version: 2.4.0-dev
+  contact:
+    name: HermesX Team
+    url: https://github.com/Colin4k1024/hermesx
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.hermesx.dev
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Health check endpoint
+      operationId: getHealth
+      security: []
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+
+  /v1/openapi:
+    get:
+      tags: [System]
+      summary: Get OpenAPI specification
+      operationId: getOpenAPI
+      security: []
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/status:
+    get:
+      tags: [System]
+      summary: Get system status
+      operationId: getStatus
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /v1/chat/completions:
+    post:
+      tags: [Agent]
+      summary: Create chat completion (OpenAI-compatible)
+      operationId: createChatCompletion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatCompletionRequest'
+      responses:
+        '200':
+          description: Chat completion response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatCompletionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/agent/chat:
+    post:
+      tags: [Agent]
+      summary: Agent chat with tool execution
+      operationId: agentChat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AgentChatRequest'
+      responses:
+        '200':
+          description: Agent chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentChatResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/chat:
+    post:
+      tags: [Agent]
+      summary: Simple chat endpoint
+      operationId: chat
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/tool:
+    post:
+      tags: [Tools]
+      summary: Execute a tool
+      operationId: executeTool
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToolExecutionRequest'
+      responses:
+        '200':
+          description: Tool execution result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ToolExecutionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/tools:
+    get:
+      tags: [Tools]
+      summary: List available tools
+      operationId: listTools
+      responses:
+        '200':
+          description: List of tools
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tools:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Tool'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/sessions:
+    get:
+      tags: [Sessions]
+      summary: List user sessions
+      operationId: listSessions
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  sessions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Session'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Sessions]
+      summary: Create a new session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionCreateRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/sessions/{sessionId}:
+    get:
+      tags: [Sessions]
+      summary: Get session messages
+      operationId: getSessionMessages
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionMessages'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Sessions]
+      summary: Delete a session
+      operationId: deleteSession
+      parameters:
+        - name: sessionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Session deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/memories:
+    get:
+      tags: [Memory]
+      summary: List memories
+      operationId: listMemories
+      parameters:
+        - name: X-Hermes-User-Id
+          in: header
+          schema:
+            type: string
+          description: User ID to query (admin only)
+      responses:
+        '200':
+          description: List of memories
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tenant_id:
+                    type: string
+                  user_id:
+                    type: string
+                  memories:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/MemoryEntry'
+                  count:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/memories/{key}:
+    delete:
+      tags: [Memory]
+      summary: Delete a memory
+      operationId: deleteMemory
+      parameters:
+        - name: key
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: X-Hermes-User-Id
+          in: header
+          schema:
+            type: string
+          description: User ID to delete from (admin only)
+      responses:
+        '204':
+          description: Memory deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/skills:
+    get:
+      tags: [Skills]
+      summary: List available skills
+      operationId: listSkills
+      responses:
+        '200':
+          description: List of skills
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  skills:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Skill'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/skills/{name}:
+    get:
+      tags: [Skills]
+      summary: Get skill content
+      operationId: getSkill
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Skill content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Skill'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/events:
+    get:
+      tags: [Events]
+      summary: Server-Sent Events stream
+      operationId: getEvents
+      responses:
+        '200':
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/gdpr/export:
+    get:
+      tags: [GDPR]
+      summary: Export user data
+      operationId: exportGDPRData
+      responses:
+        '200':
+          description: User data export
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/gdpr/data:
+    delete:
+      tags: [GDPR]
+      summary: Delete user data
+      operationId: deleteGDPRData
+      responses:
+        '200':
+          description: Data deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/gdpr/restore:
+    post:
+      tags: [GDPR]
+      summary: Restore deleted data
+      operationId: restoreGDPRData
+      responses:
+        '200':
+          description: Data restored
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/gdpr/status:
+    get:
+      tags: [GDPR]
+      summary: Get GDPR deletion status
+      operationId: getGDPRStatus
+      responses:
+        '200':
+          description: Deletion status
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/bootstrap/status:
+    get:
+      tags: [Admin]
+      summary: Get bootstrap status
+      operationId: getBootstrapStatus
+      security: []
+      responses:
+        '200':
+          description: Bootstrap status
+          content:
+            application/json:
+              schema:
+                type: object
+
+  /admin/v1/tenants/{id}/api-keys:
+    get:
+      tags: [Admin]
+      summary: List API keys for tenant
+      operationId: listAPIKeys
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  api_keys:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/APIKey'
+                  total:
+                    type: integer
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Admin]
+      summary: Create API key for tenant
+      operationId: createAPIKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAPIKeyRequest'
+      responses:
+        '201':
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/tenants/{id}/api-keys/{kid}:
+    delete:
+      tags: [Admin]
+      summary: Revoke API key
+      operationId: revokeAPIKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: API key revoked
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/tenants/{id}/api-keys/{kid}/rotate:
+    post:
+      tags: [Admin]
+      summary: Rotate API key
+      operationId: rotateAPIKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: kid
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: API key rotated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/tenants/{id}/sandbox-policy:
+    get:
+      tags: [Admin]
+      summary: Get sandbox policy for tenant
+      operationId: getSandboxPolicy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sandbox policy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SandboxPolicy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Admin]
+      summary: Set sandbox policy for tenant
+      operationId: setSandboxPolicy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SandboxPolicy'
+      responses:
+        '200':
+          description: Sandbox policy set
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Admin]
+      summary: Delete sandbox policy for tenant
+      operationId: deleteSandboxPolicy
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Sandbox policy deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/pricing-rules:
+    get:
+      tags: [Admin]
+      summary: List pricing rules
+      operationId: listPricingRules
+      responses:
+        '200':
+          description: List of pricing rules
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/pricing-rules/{model}:
+    put:
+      tags: [Admin]
+      summary: Upsert pricing rule
+      operationId: upsertPricingRule
+      parameters:
+        - name: model
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingRule'
+      responses:
+        '200':
+          description: Pricing rule upserted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    delete:
+      tags: [Admin]
+      summary: Delete pricing rule
+      operationId: deletePricingRule
+      parameters:
+        - name: model
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Pricing rule deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/audit-logs:
+    get:
+      tags: [Admin]
+      summary: List audit logs
+      operationId: listAuditLogs
+      responses:
+        '200':
+          description: List of audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/usage:
+    get:
+      tags: [Admin]
+      summary: Get usage aggregation
+      operationId: getUsageAggregation
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: granularity
+          in: query
+          schema:
+            type: string
+            enum: [daily, monthly]
+            default: daily
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Usage aggregation
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsageSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /admin/v1/usage/tenants:
+    get:
+      tags: [Admin]
+      summary: List tenant usage
+      operationId: listTenantUsage
+      responses:
+        '200':
+          description: Tenant usage list
+          content:
+            application/json:
+              schema:
+                type: object
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API Key
+      description: API key in format hk_...
+
+  schemas:
+    ChatCompletionRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+                enum: [system, user, assistant]
+              content:
+                type: string
+        temperature:
+          type: number
+        max_tokens:
+          type: integer
+
+    ChatCompletionResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        object:
+          type: string
+        choices:
+          type: array
+          items:
+            type: object
+            properties:
+              message:
+                type: object
+                properties:
+                  role:
+                    type: string
+                  content:
+                    type: string
+              finish_reason:
+                type: string
+        usage:
+          type: object
+          properties:
+            prompt_tokens:
+              type: integer
+            completion_tokens:
+              type: integer
+            total_tokens:
+              type: integer
+
+    AgentChatRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+        tools:
+          type: array
+          items:
+            type: object
+        stream:
+          type: boolean
+
+    AgentChatResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+        tool_calls:
+          type: array
+          items:
+            type: object
+
+    ChatRequest:
+      type: object
+      required: [model, messages]
+      properties:
+        model:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+
+    ChatResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        content:
+          type: string
+
+    ToolExecutionRequest:
+      type: object
+      required: [name, arguments]
+      properties:
+        name:
+          type: string
+        arguments:
+          type: object
+
+    ToolExecutionResponse:
+      type: object
+      properties:
+        result:
+          type: string
+        error:
+          type: string
+
+    Tool:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        parameters:
+          type: object
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        user_id:
+          type: string
+        model:
+          type: string
+        started_at:
+          type: string
+          format: date-time
+        ended_at:
+          type: string
+          format: date-time
+
+    SessionCreateRequest:
+      type: object
+      properties:
+        model:
+          type: string
+        user_id:
+          type: string
+
+    SessionMessages:
+      type: object
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+            properties:
+              role:
+                type: string
+              content:
+                type: string
+              timestamp:
+                type: string
+                format: date-time
+        count:
+          type: integer
+
+    MemoryEntry:
+      type: object
+      properties:
+        key:
+          type: string
+        content:
+          type: string
+
+    Skill:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        content:
+          type: string
+
+    APIKey:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        prefix:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateAPIKeyRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        scopes:
+          type: array
+          items:
+            type: string
+
+    APIKeyResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        prefix:
+          type: string
+        key:
+          type: string
+          description: One-time display, never stored
+        roles:
+          type: array
+          items:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    SandboxPolicy:
+      type: object
+      properties:
+        mode:
+          type: string
+          enum: [local, docker, k8s-job]
+        allowed_images:
+          type: array
+          items:
+            type: string
+        timeout_seconds:
+          type: integer
+
+    PricingRule:
+      type: object
+      properties:
+        model:
+          type: string
+        input_price_per_1k:
+          type: number
+        output_price_per_1k:
+          type: number
+
+    UsageSummary:
+      type: object
+      properties:
+        date:
+          type: string
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        total_tokens:
+          type: integer
+        estimated_cost_usd:
+          type: number
+
+  responses:
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: authorization required
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: not found

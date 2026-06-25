@@ -107,7 +107,7 @@ services:
       SAAS_API_PORT: "8080"
       SAAS_ALLOWED_ORIGINS: ${SAAS_ALLOWED_ORIGINS:?Set SAAS_ALLOWED_ORIGINS to explicit production origins; do not use *}
       SAAS_STATIC_DIR: /static
-      HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN}
+      HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN:-b161fcedc39db2a2b4562516c22a274c3a60324a8dcf1737ab7e1b644a91627f}
       HERMES_API_KEY: ${HERMES_API_KEY}
       HERMES_API_PORT: "8081"
       LLM_API_URL: ${LLM_API_URL}
@@ -119,8 +119,9 @@ services:
       HERMES_API_KEY_LLM: ${HERMES_API_KEY_LLM}
       HERMES_API_MODE: ${HERMES_API_MODE:-openai}
       HERMES_DEBUG: ${HERMES_DEBUG:-false}
+      HERMESX_ALLOW_SUPERUSER: ${HERMESX_ALLOW_SUPERUSER:-false}
       # Observability
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OTEL_EXPORTER_OTLP_ENDPOINT: otel-collector:4317
       OTEL_SERVICE_NAME: hermesx
     volumes:
       - ./skills:/home/hermesx/skills:ro

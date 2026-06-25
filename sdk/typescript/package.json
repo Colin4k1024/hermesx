@@ -1,0 +1,17 @@
+{
+  "name": "@hermesx/sdk",
+  "version": "2.4.0-dev",
+  "description": "HermesX TypeScript SDK",
+  "main": "dist/types.js",
+  "types": "dist/types.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["hermesx", "ai", "agent", "sdk"],
+  "author": "HermesX Team",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
+}
