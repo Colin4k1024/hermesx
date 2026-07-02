@@ -47,7 +47,7 @@ type TestTenant struct {
 func TestMain(m *testing.M) {
 	ctx := context.Background()
 	if os.Getenv("SANDBOX_MODE") == "" {
-		_ = os.Setenv("SANDBOX_MODE", "local")
+		_ = os.Setenv("SANDBOX_MODE", "docker")
 	}
 	if os.Getenv("SANDBOX_MODE") == "local" && os.Getenv("HERMESX_ALLOW_LOCAL_SANDBOX") == "" {
 		_ = os.Setenv("HERMESX_ALLOW_LOCAL_SANDBOX", "true")

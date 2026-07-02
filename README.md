@@ -44,11 +44,11 @@ HermesX is not a local standalone assistant. Its supported product surface is th
 | Runtime | Go (single binary) | Python | Python | Python |
 | Multi-tenant | PG RLS database-level isolation | None | None | None |
 | Tool audit | ExecutionReceipt | None | None | None |
-| Self-hosting | Native | Supported but complex | Not suitable | Not suitable |
+| Deployment | SaaS-only (Docker/K8s) | Self-hosted or Cloud | Not suitable | Not suitable |
 | LLM resilience | Three-layer circuit breaker | Basic retry | None | None |
 | Enterprise ready | RBAC, audit logs, GDPR | Limited | None | None |
 
-HermesX is designed for teams that need to run agents as production infrastructure with enterprise-grade governance, not just for prototyping or local development.
+HermesX is designed for teams that need to run agents as production infrastructure with enterprise-grade governance, not just for prototyping or local development. HermesX only supports SaaS deployment mode (Docker/Kubernetes).
 
 ### Architecture
 
@@ -93,7 +93,7 @@ This deterministic fixture demo shows the API -> Agent Task -> Tool -> Receipt -
 | Agent runtime | OpenAI-compatible chat, native agent chat, tools, skills, memory, MCP client, context compression | Eino 0.9 main path, checkpoint resume, `include_agentic_blocks` debug output |
 | SaaS control plane | Tenant isolation, PostgreSQL RLS, auth chain, API key scopes, RBAC, audit logs, GDPR export/delete, execution receipts | Admin usage aggregation API |
 | Workflow automation | Fixed SOP workflow definitions, immutable versions, runs, step records, human tasks, retry/cancel API | Workflow `agent_task` default executor uses the Eino TurnLoop path |
-| Sandbox and execution | Tenant-level sandbox controls with explicit Docker/K8s backends | SaaS-only default rejects implicit host execution; production uses `SANDBOX_MODE=k8s-job` |
+| Sandbox and execution | Tenant-level sandbox controls with explicit Docker/K8s backends | SaaS-only mode rejects local execution; production uses `SANDBOX_MODE=k8s-job` |
 | Observability and ops | Prometheus metrics, OpenTelemetry tracing, structured logs, production compose, PG backup/restore | Grafana dashboard, Prometheus alert rules, OTel collector compose, Redis/MinIO backup scripts |
 | Distributed scheduling | SaaS cron scheduler with Redis lock, PG poll-sync, idempotent runs, result delivery | Release hardening and follow-up docs tracked in Unreleased |
 
@@ -134,7 +134,7 @@ Counts are intentionally small and evidence-oriented. The full API contract is a
 
 Use HermesX when agents must run as a governed SaaS service inside product-grade boundaries: multiple tenants, real users, sensitive tools, auditable execution, approval workflows, and operational ownership.
 
-HermesX no longer exposes local standalone assistant or gateway deployment paths. For a single local assistant, a pure prompt prototype, or a workflow that does not need tenant isolation or auditability, use a smaller agent framework instead.
+HermesX only supports SaaS deployment mode (Docker/Kubernetes). It does not support local standalone assistant or gateway deployment. For a single local assistant, a pure prompt prototype, or a workflow that does not need tenant isolation or auditability, use a smaller agent framework instead.
 
 ### Acknowledgements
 
@@ -222,7 +222,7 @@ curl http://localhost:8080/health/ready
 | Agent Runtime | OpenAI 兼容 Chat、原生 Agent Chat、工具、技能、记忆、MCP、上下文压缩 | Eino 0.9 主链、checkpoint resume、`include_agentic_blocks` 调试输出 |
 | SaaS 控制平面 | 租户隔离、PostgreSQL RLS、认证链、API Key Scope、RBAC、审计、GDPR、执行回执 | Admin usage aggregation API |
 | 工作流自动化 | 固定 SOP 工作流定义、不可变版本、实例、步骤记录、人工任务、重试/取消 API | workflow `agent_task` 默认走 Eino TurnLoop |
-| 沙箱与执行 | 租户级沙箱控制，显式 Docker/K8s 后端 | SaaS-only 默认拒绝隐式宿主机执行；生产使用 `SANDBOX_MODE=k8s-job` |
+| 沙箱与执行 | 租户级沙箱控制，显式 Docker/K8s 后端 | SaaS 模式拒绝本地执行；生产使用 `SANDBOX_MODE=k8s-job` |
 | 可观测与运维 | Prometheus 指标、OpenTelemetry 链路、结构化日志、生产 compose、PG 备份/恢复 | Grafana Dashboard、Prometheus 告警、OTel Collector compose、Redis/MinIO 备份脚本 |
 | 分布式调度 | Redis Lock、PG 同步、幂等运行、结果投递的 SaaS cron scheduler | 未发布区跟踪发布加固和后续文档 |
 
@@ -263,7 +263,7 @@ curl http://localhost:8080/health/ready
 
 当 Agent 需要作为受治理 SaaS 服务进入真实产品边界时使用 HermesX：多租户、真实用户、敏感工具、可审计执行、审批工作流和运维责任。
 
-HermesX 不再对外提供本地单机助手或 Gateway 部署路径。如果只是本地助手、提示词原型，或不需要租户隔离和审计能力的简单编排，选择更小的 Agent 框架会更直接。
+HermesX 仅支持 SaaS 部署模式（Docker/Kubernetes），不再支持本地单机助手或 Gateway 部署。如果只是本地助手、提示词原型，或不需要租户隔离和审计能力的简单编排，选择更小的 Agent 框架会更直接。
 
 ### 致谢
 

@@ -1,5 +1,9 @@
 package sqlite
 
+// Deprecated: SQLite store is for unit testing only.
+// Production SaaS mode requires PostgreSQL (pg store).
+// This package will be removed in a future version.
+
 import (
 	"context"
 	"encoding/json"
@@ -19,7 +23,8 @@ func init() {
 	})
 }
 
-// SQLiteStore wraps the existing state.SessionDB as a store.Store for local dev.
+// Deprecated: SQLiteStore wraps the existing state.SessionDB as a store.Store for unit testing only.
+// Production SaaS mode requires PostgreSQL.
 type SQLiteStore struct {
 	db *state.SessionDB
 }

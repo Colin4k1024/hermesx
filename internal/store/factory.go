@@ -8,7 +8,7 @@ import (
 
 // StoreConfig holds database configuration.
 type StoreConfig struct {
-	Driver string // "postgres" or "sqlite" (default)
+	Driver string // "postgres" (default for SaaS) or "sqlite" (testing only)
 	URL    string // connection URL
 }
 
@@ -23,10 +23,11 @@ func RegisterDriver(name string, fn NewFunc) {
 }
 
 // NewStore creates a Store based on configuration.
+// Default driver is "postgres" for SaaS mode. Use "sqlite" only for unit testing.
 func NewStore(ctx context.Context, cfg StoreConfig) (Store, error) {
 	driver := cfg.Driver
 	if driver == "" {
-		driver = "sqlite"
+		driver = "postgres"
 	}
 
 	fn, ok := registry[driver]

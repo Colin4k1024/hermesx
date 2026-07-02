@@ -88,8 +88,8 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	sandboxMode := os.Getenv("SANDBOX_MODE")
 	if sandboxMode == "" {
 		return toJSON(map[string]any{
-			"error": "SANDBOX_MODE is required for execute_code in SaaS-only mode",
-			"hint":  "Set SANDBOX_MODE=k8s-job for production, SANDBOX_MODE=docker for container isolation, or explicitly opt into local development with SANDBOX_MODE=local and HERMESX_ALLOW_LOCAL_SANDBOX=true outside production.",
+			"error": "SANDBOX_MODE is required for execute_code in SaaS mode",
+			"hint":  "Set SANDBOX_MODE=docker for container isolation or SANDBOX_MODE=k8s-job for Kubernetes jobs. Local sandbox (SANDBOX_MODE=local) is only for development/testing.",
 		})
 	}
 
@@ -97,8 +97,8 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	case "local":
 		if !localSandboxAllowed() {
 			return toJSON(map[string]any{
-				"error": "local SANDBOX_MODE is disabled by default in SaaS-only mode",
-				"hint":  "For local SaaS development only, set HERMESX_ALLOW_LOCAL_SANDBOX=true and ensure HERMES_ENV/HERMESX_ENV/APP_ENV/GO_ENV are not production.",
+				"error": "local SANDBOX_MODE is disabled in SaaS-only mode",
+				"hint":  "Local sandbox is ONLY for development/testing. For SaaS mode, use SANDBOX_MODE=docker or SANDBOX_MODE=k8s-job. To enable local sandbox for testing, set HERMESX_ALLOW_LOCAL_SANDBOX=true and ensure you are not in production/SaaS mode.",
 			})
 		}
 		switch language {
@@ -119,14 +119,24 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	}
 }
 
+// localSandboxAllowed checks if local sandbox execution is permitted.
+// Local sandbox is ONLY allowed for development/testing when:
+// 1. HERMESX_ALLOW_LOCAL_SANDBOX=true is explicitly set
+// 2. NOT running in production environment
+// 3. NOT running in SaaS mode (SAAS_API_PORT is not set)
 func localSandboxAllowed() bool {
 	if !envBool("HERMESX_ALLOW_LOCAL_SANDBOX") {
 		return false
 	}
+	// Check production environment
 	for _, name := range []string{"HERMES_ENV", "HERMESX_ENV", "APP_ENV", "GO_ENV"} {
 		if strings.EqualFold(strings.TrimSpace(os.Getenv(name)), "production") {
 			return false
 		}
+	}
+	// Check if running in SaaS mode
+	if os.Getenv("SAAS_API_PORT") != "" {
+		return false
 	}
 	return true
 }

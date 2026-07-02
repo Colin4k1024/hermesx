@@ -40,9 +40,9 @@ type RateLimitConfig struct {
 // RateLimitMiddleware applies per-tenant rate limiting.
 // For authenticated requests with a UserID and a configured DualLimiter,
 // it atomically checks both tenant and user limits.
-// Falls back to local in-memory limiter if the distributed limiter errors.
+// Falls back to in-memory limiter if the distributed limiter errors.
 func RateLimitMiddleware(cfg RateLimitConfig) Middleware {
-	local := newLocalLimiter()
+	local := newMemoryLimiter()
 	localDual := NewLocalDualLimiter()
 
 	return func(next http.Handler) http.Handler {
@@ -145,8 +145,9 @@ func dualPath(cfg RateLimitConfig, localDual *LocalDualLimiter, ac *auth.AuthCon
 	next.ServeHTTP(w, r)
 }
 
-// localLimiter is a simple in-memory sliding window fallback with bounded size.
-type localLimiter struct {
+// memoryLimiter is a simple in-memory sliding window fallback with bounded size.
+// Used as fallback when distributed limiter (Redis) is unavailable.
+type memoryLimiter struct {
 	mu      sync.Mutex
 	buckets *lru.Cache[string, *bucket]
 }
@@ -159,12 +160,12 @@ type bucket struct {
 
 const maxRateLimitBuckets = 10000
 
-func newLocalLimiter() *localLimiter {
+func newMemoryLimiter() *memoryLimiter {
 	cache, _ := lru.New[string, *bucket](maxRateLimitBuckets)
-	return &localLimiter{buckets: cache}
+	return &memoryLimiter{buckets: cache}
 }
 
-func (l *localLimiter) allow(key string, limit int) (bool, int) {
+func (l *memoryLimiter) allow(key string, limit int) (bool, int) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

@@ -89,7 +89,7 @@ Common scopes include `agent`, `tools`, `gateway`, `cli`, `llm`, `config`, `skil
 ### Project Structure
 
 ```text
-cmd/hermesx/             CLI and SaaS API entry point
+cmd/hermesx/             SaaS API entry point
 internal/                Go implementation packages
 skills/                  Bundled skill files
 optional-skills/         Optional skill catalog metadata
@@ -367,7 +367,7 @@ refactor(llm): extract provider detection
 ### 项目结构
 
 ```text
-cmd/hermesx/             CLI 和 SaaS API 入口
+cmd/hermesx/             SaaS API 入口
 internal/                Go 实现包
 skills/                  内置技能文件
 optional-skills/         可选技能目录元数据
