@@ -28,12 +28,12 @@ type Client interface {
 
 // Tenant represents a hermesx tenant.
 type Tenant struct {
-	ID             string    `json:"id"`
-	Name           string    `json:"name"`
-	Plan           string    `json:"plan"`
-	RateLimitRPM   int       `json:"rate_limit_rpm"`
-	MaxSessions    int       `json:"max_sessions"`
-	CreatedAt      time.Time `json:"created_at"`
+	ID           string    `json:"id"`
+	Name         string    `json:"name"`
+	Plan         string    `json:"plan"`
+	RateLimitRPM int       `json:"rate_limit_rpm"`
+	MaxSessions  int       `json:"max_sessions"`
+	CreatedAt    time.Time `json:"created_at"`
 }
 
 // ExecutionReceipt represents a tool execution record.
@@ -54,19 +54,19 @@ type ExecutionReceipt struct {
 
 // Quota represents tenant quota limits.
 type Quota struct {
-	TenantID      string `json:"tenant_id"`
-	MaxRPM        int    `json:"max_rpm"`
-	MaxTokens     int    `json:"max_tokens"`
-	MaxSessions   int    `json:"max_sessions"`
-	MaxStorageMB  int    `json:"max_storage_mb"`
+	TenantID     string `json:"tenant_id"`
+	MaxRPM       int    `json:"max_rpm"`
+	MaxTokens    int    `json:"max_tokens"`
+	MaxSessions  int    `json:"max_sessions"`
+	MaxStorageMB int    `json:"max_storage_mb"`
 }
 
 // SandboxPolicy represents tenant sandbox configuration.
 type SandboxPolicy struct {
-	TenantID      string   `json:"tenant_id"`
-	Mode          string   `json:"mode"` // "local", "docker", "k8s-job"
-	AllowedImages []string `json:"allowed_images,omitempty"`
-	TimeoutSeconds int    `json:"timeout_seconds"`
+	TenantID       string   `json:"tenant_id"`
+	Mode           string   `json:"mode"` // "local", "docker", "k8s-job"
+	AllowedImages  []string `json:"allowed_images,omitempty"`
+	TimeoutSeconds int      `json:"timeout_seconds"`
 }
 
 // UsageSummary represents aggregated usage for a tenant.
@@ -80,13 +80,13 @@ type UsageSummary struct {
 
 // OrisMetricEvent represents a metric event to be reported to Oris (L3).
 type OrisMetricEvent struct {
-	AgentID      string   `json:"agent_id"`
-	ToolName     string   `json:"tool_name"`
-	SuccessRate  float64  `json:"success_rate"`
-	AvgLatencyMs int64    `json:"avg_latency_ms"`
-	ErrorTypes   []string `json:"error_types,omitempty"`
-	TraceID      string   `json:"trace_id,omitempty"`
-	TenantID     string   `json:"tenant_id"`
-	SessionID    string   `json:"session_id"`
+	AgentID      string    `json:"agent_id"`
+	ToolName     string    `json:"tool_name"`
+	SuccessRate  float64   `json:"success_rate"`
+	AvgLatencyMs int64     `json:"avg_latency_ms"`
+	ErrorTypes   []string  `json:"error_types,omitempty"`
+	TraceID      string    `json:"trace_id,omitempty"`
+	TenantID     string    `json:"tenant_id"`
+	SessionID    string    `json:"session_id"`
 	Timestamp    time.Time `json:"timestamp"`
 }

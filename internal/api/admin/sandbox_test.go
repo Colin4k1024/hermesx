@@ -22,7 +22,7 @@ func TestSetSandboxPolicy_MissingTenantID(t *testing.T) {
 
 func TestSetSandboxPolicy_InvalidBody(t *testing.T) {
 	h := &AdminHandler{}
-	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/sandbox-policy", 
+	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/sandbox-policy",
 		bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
 
@@ -83,7 +83,7 @@ func TestCreateAPIKey_MissingTenantID(t *testing.T) {
 
 func TestCreateAPIKey_InvalidBody(t *testing.T) {
 	h := &AdminHandler{}
-	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/api-keys", 
+	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/api-keys",
 		bytes.NewBufferString("invalid json"))
 	w := httptest.NewRecorder()
 
@@ -97,7 +97,7 @@ func TestCreateAPIKey_InvalidBody(t *testing.T) {
 func TestCreateAPIKey_MissingName(t *testing.T) {
 	h := &AdminHandler{}
 	body, _ := json.Marshal(map[string]any{})
-	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/api-keys", 
+	req := httptest.NewRequest("POST", "/admin/v1/tenants/test-tenant/api-keys",
 		bytes.NewBuffer(body))
 	w := httptest.NewRecorder()
 

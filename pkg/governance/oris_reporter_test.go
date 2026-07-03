@@ -76,13 +76,13 @@ func TestOrisReporter_ReportFromReceipt(t *testing.T) {
 	reporter := NewOrisReporter(server.URL, nil)
 
 	receipt := &ExecutionReceipt{
-		ID:            "test-id",
-		TenantID:      "test-tenant",
-		SessionID:     "test-session",
-		ToolName:      "terminal",
-		Status:        "success",
-		DurationMs:    50,
-		CreatedAt:     time.Now(),
+		ID:         "test-id",
+		TenantID:   "test-tenant",
+		SessionID:  "test-session",
+		ToolName:   "terminal",
+		Status:     "success",
+		DurationMs: 50,
+		CreatedAt:  time.Now(),
 	}
 
 	err := reporter.ReportFromReceipt(context.Background(), receipt, "test-agent")
@@ -112,13 +112,13 @@ func TestOrisReporter_ReportFromReceipt_Error(t *testing.T) {
 	reporter := NewOrisReporter(server.URL, nil)
 
 	receipt := &ExecutionReceipt{
-		ID:            "test-id",
-		TenantID:      "test-tenant",
-		SessionID:     "test-session",
-		ToolName:      "terminal",
-		Status:        "error",
-		DurationMs:    50,
-		CreatedAt:     time.Now(),
+		ID:         "test-id",
+		TenantID:   "test-tenant",
+		SessionID:  "test-session",
+		ToolName:   "terminal",
+		Status:     "error",
+		DurationMs: 50,
+		CreatedAt:  time.Now(),
 	}
 
 	err := reporter.ReportFromReceipt(context.Background(), receipt, "test-agent")

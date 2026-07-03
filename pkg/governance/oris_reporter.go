@@ -40,7 +40,7 @@ func (r *OrisReporter) Report(ctx context.Context, event *OrisMetricEvent) error
 		return fmt.Errorf("marshal metric event: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.endpoint+"/api/v1/ingest/metrics", 
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, r.endpoint+"/api/v1/ingest/metrics",
 		bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)
