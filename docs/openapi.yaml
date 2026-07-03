@@ -717,6 +717,111 @@ paths:
         '401':
           $ref: '#/components/responses/Unauthorized'
 
+  /v1/execution-receipts:
+    get:
+      tags: [Audit]
+      summary: List execution receipts for tenant (auditor role required)
+      operationId: listExecutionReceipts
+      parameters:
+        - name: session_id
+          in: query
+          schema:
+            type: string
+          description: Filter by session ID
+        - name: tool_name
+          in: query
+          schema:
+            type: string
+          description: Filter by tool name
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [success, error, timeout]
+          description: Filter by execution status
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of receipts to return
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+          description: Number of receipts to skip
+      responses:
+        '200':
+          description: Execution receipt list with pagination
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  execution_receipts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExecutionReceipt'
+                  total:
+                    type: integer
+              example:
+                execution_receipts:
+                  - id: "receipt-001"
+                    tenant_id: "tenant-abc"
+                    session_id: "session-xyz"
+                    user_id: "user-123"
+                    tool_name: "read_file"
+                    input: '{"path": "/tmp/test.txt"}'
+                    output: '{"content": "Hello World"}'
+                    status: "success"
+                    duration_ms: 45
+                    idempotency_id: "idem-001"
+                    trace_id: "trace-abc"
+                    created_at: "2024-01-15T10:30:00Z"
+                total: 1
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          description: Forbidden — auditor role required
+
+  /v1/execution-receipts/{id}:
+    get:
+      tags: [Audit]
+      summary: Get execution receipt by ID
+      operationId: getExecutionReceipt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Execution receipt ID
+      responses:
+        '200':
+          description: Execution receipt details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExecutionReceipt'
+              example:
+                id: "receipt-001"
+                tenant_id: "tenant-abc"
+                session_id: "session-xyz"
+                user_id: "user-123"
+                tool_name: "read_file"
+                input: '{"path": "/tmp/test.txt"}'
+                output: '{"content": "Hello World"}'
+                status: "success"
+                duration_ms: 45
+                idempotency_id: "idem-001"
+                trace_id: "trace-abc"
+                created_at: "2024-01-15T10:30:00Z"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Execution receipt not found
+
 components:
   securitySchemes:
     BearerAuth:
@@ -1011,6 +1116,61 @@ components:
           type: integer
         estimated_cost_usd:
           type: number
+
+    ExecutionReceipt:
+      type: object
+      description: Execution receipt recording a tool execution with full audit trail
+      properties:
+        id:
+          type: string
+          description: Unique receipt identifier
+          example: "receipt-001"
+        tenant_id:
+          type: string
+          description: Tenant ID that owns this receipt
+          example: "tenant-abc"
+        session_id:
+          type: string
+          description: Session ID associated with the execution
+          example: "session-xyz"
+        user_id:
+          type: string
+          description: User ID that initiated the execution
+          example: "user-123"
+        tool_name:
+          type: string
+          description: Name of the tool that was executed
+          example: "read_file"
+        input:
+          type: string
+          description: JSON-encoded tool input parameters
+          example: '{"path": "/tmp/test.txt"}'
+        output:
+          type: string
+          description: JSON-encoded tool output
+          example: '{"content": "Hello World"}'
+        status:
+          type: string
+          enum: [success, error, timeout]
+          description: Execution status
+          example: "success"
+        duration_ms:
+          type: integer
+          description: Execution duration in milliseconds
+          example: 45
+        idempotency_id:
+          type: string
+          description: Optional idempotency key for deduplication
+          example: "idem-001"
+        trace_id:
+          type: string
+          description: Optional distributed trace ID
+          example: "trace-abc"
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the receipt was created
+          example: "2024-01-15T10:30:00Z"
 
   responses:
     Unauthorized:
