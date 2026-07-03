@@ -2363,14 +2363,14 @@ type ClientWithResponsesInterface interface {
 	ListTenantUsageWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*ListTenantUsageResponse, error)
 
 	// AgentChatWithBodyWithResponse request with any body
-	AgentChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AgentChatResponse, error)
+	AgentChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AgentChatHTTPResponse, error)
 
-	AgentChatWithResponse(ctx context.Context, body AgentChatJSONRequestBody, reqEditors ...RequestEditorFn) (*AgentChatResponse, error)
+	AgentChatWithResponse(ctx context.Context, body AgentChatJSONRequestBody, reqEditors ...RequestEditorFn) (*AgentChatHTTPResponse, error)
 
 	// ChatWithBodyWithResponse request with any body
-	ChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChatResponse, error)
+	ChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChatHTTPResponse, error)
 
-	ChatWithResponse(ctx context.Context, body ChatJSONRequestBody, reqEditors ...RequestEditorFn) (*ChatResponse, error)
+	ChatWithResponse(ctx context.Context, body ChatJSONRequestBody, reqEditors ...RequestEditorFn) (*ChatHTTPResponse, error)
 
 	// CreateChatCompletionWithBodyWithResponse request with any body
 	CreateChatCompletionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreateChatCompletionResponse, error)
@@ -2869,7 +2869,7 @@ func (r ListTenantUsageResponse) ContentType() string {
 	return ""
 }
 
-type AgentChatResponse struct {
+type AgentChatHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *AgentChatResponse
@@ -2877,7 +2877,7 @@ type AgentChatResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r AgentChatResponse) Status() string {
+func (r AgentChatHTTPResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2885,7 +2885,7 @@ func (r AgentChatResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r AgentChatResponse) StatusCode() int {
+func (r AgentChatHTTPResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2893,14 +2893,14 @@ func (r AgentChatResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r AgentChatResponse) ContentType() string {
+func (r AgentChatHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
 	return ""
 }
 
-type ChatResponse struct {
+type ChatHTTPResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *ChatResponse
@@ -2908,7 +2908,7 @@ type ChatResponse struct {
 }
 
 // Status returns HTTPResponse.Status
-func (r ChatResponse) Status() string {
+func (r ChatHTTPResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -2916,7 +2916,7 @@ func (r ChatResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r ChatResponse) StatusCode() int {
+func (r ChatHTTPResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
@@ -2924,7 +2924,7 @@ func (r ChatResponse) StatusCode() int {
 }
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
-func (r ChatResponse) ContentType() string {
+func (r ChatHTTPResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -3679,38 +3679,38 @@ func (c *ClientWithResponses) ListTenantUsageWithResponse(ctx context.Context, r
 	return ParseListTenantUsageResponse(rsp)
 }
 
-// AgentChatWithBodyWithResponse request with arbitrary body returning *AgentChatResponse
-func (c *ClientWithResponses) AgentChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AgentChatResponse, error) {
+// AgentChatWithBodyWithResponse request with arbitrary body returning *AgentChatHTTPResponse
+func (c *ClientWithResponses) AgentChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AgentChatHTTPResponse, error) {
 	rsp, err := c.AgentChatWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAgentChatResponse(rsp)
+	return ParseAgentChatHTTPResponse(rsp)
 }
 
-func (c *ClientWithResponses) AgentChatWithResponse(ctx context.Context, body AgentChatJSONRequestBody, reqEditors ...RequestEditorFn) (*AgentChatResponse, error) {
+func (c *ClientWithResponses) AgentChatWithResponse(ctx context.Context, body AgentChatJSONRequestBody, reqEditors ...RequestEditorFn) (*AgentChatHTTPResponse, error) {
 	rsp, err := c.AgentChat(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseAgentChatResponse(rsp)
+	return ParseAgentChatHTTPResponse(rsp)
 }
 
-// ChatWithBodyWithResponse request with arbitrary body returning *ChatResponse
-func (c *ClientWithResponses) ChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChatResponse, error) {
+// ChatWithBodyWithResponse request with arbitrary body returning *ChatHTTPResponse
+func (c *ClientWithResponses) ChatWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*ChatHTTPResponse, error) {
 	rsp, err := c.ChatWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseChatResponse(rsp)
+	return ParseChatHTTPResponse(rsp)
 }
 
-func (c *ClientWithResponses) ChatWithResponse(ctx context.Context, body ChatJSONRequestBody, reqEditors ...RequestEditorFn) (*ChatResponse, error) {
+func (c *ClientWithResponses) ChatWithResponse(ctx context.Context, body ChatJSONRequestBody, reqEditors ...RequestEditorFn) (*ChatHTTPResponse, error) {
 	rsp, err := c.Chat(ctx, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseChatResponse(rsp)
+	return ParseChatHTTPResponse(rsp)
 }
 
 // CreateChatCompletionWithBodyWithResponse request with arbitrary body returning *CreateChatCompletionResponse
@@ -4333,15 +4333,15 @@ func ParseListTenantUsageResponse(rsp *http.Response) (*ListTenantUsageResponse,
 	return response, nil
 }
 
-// ParseAgentChatResponse parses an HTTP response from a AgentChatWithResponse call
-func ParseAgentChatResponse(rsp *http.Response) (*AgentChatResponse, error) {
+// ParseAgentChatHTTPResponse parses an HTTP response from a AgentChatWithResponse call
+func ParseAgentChatHTTPResponse(rsp *http.Response) (*AgentChatHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &AgentChatResponse{
+	response := &AgentChatHTTPResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -4366,15 +4366,15 @@ func ParseAgentChatResponse(rsp *http.Response) (*AgentChatResponse, error) {
 	return response, nil
 }
 
-// ParseChatResponse parses an HTTP response from a ChatWithResponse call
-func ParseChatResponse(rsp *http.Response) (*ChatResponse, error) {
+// ParseChatHTTPResponse parses an HTTP response from a ChatWithResponse call
+func ParseChatHTTPResponse(rsp *http.Response) (*ChatHTTPResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &ChatResponse{
+	response := &ChatHTTPResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
