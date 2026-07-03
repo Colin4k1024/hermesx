@@ -1,0 +1,6 @@
+{
+  "version": "1.0.0",
+  "description": "Govulncheck baseline suppression file for HermesX",
+  "last_updated": "2026-07-03",
+  "suppressed_vulnerabilities": []
+}
