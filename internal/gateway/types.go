@@ -35,6 +35,7 @@ const (
 	PlatformDingTalk Platform = "dingtalk"
 	PlatformFeishu   Platform = "feishu"
 	PlatformWeCom    Platform = "wecom"
+	PlatformNotion   Platform = "notion"
 )
 
 // MessageEvent represents an incoming message from any platform.

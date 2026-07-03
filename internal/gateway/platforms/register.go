@@ -222,6 +222,30 @@ func init() {
 	})
 
 	r.Register(&gateway.PlatformRegistration{
+		Platform:    gateway.PlatformNotion,
+		DisplayName: "Notion",
+		Factory: func(cfg *gateway.PlatformConfig) (gateway.PlatformAdapter, error) {
+			token := cfg.Token
+			if token == "" {
+				return nil, ErrMissingToken
+			}
+			return NewNotionAdapter(token), nil
+		},
+		Capabilities: gateway.PlatformCapabilities{
+			SupportsImages:    true,
+			SupportsVoice:     false,
+			SupportsDocuments: true,
+			SupportsStickers:  false,
+			SupportsThreads:   true,
+			SupportsReactions: false,
+			SupportsEdits:     true,
+			MaxMessageLength:  2000,
+			MaxImages:         10,
+		},
+		EnvVars: []string{"NOTION_API_KEY"},
+	})
+
+	r.Register(&gateway.PlatformRegistration{
 		Platform:    gateway.PlatformAPI,
 		DisplayName: "HTTP API Server",
 		Factory: func(cfg *gateway.PlatformConfig) (gateway.PlatformAdapter, error) {
