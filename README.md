@@ -252,6 +252,7 @@ curl http://localhost:8080/health/ready
 | [RBAC 矩阵](docs/RBAC_MATRIX.md) | 角色与资源权限 |
 | [企业就绪度](docs/ENTERPRISE_READINESS.md) | 基于证据的企业能力矩阵 |
 | [部署指南](docs/deployment.md) | Docker、Kubernetes、高可用、备份、告警 |
+| [架构决策记录](docs/adr/) | 关键架构决策文档 |
 | [Changelog](docs/CHANGELOG.md) | 已发布与未发布变更 |
 | [贡献指南](CONTRIBUTING.md) | 贡献流程、检查项和项目结构 |
 | [安全政策](SECURITY.md) | 私密漏洞上报和支持版本 |
