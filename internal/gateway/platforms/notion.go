@@ -16,11 +16,11 @@ import (
 // NotionAdapter implements PlatformAdapter for Notion.
 type NotionAdapter struct {
 	BasePlatformAdapter
-	apiKey    string
-	baseURL   string
-	client    *http.Client
+	apiKey     string
+	baseURL    string
+	client     *http.Client
 	pollTicker *time.Ticker
-	stopCh    chan struct{}
+	stopCh     chan struct{}
 }
 
 // NewNotionAdapter creates a new Notion adapter.
@@ -122,8 +122,8 @@ func (a *NotionAdapter) Send(ctx context.Context, chatID string, text string, me
 	}
 
 	return &gateway.SendResult{
+		Success:   true,
 		MessageID: fmt.Sprintf("notion-%d", time.Now().UnixNano()),
-		Timestamp: time.Now(),
 	}, nil
 }
 
