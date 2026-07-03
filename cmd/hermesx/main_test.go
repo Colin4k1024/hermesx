@@ -23,39 +23,8 @@ func TestRootCommandIsSaaSOnly(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected root command to reject local standalone mode")
 	}
-	if !strings.Contains(err.Error(), saasOnlyMessage) {
+	if !strings.Contains(err.Error(), "local standalone mode has been removed") {
 		t.Fatalf("error = %q, want SaaS-only message", err.Error())
-	}
-}
-
-func TestStandaloneCommandsReturnSaaSOnlyError(t *testing.T) {
-	tests := [][]string{
-		{"chat", "hello"},
-		{"setup"},
-		{"gateway", "start"},
-		{"model"},
-		{"tools"},
-		{"skills", "list"},
-		{"config"},
-		{"doctor"},
-		{"cron", "list"},
-		{"batch", "hello"},
-		{"profile", "list"},
-		{"theme", "list"},
-		{"update"},
-		{"claw", "migrate"},
-	}
-
-	for _, args := range tests {
-		t.Run(strings.Join(args, " "), func(t *testing.T) {
-			_, err := executeRootForTest(args...)
-			if err == nil {
-				t.Fatal("expected command to reject local standalone mode")
-			}
-			if !strings.Contains(err.Error(), saasOnlyMessage) {
-				t.Fatalf("error = %q, want SaaS-only message", err.Error())
-			}
-		})
 	}
 }
 

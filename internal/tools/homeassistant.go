@@ -132,7 +132,7 @@ func resolveHACreds(ctx context.Context, tctx *ToolContext) (hassURL, hassToken 
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "HASS_TOKEN", "error", resolveErr)
 		}
 	}
-	if hassToken == "" {
+	if hassToken == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		hassToken = os.Getenv("HASS_TOKEN") // fallback for backward compat
 	}
 	return hassURL, hassToken

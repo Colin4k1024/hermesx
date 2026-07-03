@@ -132,7 +132,7 @@ func handleWebSearch(ctx context.Context, args map[string]any, tctx *ToolContext
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "EXA_API_KEY", "error", resolveErr)
 		}
 	}
-	if apiKey == "" {
+	if apiKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		apiKey = os.Getenv("EXA_API_KEY") // fallback for backward compat
 	}
 	if apiKey == "" {
@@ -227,7 +227,7 @@ func handleWebExtract(ctx context.Context, args map[string]any, tctx *ToolContex
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "FIRECRAWL_API_KEY", "error", resolveErr)
 		}
 	}
-	if firecrawlKey == "" {
+	if firecrawlKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		firecrawlKey = os.Getenv("FIRECRAWL_API_KEY") // fallback for backward compat
 	}
 
@@ -347,7 +347,7 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "FIRECRAWL_API_KEY", "error", resolveErr)
 		}
 	}
-	if firecrawlKey == "" {
+	if firecrawlKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		firecrawlKey = os.Getenv("FIRECRAWL_API_KEY") // fallback for backward compat
 	}
 	if firecrawlKey == "" {

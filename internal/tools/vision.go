@@ -178,10 +178,10 @@ func getVisionClientResolved(ctx context.Context, tctx *ToolContext) *llm.Client
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "OPENROUTER_API_KEY", "error", err)
 		}
 	}
-	if apiKey == "" {
+	if apiKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		apiKey = os.Getenv("AUXILIARY_VISION_API_KEY") // fallback for backward compat
 	}
-	if openrouterKey == "" {
+	if openrouterKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		openrouterKey = os.Getenv("OPENROUTER_API_KEY") // fallback for backward compat
 	}
 	return getVisionClientWithCreds(apiKey, openrouterKey)
@@ -264,7 +264,7 @@ func handleImageGenerate(ctx context.Context, args map[string]any, tctx *ToolCon
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "FAL_KEY", "error", resolveErr)
 		}
 	}
-	if falKey == "" {
+	if falKey == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		falKey = os.Getenv("FAL_KEY") // fallback for backward compat
 	}
 	if falKey == "" {

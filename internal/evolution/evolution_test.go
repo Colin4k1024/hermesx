@@ -20,7 +20,7 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Enabled {
 		t.Error("default config should be disabled")
 	}
-	if cfg.StorageMode != "sqlite" {
+	if cfg.StorageMode != "mysql" {
 		t.Errorf("unexpected storage mode: %s", cfg.StorageMode)
 	}
 	if cfg.MinConfidence != 0.5 {

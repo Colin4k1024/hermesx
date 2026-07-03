@@ -116,7 +116,7 @@ func (w *WeixinAdapter) postAPI(ctx context.Context, path string, payload map[st
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}
@@ -127,7 +127,7 @@ func (w *WeixinAdapter) postAPI(ctx context.Context, path string, payload map[st
 
 func (w *WeixinAdapter) refreshAccessToken() error {
 	url := fmt.Sprintf("https://api.weixin.qq.com/cgi-bin/token?grant_type=client_credential&appid=%s&secret=%s", w.appID, w.appSecret)
-	resp, err := http.Get(url)
+	resp, err := platformHTTPClient.Get(url)
 	if err != nil {
 		return err
 	}

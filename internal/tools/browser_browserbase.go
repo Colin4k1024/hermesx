@@ -17,19 +17,25 @@ func (b *BrowserbaseBackend) Name() string { return "browserbase" }
 
 func (b *BrowserbaseBackend) Connect(ctx context.Context, tctx *ToolContext) error {
 	// Resolve API key: prefer SecretResolver, fall back to environment variable.
-	apiKey := os.Getenv("BROWSERBASE_API_KEY") // fallback: use SecretResolver when available
+	var apiKey string
 	if tctx != nil && tctx.SecretResolver != nil {
 		if k, err := tctx.SecretResolver.Resolve(ctx, "BROWSERBASE_API_KEY"); err == nil && k != "" {
 			apiKey = k
 		}
 	}
+	if apiKey == "" {
+		apiKey = os.Getenv("BROWSERBASE_API_KEY") // fallback for backward compat
+	}
 
 	// Resolve project ID: prefer SecretResolver, fall back to environment variable.
-	projectID := os.Getenv("BROWSERBASE_PROJECT_ID") // fallback: use SecretResolver when available
+	var projectID string
 	if tctx != nil && tctx.SecretResolver != nil {
 		if id, err := tctx.SecretResolver.Resolve(ctx, "BROWSERBASE_PROJECT_ID"); err == nil && id != "" {
 			projectID = id
 		}
+	}
+	if projectID == "" {
+		projectID = os.Getenv("BROWSERBASE_PROJECT_ID") // fallback for backward compat
 	}
 
 	session, err := newBrowserbaseSessionWithCreds(apiKey, projectID)

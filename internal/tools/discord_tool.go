@@ -60,7 +60,7 @@ func resolveDiscordToken(ctx context.Context, tctx *ToolContext) string {
 			slog.Warn("secrets: resolve failed, falling back to env", "key", "DISCORD_BOT_TOKEN", "error", resolveErr)
 		}
 	}
-	if token == "" {
+	if token == "" && (tctx == nil || tctx.SecretResolver == nil) {
 		token = os.Getenv("DISCORD_BOT_TOKEN") // fallback for backward compat
 	}
 	return token

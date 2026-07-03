@@ -114,7 +114,7 @@ func (d *DingTalkAdapter) postWebhook(ctx context.Context, webhookURL string, pa
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}

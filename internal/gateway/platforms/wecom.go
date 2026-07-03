@@ -124,7 +124,7 @@ func (w *WeComAdapter) postAPI(ctx context.Context, path string, payload map[str
 	}
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}
@@ -135,7 +135,7 @@ func (w *WeComAdapter) postAPI(ctx context.Context, path string, payload map[str
 
 func (w *WeComAdapter) refreshAccessToken() error {
 	url := fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s", w.corpID, w.secret)
-	resp, err := http.Get(url)
+	resp, err := platformHTTPClient.Get(url)
 	if err != nil {
 		return err
 	}

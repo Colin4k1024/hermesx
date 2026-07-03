@@ -119,7 +119,7 @@ func (f *FeishuAdapter) postAPI(ctx context.Context, path string, payload map[st
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+f.tenantToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}
@@ -140,7 +140,7 @@ func (f *FeishuAdapter) refreshTenantToken() error {
 	}
 	body, _ := json.Marshal(payload)
 
-	resp, err := http.Post(
+	resp, err := platformHTTPClient.Post(
 		"https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal",
 		"application/json",
 		bytes.NewReader(body),

@@ -92,7 +92,7 @@ func (w *WhatsAppAdapter) Send(ctx context.Context, chatID string, text string, 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+w.token)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return &gateway.SendResult{Error: err.Error(), Retryable: true}, err
 	}

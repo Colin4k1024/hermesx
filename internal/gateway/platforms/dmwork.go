@@ -285,7 +285,7 @@ func (d *DMWorkAdapter) postJSON(path string, payload interface{}) ([]byte, erro
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+d.botToken)
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := platformHTTPClient.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("dmwork api %s: %w", path, err)
 	}
