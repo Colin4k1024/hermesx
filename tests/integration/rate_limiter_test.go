@@ -27,7 +27,7 @@ func TestRateLimiter_ConcurrentLoad(t *testing.T) {
 		fmt.Fprint(w, "OK")
 	}))
 
-	// Test concurrent requests from multiple goroutines
+	// Test concurrent requests from multiple goroutines (same IP for rate limiting)
 	const numGoroutines = 50
 	const requestsPerGoroutine = 10
 
@@ -41,7 +41,7 @@ func TestRateLimiter_ConcurrentLoad(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < requestsPerGoroutine; j++ {
 				req := httptest.NewRequest(http.MethodGet, "/test", nil)
-				req.RemoteAddr = fmt.Sprintf("192.168.1.%d:1234", goroutineID)
+				req.RemoteAddr = "10.0.0.1:1234" // Same IP for all requests
 				w := httptest.NewRecorder()
 
 				handler.ServeHTTP(w, req)
