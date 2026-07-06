@@ -41,12 +41,15 @@ function formatDuration(startedAt?: number, completedAt?: number): string {
   return `${(ms / 1000).toFixed(1)}s`
 }
 
+// Stable empty array to avoid re-renders from new reference creation
+const EMPTY_STEPS: PlanStep[] = []
+
 interface PlanStepsProps {
   sessionId: string
 }
 
 export function PlanSteps({ sessionId }: PlanStepsProps) {
-  const planSteps = useWorkspaceStore((s) => s.planSteps.get(sessionId) ?? [])
+  const planSteps = useWorkspaceStore((s) => s.planSteps.get(sessionId) ?? EMPTY_STEPS)
   const [collapsed, setCollapsed] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
