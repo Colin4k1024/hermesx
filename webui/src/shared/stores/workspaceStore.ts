@@ -43,15 +43,15 @@ export interface PlanStep {
 /* ------------------------------------------------------------------ */
 
 interface WorkspaceState {
-  // Session management
+  // Session management — plain objects for stable references
   activeSessionId: string | null
-  sessions: Map<string, TaskSession>
+  sessions: Record<string, TaskSession>
 
-  // Streaming tracking
-  streamingSessions: Set<string>
+  // Streaming tracking — plain object for stable references
+  streaming: Record<string, boolean>
 
   // Plan steps per session
-  planSteps: Map<string, PlanStep[]>
+  planSteps: Record<string, PlanStep[]>
 
   // Panel state
   sidebarCollapsed: boolean
@@ -89,12 +89,12 @@ interface WorkspaceState {
 /*  Selectors                                                         */
 /* ------------------------------------------------------------------ */
 
-export const selectActiveSession = (state: WorkspaceState) =>
-  state.activeSessionId ? state.sessions.get(state.activeSessionId) ?? null : null
+export const selectActiveSession = (state: WorkspaceState): TaskSession | null =>
+  state.activeSessionId ? state.sessions[state.activeSessionId] ?? null : null
 
-export const selectFilteredSessions = (state: WorkspaceState) => {
+export const selectFilteredSessions = (state: WorkspaceState): TaskSession[] => {
   const q = state.searchQuery.toLowerCase()
-  const all = Array.from(state.sessions.values())
+  const all = Object.values(state.sessions)
   if (!q) return all
   return all.filter((s) => s.title.toLowerCase().includes(q))
 }
@@ -117,7 +117,7 @@ export const selectGroupedSessions = (state: WorkspaceState) => {
 }
 
 export const selectIsStreaming = (sessionId: string) => (state: WorkspaceState) =>
-  state.streamingSessions.has(sessionId)
+  !!state.streaming[sessionId]
 
 /* ------------------------------------------------------------------ */
 /*  Store                                                             */
@@ -128,9 +128,9 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     (set, get) => ({
       // Initial state
       activeSessionId: null,
-      sessions: new Map(),
-      streamingSessions: new Set(),
-      planSteps: new Map(),
+      sessions: {},
+      streaming: {},
+      planSteps: {},
       sidebarCollapsed: false,
       resultsPanelCollapsed: false,
       resultsPanelActiveTab: 'artifacts',
@@ -138,10 +138,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       // Session actions
       setSessions: (sessions) => {
-        const map = new Map<string, TaskSession>()
+        const existing = get().sessions
+        const next: Record<string, TaskSession> = {}
         for (const s of sessions) {
-          const existing = get().sessions.get(s.id)
-          map.set(s.id, existing ?? {
+          next[s.id] = existing[s.id] ?? {
             id: s.id,
             title: s.title ?? s.id.slice(0, 12),
             status: 'completed',
@@ -149,92 +149,102 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             updatedAt: s.ended_at ?? s.started_at,
             messages: [],
             artifacts: [],
-          })
+          }
         }
-        set({ sessions: map })
+        set({ sessions: next })
       },
 
       upsertSession: (session) =>
-        set((state) => {
-          const next = new Map(state.sessions)
-          next.set(session.id, session)
-          return { sessions: next }
-        }),
+        set((state) => ({
+          sessions: { ...state.sessions, [session.id]: session },
+        })),
 
       switchSession: (id) => set({ activeSessionId: id }),
 
       deleteSession: (id) =>
         set((state) => {
-          const next = new Map(state.sessions)
-          next.delete(id)
+          const { [id]: _, ...rest } = state.sessions
           return {
-            sessions: next,
+            sessions: rest,
             activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
           }
         }),
 
       updateSessionStatus: (id, status) =>
         set((state) => {
-          const s = state.sessions.get(id)
+          const s = state.sessions[id]
           if (!s) return {}
-          const next = new Map(state.sessions)
-          next.set(id, { ...s, status, updatedAt: new Date().toISOString() })
-          return { sessions: next }
+          return {
+            sessions: {
+              ...state.sessions,
+              [id]: { ...s, status, updatedAt: new Date().toISOString() },
+            },
+          }
         }),
 
       addMessage: (sessionId, msg) =>
         set((state) => {
-          const s = state.sessions.get(sessionId)
+          const s = state.sessions[sessionId]
           if (!s) return {}
-          const next = new Map(state.sessions)
-          next.set(sessionId, { ...s, messages: [...s.messages, msg], updatedAt: new Date().toISOString() })
-          return { sessions: next }
+          return {
+            sessions: {
+              ...state.sessions,
+              [sessionId]: {
+                ...s,
+                messages: [...s.messages, msg],
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          }
         }),
 
       updateLastMessage: (sessionId, content) =>
         set((state) => {
-          const s = state.sessions.get(sessionId)
+          const s = state.sessions[sessionId]
           if (!s || s.messages.length === 0) return {}
           const msgs = [...s.messages]
           const last = msgs[msgs.length - 1]
           if (!last) return {}
           msgs[msgs.length - 1] = { ...last, content }
-          const next = new Map(state.sessions)
-          next.set(sessionId, { ...s, messages: msgs, updatedAt: new Date().toISOString() })
-          return { sessions: next }
+          return {
+            sessions: {
+              ...state.sessions,
+              [sessionId]: { ...s, messages: msgs, updatedAt: new Date().toISOString() },
+            },
+          }
         }),
 
       addArtifact: (sessionId, artifact) =>
         set((state) => {
-          const s = state.sessions.get(sessionId)
+          const s = state.sessions[sessionId]
           if (!s) return {}
-          const next = new Map(state.sessions)
-          next.set(sessionId, {
-            ...s,
-            artifacts: [...s.artifacts, artifact],
-            updatedAt: new Date().toISOString(),
-          })
-          return { sessions: next }
+          return {
+            sessions: {
+              ...state.sessions,
+              [sessionId]: {
+                ...s,
+                artifacts: [...s.artifacts, artifact],
+                updatedAt: new Date().toISOString(),
+              },
+            },
+          }
         }),
 
       addStreamingSession: (sessionId) =>
-        set((state) => {
-          const next = new Set(state.streamingSessions)
-          next.add(sessionId)
-          return { streamingSessions: next }
-        }),
+        set((state) => ({
+          streaming: { ...state.streaming, [sessionId]: true },
+        })),
 
       removeStreamingSession: (sessionId) =>
         set((state) => {
-          const next = new Set(state.streamingSessions)
-          next.delete(sessionId)
-          return { streamingSessions: next }
+          const { [sessionId]: _, ...rest } = state.streaming
+          return { streaming: rest }
         }),
 
       // Plan actions
       addPlanSteps: (sessionId, steps) =>
         set((state) => {
-          const existing = state.planSteps.get(sessionId) ?? []
+          const existing = state.planSteps[sessionId] ?? []
           const existingIds = new Set(existing.map((s) => s.id))
           const merged = [...existing]
           for (const step of steps) {
@@ -242,14 +252,12 @@ export const useWorkspaceStore = create<WorkspaceState>()(
               merged.push(step)
             }
           }
-          const next = new Map(state.planSteps)
-          next.set(sessionId, merged)
-          return { planSteps: next }
+          return { planSteps: { ...state.planSteps, [sessionId]: merged } }
         }),
 
       updatePlanStep: (sessionId, stepId, status) =>
         set((state) => {
-          const steps = state.planSteps.get(sessionId)
+          const steps = state.planSteps[sessionId]
           if (!steps) return {}
           const now = Date.now()
           const updated = steps.map((s) => {
@@ -259,16 +267,13 @@ export const useWorkspaceStore = create<WorkspaceState>()(
             if (status === 'completed' || status === 'failed') patch.completedAt = now
             return { ...s, ...patch }
           })
-          const next = new Map(state.planSteps)
-          next.set(sessionId, updated)
-          return { planSteps: next }
+          return { planSteps: { ...state.planSteps, [sessionId]: updated } }
         }),
 
       clearPlanSteps: (sessionId) =>
         set((state) => {
-          const next = new Map(state.planSteps)
-          next.delete(sessionId)
-          return { planSteps: next }
+          const { [sessionId]: _, ...rest } = state.planSteps
+          return { planSteps: rest }
         }),
 
       // Panel actions
@@ -289,7 +294,6 @@ export const useWorkspaceStore = create<WorkspaceState>()(
         resultsPanelCollapsed: state.resultsPanelCollapsed,
         resultsPanelActiveTab: state.resultsPanelActiveTab,
       }),
-      // Map cannot be serialized by default; we store sessions in-memory only
     },
   ),
 )

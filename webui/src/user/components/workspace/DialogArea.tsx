@@ -17,7 +17,7 @@ export function DialogArea() {
 
   const activeSession = useWorkspaceStore(selectActiveSession)
   const activeSessionId = useWorkspaceStore((s) => s.activeSessionId)
-  const streamingSessions = useWorkspaceStore((s) => s.streamingSessions)
+  const streaming = useWorkspaceStore((s) => s.streaming)
   const resultsPanelCollapsed = useWorkspaceStore((s) => s.resultsPanelCollapsed)
   const toggleResultsPanel = useWorkspaceStore((s) => s.toggleResultsPanel)
   const addMessage = useWorkspaceStore((s) => s.addMessage)
@@ -27,7 +27,7 @@ export function DialogArea() {
   const updatePlanStep = useWorkspaceStore((s) => s.updatePlanStep)
 
   const messages = activeSession?.messages ?? []
-  const activeIsStreaming = activeSessionId ? streamingSessions.has(activeSessionId) : false
+  const activeIsStreaming = activeSessionId ? !!streaming[activeSessionId] : false
 
   const titleFromMessage = useCallback((content: string) => {
     const title = content.replace(/\s+/g, ' ').trim()

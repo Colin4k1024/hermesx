@@ -49,7 +49,7 @@ interface PlanStepsProps {
 }
 
 export function PlanSteps({ sessionId }: PlanStepsProps) {
-  const planSteps = useWorkspaceStore((s) => s.planSteps.get(sessionId) ?? EMPTY_STEPS)
+  const planSteps = useWorkspaceStore((s) => s.planSteps[sessionId] ?? EMPTY_STEPS)
   const [collapsed, setCollapsed] = useState(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 

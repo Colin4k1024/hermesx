@@ -22,29 +22,17 @@ export function WorkspaceLayout() {
 
   const [isNarrow, setIsNarrow] = useState(window.innerWidth < 1024)
 
-  // Responsive: collapse sidebar on narrow viewport
   useEffect(() => {
-    const handler = () => {
-      const narrow = window.innerWidth < 1024
-      setIsNarrow(narrow)
-    }
+    const handler = () => setIsNarrow(window.innerWidth < 1024)
     window.addEventListener('resize', handler)
     return () => window.removeEventListener('resize', handler)
   }, [])
 
-  // Keyboard shortcuts
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      const isMod = e.metaKey || e.ctrlKey
-      if (!isMod) return
-
-      if (e.key === 'b') {
-        e.preventDefault()
-        toggleSidebar()
-      } else if (e.key === 'e') {
-        e.preventDefault()
-        toggleResultsPanel()
-      }
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.key === 'b') { e.preventDefault(); toggleSidebar() }
+      else if (e.key === 'e') { e.preventDefault(); toggleResultsPanel() }
     },
     [toggleSidebar, toggleResultsPanel],
   )

@@ -8,7 +8,7 @@ import { StatusDot } from './StatusDot'
 
 export function TaskSidebar() {
   const activeSessionId = useWorkspaceStore((s) => s.activeSessionId)
-  const streamingSessions = useWorkspaceStore((s) => s.streamingSessions)
+  const streaming = useWorkspaceStore((s) => s.streaming)
   const searchQuery = useWorkspaceStore((s) => s.searchQuery)
   const setSearchQuery = useWorkspaceStore((s) => s.setSearchQuery)
   const setSessions = useWorkspaceStore((s) => s.setSessions)
@@ -123,7 +123,7 @@ export function TaskSidebar() {
                   textOverflow: 'ellipsis',
                 }}
               >
-                {streamingSessions.has(s.id)
+                {streaming[s.id]
                   ? '生成中...'
                   : s.status === 'running'
                     ? '处理中...'

@@ -86,7 +86,7 @@ export function useSseManager() {
       notifyUpdate()
 
       // Prepare messages from session history
-      const session = store.sessions.get(sessionId)
+      const session = store.sessions[sessionId]
       const historyMessages = session?.messages ?? []
       const apiMessages = historyMessages
         .filter((m) => m.content) // skip empty assistant placeholders
