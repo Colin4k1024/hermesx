@@ -33,6 +33,7 @@ type PGStore struct {
 	roles             *pgRoleStore
 	pricingRules      *pgPricingRuleStore
 	executionReceipts *pgExecutionReceiptStore
+	fileEntries       *pgFileEntryStore
 	workflows         *pgWorkflowStore
 	checkpoints       *pgAgentCheckpointStore
 	channelApps       *pgChannelAppStore
@@ -87,6 +88,7 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.roles = &pgRoleStore{pool: pool}
 	s.pricingRules = &pgPricingRuleStore{pool: pool}
 	s.executionReceipts = &pgExecutionReceiptStore{pool: pool}
+	s.fileEntries = &pgFileEntryStore{pool: pool}
 	s.workflows = &pgWorkflowStore{pool: pool}
 	s.checkpoints = &pgAgentCheckpointStore{pool: pool}
 	s.channelApps = &pgChannelAppStore{pool: pool}
@@ -109,6 +111,7 @@ func (s *PGStore) CronJobs() store.CronJobStore                   { return s.cro
 func (s *PGStore) Roles() store.RoleStore                         { return s.roles }
 func (s *PGStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *PGStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
+func (s *PGStore) FileEntries() store.FileEntryStore              { return s.fileEntries }
 func (s *PGStore) Workflows() store.WorkflowStore                 { return s.workflows }
 func (s *PGStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
 func (s *PGStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }

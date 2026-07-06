@@ -32,6 +32,9 @@ func (s *fakeSkillObjectStore) PutObject(_ context.Context, key string, data []b
 	s.objects[key] = append([]byte(nil), data...)
 	return nil
 }
+func (s *fakeSkillObjectStore) PutObjectWithContentType(_ context.Context, key string, data []byte, _ string) error {
+	return s.PutObject(context.Background(), key, data)
+}
 func (s *fakeSkillObjectStore) DeleteObject(_ context.Context, key string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

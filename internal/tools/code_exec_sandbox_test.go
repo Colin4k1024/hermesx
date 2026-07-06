@@ -311,3 +311,104 @@ func TestExecMetrics_JSONRoundTrip(t *testing.T) {
 		t.Errorf("round-trip mismatch: %+v != %+v", m, m2)
 	}
 }
+
+// --- Resource Limits Configuration Tests ---
+
+func TestDefaultSandboxConfig_ResourceLimits(t *testing.T) {
+	// Clear env vars for deterministic defaults
+	t.Setenv("SANDBOX_MEMORY_LIMIT_MB", "")
+	t.Setenv("SANDBOX_CPU_LIMIT", "")
+	t.Setenv("SANDBOX_TIMEOUT_SEC", "")
+	t.Setenv("SANDBOX_OUTPUT_DIR", "")
+
+	cfg := DefaultSandboxConfig()
+
+	if cfg.MemoryLimitMB != 512 {
+		t.Errorf("expected MemoryLimitMB=512, got %d", cfg.MemoryLimitMB)
+	}
+	if cfg.CPULimit != "1" {
+		t.Errorf("expected CPULimit='1', got %q", cfg.CPULimit)
+	}
+	if cfg.OutputDir != "/tmp/output/" {
+		t.Errorf("expected OutputDir='/tmp/output/', got %q", cfg.OutputDir)
+	}
+}
+
+func TestDefaultSandboxConfig_EnvOverrides(t *testing.T) {
+	t.Setenv("SANDBOX_MEMORY_LIMIT_MB", "1024")
+	t.Setenv("SANDBOX_CPU_LIMIT", "2")
+	t.Setenv("SANDBOX_TIMEOUT_SEC", "300")
+	t.Setenv("SANDBOX_OUTPUT_DIR", "/data/sandbox-output/")
+
+	cfg := DefaultSandboxConfig()
+
+	if cfg.MemoryLimitMB != 1024 {
+		t.Errorf("expected MemoryLimitMB=1024, got %d", cfg.MemoryLimitMB)
+	}
+	if cfg.CPULimit != "2" {
+		t.Errorf("expected CPULimit='2', got %q", cfg.CPULimit)
+	}
+	if cfg.OutputDir != "/data/sandbox-output/" {
+		t.Errorf("expected OutputDir='/data/sandbox-output/', got %q", cfg.OutputDir)
+	}
+
+	maxTimeout := MaxTimeoutSec()
+	if maxTimeout != 300 {
+		t.Errorf("expected MaxTimeoutSec=300, got %d", maxTimeout)
+	}
+}
+
+func TestDefaultSandboxConfig_InvalidEnvFallsBackToDefault(t *testing.T) {
+	t.Setenv("SANDBOX_MEMORY_LIMIT_MB", "not-a-number")
+	t.Setenv("SANDBOX_CPU_LIMIT", "")
+	t.Setenv("SANDBOX_TIMEOUT_SEC", "-5")
+
+	cfg := DefaultSandboxConfig()
+
+	if cfg.MemoryLimitMB != 512 {
+		t.Errorf("expected MemoryLimitMB=512 for invalid env, got %d", cfg.MemoryLimitMB)
+	}
+	if cfg.CPULimit != "1" {
+		t.Errorf("expected CPULimit='1' for empty env, got %q", cfg.CPULimit)
+	}
+
+	maxTimeout := MaxTimeoutSec()
+	if maxTimeout != 120 {
+		t.Errorf("expected MaxTimeoutSec=120 for negative env, got %d", maxTimeout)
+	}
+}
+
+func TestMaxTimeoutSec_Default(t *testing.T) {
+	t.Setenv("SANDBOX_TIMEOUT_SEC", "")
+	if MaxTimeoutSec() != 120 {
+		t.Errorf("expected default MaxTimeoutSec=120, got %d", MaxTimeoutSec())
+	}
+}
+
+func TestMaxTimeoutSec_CustomValue(t *testing.T) {
+	t.Setenv("SANDBOX_TIMEOUT_SEC", "60")
+	if MaxTimeoutSec() != 60 {
+		t.Errorf("expected MaxTimeoutSec=60, got %d", MaxTimeoutSec())
+	}
+}
+
+func TestCleanupOutputDir(t *testing.T) {
+	dir := t.TempDir()
+
+	// Create some files and a subdirectory
+	os.WriteFile(filepath.Join(dir, "output.pdf"), []byte("fake pdf"), 0644)
+	os.WriteFile(filepath.Join(dir, "temp.txt"), []byte("temp data"), 0644)
+	subDir := filepath.Join(dir, "subdir")
+	os.MkdirAll(subDir, 0755)
+	os.WriteFile(filepath.Join(subDir, "nested.txt"), []byte("nested"), 0644)
+
+	cleanupOutputDir(dir)
+
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("ReadDir failed: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Errorf("expected empty dir after cleanup, got %d entries", len(entries))
+	}
+}

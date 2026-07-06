@@ -814,6 +814,27 @@ var migrations = []migration{
 	);
 	CREATE INDEX IF NOT EXISTS idx_safety_policies_tenant ON safety_policies(tenant_id);
 	CREATE INDEX IF NOT EXISTS idx_safety_policies_updated ON safety_policies(updated_at DESC)`},
+
+	// v2.6.0: File workspace — hybrid MinIO + PG model for user workspace files.
+	{124, `CREATE TABLE IF NOT EXISTS file_entries (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL,
+		path TEXT NOT NULL,
+		minio_key TEXT NOT NULL,
+		size_bytes BIGINT NOT NULL DEFAULT 0,
+		mime_type TEXT NOT NULL DEFAULT 'application/octet-stream',
+		sha256 TEXT NOT NULL DEFAULT '',
+		source_session TEXT,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		deleted_at TIMESTAMPTZ
+	)`},
+	{125, `CREATE INDEX IF NOT EXISTS idx_file_entries_user ON file_entries(tenant_id, user_id, deleted_at)`},
+	{126, `CREATE UNIQUE INDEX IF NOT EXISTS idx_file_entries_path ON file_entries(tenant_id, user_id, path) WHERE deleted_at IS NULL`},
+	{127, `ALTER TABLE file_entries ENABLE ROW LEVEL SECURITY`},
+	{128, `CREATE POLICY tenant_isolation_file_entries ON file_entries USING (tenant_id::text = current_setting('app.current_tenant', true)) WITH CHECK (tenant_id::text = current_setting('app.current_tenant', true))`},
+	{129, `ALTER TABLE file_entries FORCE ROW LEVEL SECURITY`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

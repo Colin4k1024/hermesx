@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -97,10 +98,14 @@ func (blockedSandboxTransport) RoundTrip(*http.Request) (*http.Response, error) 
 // --- SandboxConfig ---
 
 const (
-	DefaultMaxStdoutBytes = 50 * 1024 // 50 KB
-	DefaultMaxStderrBytes = 10 * 1024 // 10 KB
-	DefaultMaxToolCalls   = 50
-	DefaultTimeout        = 30 * time.Second
+	DefaultMaxStdoutBytes  = 50 * 1024 // 50 KB
+	DefaultMaxStderrBytes  = 10 * 1024 // 10 KB
+	DefaultMaxToolCalls    = 50
+	DefaultTimeout         = 30 * time.Second
+	DefaultMemoryLimitMB   = 512 // 512 MB
+	DefaultCPULimit        = "1" // 1 core
+	DefaultTimeoutSec      = 120 // 120 seconds max for document generation
+	DefaultOutputDir       = "/tmp/output/"
 )
 
 // DefaultAllowedTools is intentionally empty: sandboxed code may not invoke
@@ -115,9 +120,19 @@ type SandboxConfig struct {
 	Timeout         time.Duration `json:"timeout"`
 	AllowedTools    []string      `json:"allowed_tools"`
 	RestrictNetwork bool          `json:"restrict_network"`
+
+	// Resource limits for container/sandbox environments.
+	MemoryLimitMB int    `json:"memory_limit_mb"` // Memory limit in megabytes
+	CPULimit      string `json:"cpu_limit"`       // CPU limit (e.g., "1", "500m")
+	OutputDir     string `json:"output_dir"`      // Restricted output directory inside sandbox
 }
 
 // DefaultSandboxConfig returns a SandboxConfig with safe defaults.
+// Resource limits are configurable via environment variables:
+//   - SANDBOX_MEMORY_LIMIT_MB: Memory limit in MB (default: 512)
+//   - SANDBOX_CPU_LIMIT: CPU limit (default: "1")
+//   - SANDBOX_TIMEOUT_SEC: Maximum timeout in seconds (default: 120)
+//   - SANDBOX_OUTPUT_DIR: Restricted output directory (default: "/tmp/output/")
 func DefaultSandboxConfig() SandboxConfig {
 	return SandboxConfig{
 		MaxStdoutBytes:  DefaultMaxStdoutBytes,
@@ -126,7 +141,38 @@ func DefaultSandboxConfig() SandboxConfig {
 		Timeout:         DefaultTimeout,
 		AllowedTools:    append([]string{}, DefaultAllowedTools...),
 		RestrictNetwork: false,
+		MemoryLimitMB:   envIntOrDefault("SANDBOX_MEMORY_LIMIT_MB", DefaultMemoryLimitMB),
+		CPULimit:        envStringOrDefault("SANDBOX_CPU_LIMIT", DefaultCPULimit),
+		OutputDir:       envStringOrDefault("SANDBOX_OUTPUT_DIR", DefaultOutputDir),
 	}
+}
+
+// MaxTimeoutSec returns the maximum allowed timeout in seconds,
+// configurable via SANDBOX_TIMEOUT_SEC environment variable.
+func MaxTimeoutSec() int {
+	return envIntOrDefault("SANDBOX_TIMEOUT_SEC", DefaultTimeoutSec)
+}
+
+// envIntOrDefault reads an environment variable as an integer, returning def if unset or invalid.
+func envIntOrDefault(name string, def int) int {
+	val := os.Getenv(name)
+	if val == "" {
+		return def
+	}
+	n, err := strconv.Atoi(val)
+	if err != nil || n <= 0 {
+		return def
+	}
+	return n
+}
+
+// envStringOrDefault reads an environment variable, returning def if unset or empty.
+func envStringOrDefault(name string, def string) string {
+	val := os.Getenv(name)
+	if val == "" {
+		return def
+	}
+	return val
 }
 
 // IsToolAllowed checks whether a tool name is in the allowlist.

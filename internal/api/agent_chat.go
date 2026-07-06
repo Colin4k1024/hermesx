@@ -217,6 +217,13 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Track SSE connection for per-user stream limiting (ADR-001).
+		if h.sseTracker != nil {
+			sseKey := tenantID + ":" + userID
+			h.sseTracker.IncrSSEConnections(sseKey)
+			defer h.sseTracker.DecrSSEConnections(sseKey)
+		}
+
 		created := time.Now().Unix()
 		chunkID := sessionID
 
@@ -236,6 +243,18 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 		writeSSE(roleChunk)
 
 		// Wire real-time streaming callbacks.
+		var planMu sync.Mutex
+		planSteps := make([]eino.PlanStep, 0)
+		planStepIndex := make(map[string]int)
+		planStarted := false
+		writeSSEEvent := func(event string, payload any) {
+			evt, _ := json.Marshal(payload)
+			writeMu.Lock()
+			fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, evt)
+			rc.Flush()
+			writeMu.Unlock()
+		}
+
 		callbacks := &eino.StreamCallbacks{
 			OnStreamDelta: func(text string) {
 				chunk, _ := json.Marshal(sseChunkResp{
@@ -248,25 +267,32 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 				if !req.IncludeAgenticBlocks {
 					return
 				}
-				evt, _ := json.Marshal(block)
-				writeMu.Lock()
-				fmt.Fprintf(w, "event: agentic_block\ndata: %s\n\n", evt)
-				rc.Flush()
-				writeMu.Unlock()
+				writeSSEEvent("agentic_block", block)
 			},
 			OnToolStart: func(toolName string) {
-				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "started"})
-				writeMu.Lock()
-				fmt.Fprintf(w, "event: tool_call\ndata: %s\n\n", evt)
-				rc.Flush()
-				writeMu.Unlock()
+				writeSSEEvent("tool_call", map[string]string{"tool": toolName, "status": "started"})
+
+				planMu.Lock()
+				stepID := toolName
+				if _, exists := planStepIndex[stepID]; !exists {
+					step := eino.PlanStep{ID: stepID, Title: toolName}
+					planSteps = append(planSteps, step)
+					planStepIndex[stepID] = len(planSteps) - 1
+				}
+				if !planStarted {
+					planStarted = true
+					stepsCopy := make([]eino.PlanStep, len(planSteps))
+					copy(stepsCopy, planSteps)
+					planMu.Unlock()
+					writeSSEEvent("plan_start", eino.PlanStartEvent{Steps: stepsCopy})
+				} else {
+					planMu.Unlock()
+				}
+				writeSSEEvent("plan_step_update", eino.PlanStepUpdateEvent{StepID: stepID, Status: "running"})
 			},
 			OnToolComplete: func(toolName string) {
-				evt, _ := json.Marshal(map[string]string{"tool": toolName, "status": "completed"})
-				writeMu.Lock()
-				fmt.Fprintf(w, "event: tool_result\ndata: %s\n\n", evt)
-				rc.Flush()
-				writeMu.Unlock()
+				writeSSEEvent("tool_result", map[string]string{"tool": toolName, "status": "completed"})
+				writeSSEEvent("plan_step_update", eino.PlanStepUpdateEvent{StepID: toolName, Status: "completed"})
 			},
 		}
 

@@ -74,6 +74,20 @@ func (m *MinIOClient) PutObject(ctx context.Context, key string, data []byte) er
 	return nil
 }
 
+// PutObjectWithContentType stores an object with an explicit content type.
+func (m *MinIOClient) PutObjectWithContentType(ctx context.Context, key string, data []byte, contentType string) error {
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	_, err := m.client.PutObject(ctx, m.bucket, key, bytes.NewReader(data), int64(len(data)), minio.PutObjectOptions{
+		ContentType: contentType,
+	})
+	if err != nil {
+		return fmt.Errorf("put object %s: %w", key, err)
+	}
+	return nil
+}
+
 func (m *MinIOClient) ListObjects(ctx context.Context, prefix string) ([]string, error) {
 	if prefix != "" && !strings.HasSuffix(prefix, "/") {
 		prefix += "/"

@@ -36,7 +36,8 @@ func (t *TracedStore) PricingRules() PricingRuleStore {
 func (t *TracedStore) ExecutionReceipts() ExecutionReceiptStore {
 	return &tracedExecutionReceipts{t.inner.ExecutionReceipts()}
 }
-func (t *TracedStore) Workflows() WorkflowStore          { return &tracedWorkflows{t.inner.Workflows()} }
+func (t *TracedStore) FileEntries() FileEntryStore { return t.inner.FileEntries() }
+func (t *TracedStore) Workflows() WorkflowStore    { return &tracedWorkflows{t.inner.Workflows()} }
 func (t *TracedStore) Close() error                      { return t.inner.Close() }
 func (t *TracedStore) Migrate(ctx context.Context) error { return t.inner.Migrate(ctx) }
 
@@ -1088,6 +1089,70 @@ func (e *tracedExecutionReceipts) GetByIdempotencyID(ctx context.Context, tenant
 	defer span.End()
 	span.SetAttributes(attribute.String("tenant_id", tenantID))
 	v, err := e.inner.GetByIdempotencyID(ctx, tenantID, idempotencyID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+// ── FileEntries ─────────────────────────────────────────────────────────────
+
+type tracedFileEntries struct{ inner FileEntryStore }
+
+func (f *tracedFileEntries) List(ctx context.Context, tenantID, userID string) ([]*FileEntry, error) {
+	ctx, span := tracer.Start(ctx, "store.FileEntries.List")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID), attribute.String("user_id", userID))
+	v, err := f.inner.List(ctx, tenantID, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (f *tracedFileEntries) Get(ctx context.Context, tenantID, userID, id string) (*FileEntry, error) {
+	ctx, span := tracer.Start(ctx, "store.FileEntries.Get")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := f.inner.Get(ctx, tenantID, userID, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (f *tracedFileEntries) Create(ctx context.Context, entry *FileEntry) error {
+	ctx, span := tracer.Start(ctx, "store.FileEntries.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", entry.TenantID))
+	if err := f.inner.Create(ctx, entry); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (f *tracedFileEntries) Delete(ctx context.Context, tenantID, userID, id string) error {
+	ctx, span := tracer.Start(ctx, "store.FileEntries.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	if err := f.inner.Delete(ctx, tenantID, userID, id); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (f *tracedFileEntries) GetUserStorageUsage(ctx context.Context, tenantID, userID string) (int64, error) {
+	ctx, span := tracer.Start(ctx, "store.FileEntries.GetUserStorageUsage")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := f.inner.GetUserStorageUsage(ctx, tenantID, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

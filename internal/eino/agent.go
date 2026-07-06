@@ -57,16 +57,37 @@ type ConversationResult struct {
 	AgenticBlocks    []AgenticBlock `json:"agentic_blocks,omitempty"`
 }
 
+// PlanStep describes a single step in an agent's execution plan.
+type PlanStep struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+}
+
+// PlanStartEvent is emitted when the agent begins executing, describing the
+// planned decomposition of the task into tool-call steps.
+type PlanStartEvent struct {
+	Steps []PlanStep `json:"steps"`
+}
+
+// PlanStepUpdateEvent is emitted before and after each tool call to track
+// real-time progress through the plan.
+type PlanStepUpdateEvent struct {
+	StepID string `json:"step_id"`
+	Status string `json:"status"` // "running", "completed", "failed"
+}
+
 // StreamCallbacks holds callback functions for streaming events.
 type StreamCallbacks struct {
-	OnStreamDelta  func(text string)
-	OnReasoning    func(text string)
-	OnAgenticBlock func(block AgenticBlock)
-	OnToolStart    func(toolName string)
-	OnToolComplete func(toolName string)
-	OnStep         func(iteration int, prevTools []string)
-	OnStatus       func(msg string)
-	OnError        func(err error)
+	OnStreamDelta    func(text string)
+	OnReasoning      func(text string)
+	OnAgenticBlock   func(block AgenticBlock)
+	OnToolStart      func(toolName string)
+	OnToolComplete   func(toolName string)
+	OnStep           func(iteration int, prevTools []string)
+	OnStatus         func(msg string)
+	OnError          func(err error)
+	OnPlanStart      func(event PlanStartEvent)
+	OnPlanStepUpdate func(event PlanStepUpdateEvent)
 }
 
 // EinoAgent wraps Eino ADK ChatModelAgent with HermesX production features.

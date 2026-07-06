@@ -144,6 +144,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	egressTransport := egress.NewSecureTransport(cachedEgressPolicy, egress.WithAuditLogger(egress.NewStoreAuditLogger(cfg.Store.AuditLogs(), nil)))
 	slog.Info("egress policy configured", "default", egressDefault, "tenant_allowlist", egressAdminStore != nil)
 
+	// Initialize SSE connection tracker for per-user stream limiting (ADR-001).
+	sseTracker := middleware.NewSSEConnectionTracker(middleware.DefaultMaxSSEStreamsPerUser)
+	cfg.RateLimit.SSETracker = sseTracker
+
 	stack := middleware.NewStack(middleware.StackConfig{
 		Tracing:   middleware.TracingMiddleware,
 		Metrics:   middleware.MetricsMiddleware,
@@ -269,6 +273,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	chatH.SetSafetyInterceptor(safetyInterceptor)
 	chatH.SetLeakScanner(leakScanner)
 	chatH.SetUsageStore(cfg.UsageStore)
+	chatH.SetSSETracker(sseTracker)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
 
@@ -286,6 +291,13 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		skillHandler := NewSkillHandler(cfg.SkillsClient)
 		api.Handle("/v1/skills", skillHandler)
 		api.Handle("/v1/skills/", skillHandler)
+	}
+
+	// File workspace API — requires ObjectStore (MinIO) for blob storage.
+	if cfg.SkillsClient != nil {
+		fileHandler := NewFileHandler(cfg.Store, cfg.SkillsClient)
+		api.Handle("/v1/files", fileHandler)
+		api.Handle("/v1/files/", fileHandler)
 	}
 
 	mux.Handle("/v1/", stack.Wrap(api))

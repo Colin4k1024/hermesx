@@ -13,6 +13,7 @@ import {
   Moon,
   MenuIcon,
   BellRing,
+  Briefcase,
 } from 'lucide-react'
 import { useAuthStore } from '@shared/stores/authStore'
 import { useThemeStore } from '@shared/stores/themeStore'
@@ -22,6 +23,7 @@ import { SIDEBAR_WIDTH } from '@shared/theme/constants'
 const { Sider, Content, Header } = Layout
 
 const navItems = [
+  { key: '/workspace', icon: <Briefcase size={18} />, label: 'Workspace' },
   { key: '/chat', icon: <MessageSquare size={18} />, label: 'Chat' },
   { key: '/memories', icon: <Brain size={18} />, label: 'Memories' },
   { key: '/skills', icon: <Zap size={18} />, label: 'Skills' },

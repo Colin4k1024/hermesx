@@ -13,6 +13,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/metering"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
@@ -41,6 +42,9 @@ type chatHandler struct {
 	leakScanner       *secrets.LeakScanner
 	usageStore        metering.UsageStore
 	skillsClient      objstore.ObjectStore
+
+	// sseTracker manages per-user SSE connection counts for the stream limit.
+	sseTracker *middleware.SSEConnectionTracker
 
 	// provisioner copies tenant skills into per-user OSS namespaces on first request.
 	provisioner *skills.Provisioner
@@ -171,4 +175,9 @@ func (h *chatHandler) SetLeakScanner(scanner *secrets.LeakScanner) {
 
 func (h *chatHandler) SetUsageStore(store metering.UsageStore) {
 	h.usageStore = store
+}
+
+// SetSSETracker attaches a shared SSE connection tracker for per-user stream limiting.
+func (h *chatHandler) SetSSETracker(tracker *middleware.SSEConnectionTracker) {
+	h.sseTracker = tracker
 }
