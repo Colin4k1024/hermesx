@@ -340,8 +340,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	if cfg.StaticDir != "" {
 		if _, err := os.Stat(cfg.StaticDir); err == nil {
 			spaHandler = http.FileServer(http.Dir(cfg.StaticDir))
-			// Strip /static/ prefix.
+			// Serve static files under both /static/ and root /assets/ prefixes.
+			// /static/ is the canonical path; /assets/ is needed because Vite
+			// outputs index.html with root-relative asset references (/assets/...).
 			mux.Handle("/static/", http.StripPrefix("/static/", spaHandler))
+			mux.Handle("/assets/", http.StripPrefix("/", spaHandler))
 			slog.Info("Serving static files", "dir", cfg.StaticDir)
 		} else {
 			slog.Warn("Static directory not found, skipping static file serving", "dir", cfg.StaticDir)
