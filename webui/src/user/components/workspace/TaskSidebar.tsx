@@ -1,20 +1,42 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useState, useMemo } from 'react'
 import { Button, Input, Tooltip, message } from 'antd'
 import { Briefcase, Plus, ClipboardList, RefreshCw } from 'lucide-react'
-import { useWorkspaceStore, selectGroupedSessions } from '@shared/stores/workspaceStore'
+import { useWorkspaceStore } from '@shared/stores/workspaceStore'
 import { apiClient } from '@shared/api/client'
 import type { SessionListResponse } from '@shared/types'
+import type { TaskSession } from '@shared/stores/workspaceStore'
 import { StatusDot } from './StatusDot'
+
+function groupSessions(sessions: TaskSession[], query: string) {
+  const q = query.toLowerCase()
+  const filtered = q ? sessions.filter((s) => s.title.toLowerCase().includes(q)) : sessions
+  const now = new Date()
+  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfWeek = new Date(startOfDay)
+  startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay())
+
+  return {
+    today: filtered.filter((s) => new Date(s.createdAt) >= startOfDay),
+    thisWeek: filtered.filter((s) => {
+      const d = new Date(s.createdAt)
+      return d >= startOfWeek && d < startOfDay
+    }),
+    earlier: filtered.filter((s) => new Date(s.createdAt) < startOfWeek),
+  }
+}
 
 export function TaskSidebar() {
   const activeSessionId = useWorkspaceStore((s) => s.activeSessionId)
+  const sessions = useWorkspaceStore((s) => s.sessions)
   const streaming = useWorkspaceStore((s) => s.streaming)
   const searchQuery = useWorkspaceStore((s) => s.searchQuery)
   const setSearchQuery = useWorkspaceStore((s) => s.setSearchQuery)
   const setSessions = useWorkspaceStore((s) => s.setSessions)
   const switchSession = useWorkspaceStore((s) => s.switchSession)
-  const grouped = useWorkspaceStore(selectGroupedSessions)
   const [fetchError, setFetchError] = useState(false)
+
+  const sessionsList = useMemo(() => Object.values(sessions), [sessions])
+  const grouped = useMemo(() => groupSessions(sessionsList, searchQuery), [sessionsList, searchQuery])
 
   const fetchSessions = useCallback(() => {
     setFetchError(false)
@@ -27,7 +49,6 @@ export function TaskSidebar() {
       })
   }, [setSessions])
 
-  // Fetch sessions on mount
   useEffect(() => {
     fetchSessions()
   }, [fetchSessions])
@@ -36,10 +57,7 @@ export function TaskSidebar() {
     switchSession(null)
   }, [switchSession])
 
-  const hasAnySession =
-    grouped.today.length > 0 ||
-    grouped.thisWeek.length > 0 ||
-    grouped.earlier.length > 0
+  const hasAnySession = sessionsList.length > 0
 
   const formatTime = (dateStr: string) => {
     const d = new Date(dateStr)
@@ -54,8 +72,8 @@ export function TaskSidebar() {
     return d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })
   }
 
-  const renderGroup = (label: string, sessions: typeof grouped.today) => {
-    if (sessions.length === 0) return null
+  const renderGroup = (label: string, items: TaskSession[]) => {
+    if (items.length === 0) return null
     return (
       <div key={label}>
         <div
@@ -69,7 +87,7 @@ export function TaskSidebar() {
         >
           {label}
         </div>
-        {sessions.map((s) => (
+        {items.map((s) => (
           <div
             key={s.id}
             role="button"
@@ -174,7 +192,7 @@ export function TaskSidebar() {
             工作区
           </span>
         </div>
-        <Tooltip title="新建任务 (Cmd+N)">
+        <Tooltip title="新建任务">
           <Button
             type="text"
             size="middle"
@@ -188,11 +206,7 @@ export function TaskSidebar() {
       {/* Search */}
       <div style={{ padding: '8px 12px', flexShrink: 0 }}>
         <Input
-          prefix={
-            <span style={{ color: 'var(--ant-color-text-tertiary)', fontSize: 13 }}>
-              搜索任务...
-            </span>
-          }
+          placeholder="搜索任务..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           allowClear
@@ -249,7 +263,7 @@ export function TaskSidebar() {
         )}
       </div>
 
-      {/* Pulse animation keyframes */}
+      {/* Pulse animation */}
       <style>{`
         @keyframes statusPulse {
           0%, 100% { transform: scale(1); opacity: 1; }
