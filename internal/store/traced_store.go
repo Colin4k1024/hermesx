@@ -36,8 +36,8 @@ func (t *TracedStore) PricingRules() PricingRuleStore {
 func (t *TracedStore) ExecutionReceipts() ExecutionReceiptStore {
 	return &tracedExecutionReceipts{t.inner.ExecutionReceipts()}
 }
-func (t *TracedStore) FileEntries() FileEntryStore { return t.inner.FileEntries() }
-func (t *TracedStore) Workflows() WorkflowStore    { return &tracedWorkflows{t.inner.Workflows()} }
+func (t *TracedStore) FileEntries() FileEntryStore       { return t.inner.FileEntries() }
+func (t *TracedStore) Workflows() WorkflowStore          { return &tracedWorkflows{t.inner.Workflows()} }
 func (t *TracedStore) Close() error                      { return t.inner.Close() }
 func (t *TracedStore) Migrate(ctx context.Context) error { return t.inner.Migrate(ctx) }
 

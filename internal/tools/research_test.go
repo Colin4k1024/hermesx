@@ -627,9 +627,9 @@ func TestHandleDeepResearch_CompileMode_InlineMarkdown(t *testing.T) {
 		"query": "test topic",
 		"findings": []any{
 			map[string]any{
-				"content":     "Test finding content",
-				"source_url":  "https://example.com",
-				"confidence":  "high",
+				"content":      "Test finding content",
+				"source_url":   "https://example.com",
+				"confidence":   "high",
 				"sub_question": "What is it?",
 			},
 		},

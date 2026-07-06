@@ -54,8 +54,8 @@ func (s *SQLiteStore) ExecutionReceipts() store.ExecutionReceiptStore {
 }
 func (s *SQLiteStore) FileEntries() store.FileEntryStore { return &noopFileEntryStore{} }
 func (s *SQLiteStore) Workflows() store.WorkflowStore    { return &noopWorkflowStore{} }
-func (s *SQLiteStore) Close() error                    { return s.db.Close() }
-func (s *SQLiteStore) Migrate(_ context.Context) error { return nil } // SQLite migrations handled by SessionDB
+func (s *SQLiteStore) Close() error                      { return s.db.Close() }
+func (s *SQLiteStore) Migrate(_ context.Context) error   { return nil } // SQLite migrations handled by SessionDB
 
 var _ store.Store = (*SQLiteStore)(nil)
 

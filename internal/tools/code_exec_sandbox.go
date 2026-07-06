@@ -98,14 +98,14 @@ func (blockedSandboxTransport) RoundTrip(*http.Request) (*http.Response, error) 
 // --- SandboxConfig ---
 
 const (
-	DefaultMaxStdoutBytes  = 50 * 1024 // 50 KB
-	DefaultMaxStderrBytes  = 10 * 1024 // 10 KB
-	DefaultMaxToolCalls    = 50
-	DefaultTimeout         = 30 * time.Second
-	DefaultMemoryLimitMB   = 512 // 512 MB
-	DefaultCPULimit        = "1" // 1 core
-	DefaultTimeoutSec      = 120 // 120 seconds max for document generation
-	DefaultOutputDir       = "/tmp/output/"
+	DefaultMaxStdoutBytes = 50 * 1024 // 50 KB
+	DefaultMaxStderrBytes = 10 * 1024 // 10 KB
+	DefaultMaxToolCalls   = 50
+	DefaultTimeout        = 30 * time.Second
+	DefaultMemoryLimitMB  = 512 // 512 MB
+	DefaultCPULimit       = "1" // 1 core
+	DefaultTimeoutSec     = 120 // 120 seconds max for document generation
+	DefaultOutputDir      = "/tmp/output/"
 )
 
 // DefaultAllowedTools is intentionally empty: sandboxed code may not invoke

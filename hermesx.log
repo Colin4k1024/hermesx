@@ -1,0 +1,31 @@
+time=2026-07-06T21:10:03.426+08:00 level=INFO msg="OTel tracing disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)"
+time=2026-07-06T21:10:03.426+08:00 level=INFO msg="Initializing store" driver=postgres
+time=2026-07-06T21:10:03.447+08:00 level=WARN msg="rls guard: connection user is SUPERUSER — RLS policies are BYPASSED" override="HERMESX_ALLOW_SUPERUSER=true" risk="multi-tenant isolation depends solely on application logic"
+time=2026-07-06T21:10:03.451+08:00 level=INFO msg="PG migrations completed" current=129 applied=0 latest=129
+time=2026-07-06T21:10:03.452+08:00 level=INFO msg="PostgreSQL pool available" driver=postgres
+time=2026-07-06T21:10:03.452+08:00 level=INFO msg="usage records store enabled" driver=postgres
+time=2026-07-06T21:10:03.459+08:00 level=INFO msg="Redis connected" addr=localhost:6380
+time=2026-07-06T21:10:03.459+08:00 level=INFO msg="Distributed Redis rate limiter enabled (ZSET sliding window + dual-layer)"
+time=2026-07-06T21:10:03.477+08:00 level=INFO msg="objstore client initialized" endpoint=localhost:9002 bucket=hermes-skills
+time=2026-07-06T21:10:03.491+08:00 level=INFO msg="egress policy configured" default=allow-all tenant_allowlist=true
+time=2026-07-06T21:10:03.492+08:00 level=WARN msg="CORS configured with allow-all origins combined with credentials — any origin can make credentialed requests; restrict AllowedOrigins in production"
+time=2026-07-06T21:10:03.492+08:00 level=INFO msg="CORS enabled" origins=*
+time=2026-07-06T21:10:03.493+08:00 level=INFO msg="Using PostgreSQL session store"
+time=2026-07-06T21:10:03.496+08:00 level=INFO msg="objstore skill store connected" endpoint=localhost:9002 bucket=hermes-skills
+time=2026-07-06T21:10:03.496+08:00 level=INFO msg="Loaded allowed users" platform=api count=1
+time=2026-07-06T21:10:03.496+08:00 level=INFO msg="Registered platform adapter" platform=api
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="SaaS API server running" port=8080 openapi=http://localhost:8080/v1/openapi admin=http://localhost:8080/admin.html health_live=http://localhost:8080/health/live health_ready=http://localhost:8080/health/ready
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="SaaS API server starting" port=8080
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="Gateway runner starting"
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="Connecting platform" platform=api
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="API server starting" port=8081
+time=2026-07-06T21:10:03.497+08:00 level=INFO msg="Platform connected" platform=api
+time=2026-07-06T21:10:03.502+08:00 level=DEBUG msg="soul already exists, skipping" tenant=00000000-0000-0000-0000-000000000001
+time=2026-07-06T21:10:03.504+08:00 level=INFO msg="scheduler: started" pod=MacBook-Pro.local poll_interval=30s
+time=2026-07-06T21:10:03.542+08:00 level=INFO msg="tenant skill sync complete" tenant=00000000-0000-0000-0000-000000000001 uploaded=0 skipped=81
+time=2026-07-06T21:10:03.542+08:00 level=INFO msg="tenant provisioning complete" tenant=00000000-0000-0000-0000-000000000001
+time=2026-07-06T21:10:03.542+08:00 level=INFO msg="tenant sync complete" total=1 failed=0
+time=2026-07-06T21:15:03.510+08:00 level=INFO msg="PG: loaded gateway sessions" count=0
+time=2026-07-06T21:15:03.510+08:00 level=DEBUG msg="Session expiry check completed" active=0
+time=2026-07-06T21:20:03.502+08:00 level=DEBUG msg="Session expiry check completed" active=0
+time=2026-07-06T21:25:03.504+08:00 level=DEBUG msg="Session expiry check completed" active=0

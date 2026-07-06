@@ -114,19 +114,19 @@ func init() {
 
 // ResearchPlan represents the structured research plan returned to the Agent.
 type ResearchPlan struct {
-	Query       string           `json:"query"`
-	Depth       string           `json:"depth"`
-	SubQuestions []SubQuestion   `json:"sub_questions"`
-	Sources     []string         `json:"sources,omitempty"`
-	OutputFormat string          `json:"output_format"`
-	Instructions string          `json:"instructions"`
+	Query        string        `json:"query"`
+	Depth        string        `json:"depth"`
+	SubQuestions []SubQuestion `json:"sub_questions"`
+	Sources      []string      `json:"sources,omitempty"`
+	OutputFormat string        `json:"output_format"`
+	Instructions string        `json:"instructions"`
 }
 
 // SubQuestion represents a single research sub-question with tool suggestions.
 type SubQuestion struct {
-	ID              int      `json:"id"`
-	Question        string   `json:"question"`
-	SuggestedTools  []string `json:"suggested_tools"`
+	ID               int      `json:"id"`
+	Question         string   `json:"question"`
+	SuggestedTools   []string `json:"suggested_tools"`
 	SuggestedQueries []string `json:"suggested_queries,omitempty"`
 }
 
@@ -256,9 +256,9 @@ func generateResearchPlan(query, depth string, sources []string, outputFormat st
 	}
 
 	return toJSON(map[string]any{
-		"status":        "plan_generated",
-		"plan":          plan,
-		"next_step":     "Execute each sub-question using the suggested tools, then call deep_research again with the findings array to compile the final report.",
+		"status":             "plan_generated",
+		"plan":               plan,
+		"next_step":          "Execute each sub-question using the suggested tools, then call deep_research again with the findings array to compile the final report.",
 		"sub_question_count": len(subQuestions),
 	})
 }
@@ -570,10 +570,10 @@ func compileMarkdownOutput(ctx context.Context, query, report string, tctx *Tool
 		slog.Error("research: failed to upload markdown report", "error", err, "key", key)
 		// Fallback: return inline
 		return toJSON(map[string]any{
-			"status":  "completed",
-			"format":  "markdown",
-			"report":  report,
-			"error":   fmt.Sprintf("Upload failed: %v. Report returned inline.", err),
+			"status": "completed",
+			"format": "markdown",
+			"report": report,
+			"error":  fmt.Sprintf("Upload failed: %v. Report returned inline.", err),
 		})
 	}
 

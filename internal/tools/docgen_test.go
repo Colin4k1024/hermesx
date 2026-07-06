@@ -122,8 +122,8 @@ func TestBuildDocumentScript_UnknownBlockType(t *testing.T) {
 func TestBuildPresentationScript_TitleAndContent(t *testing.T) {
 	slides := []any{
 		map[string]any{
-			"layout": "title",
-			"title":  "Welcome",
+			"layout":   "title",
+			"title":    "Welcome",
 			"subtitle": "Subtitle text",
 		},
 		map[string]any{

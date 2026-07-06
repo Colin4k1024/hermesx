@@ -228,7 +228,7 @@ type SSEConnectionTracker struct {
 	// MaxSSEStreamsPerUser is the maximum concurrent SSE streams allowed per user key.
 	// A value <= 0 disables SSE connection limiting.
 	MaxSSEStreamsPerUser int
-	counts              sync.Map // map[string]*sseConnCount
+	counts               sync.Map // map[string]*sseConnCount
 }
 
 // NewSSEConnectionTracker creates a new tracker with the given per-user limit.

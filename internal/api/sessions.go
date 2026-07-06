@@ -12,11 +12,11 @@ import (
 
 // activeSessionEntry is the response type for GET /v1/sessions/active.
 type activeSessionEntry struct {
-	ID           string  `json:"id"`
-	Title        string  `json:"title,omitempty"`
-	Status       string  `json:"status"`
-	StartedAt    string  `json:"started_at"`
-	UpdatedAt    string  `json:"updated_at"`
+	ID            string `json:"id"`
+	Title         string `json:"title,omitempty"`
+	Status        string `json:"status"`
+	StartedAt     string `json:"started_at"`
+	UpdatedAt     string `json:"updated_at"`
 	ArtifactCount int    `json:"artifact_count"`
 }
 

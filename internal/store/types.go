@@ -401,8 +401,8 @@ type FileEntry struct {
 	ID            string     `json:"id" db:"id"`
 	TenantID      string     `json:"tenant_id" db:"tenant_id"`
 	UserID        string     `json:"user_id" db:"user_id"`
-	Path          string     `json:"path" db:"path"`                        // relative path within workspace/
-	MinIOKey      string     `json:"minio_key" db:"minio_key"`              // full MinIO object key
+	Path          string     `json:"path" db:"path"`           // relative path within workspace/
+	MinIOKey      string     `json:"minio_key" db:"minio_key"` // full MinIO object key
 	SizeBytes     int64      `json:"size_bytes" db:"size_bytes"`
 	MIMEType      string     `json:"mime_type" db:"mime_type"`
 	SHA256        string     `json:"sha256" db:"sha256"`
