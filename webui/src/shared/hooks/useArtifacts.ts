@@ -9,10 +9,18 @@ export interface ArtifactItem {
   created_at: string
 }
 
+interface ArtifactsResponse {
+  artifacts: ArtifactItem[]
+  count: number
+}
+
 export function useArtifacts(sessionId: string | null) {
   return useQuery({
     queryKey: ['artifacts', sessionId],
-    queryFn: () => apiClient.get<ArtifactItem[]>(`/v1/sessions/${sessionId}/artifacts`),
+    queryFn: async () => {
+      const res = await apiClient.get<ArtifactsResponse>(`/v1/sessions/${sessionId}/artifacts`)
+      return res.artifacts ?? []
+    },
     enabled: !!sessionId,
     refetchInterval: (query) => {
       // Poll while session is active (data might change)

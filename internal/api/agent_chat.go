@@ -296,6 +296,14 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 			},
 		}
 
+		// Create cancellable context for abort support.
+		agentCtx, agentCancel := context.WithCancel(ctx)
+		defer agentCancel()
+
+		// Register active session for abort support.
+		activeSession := h.registerActiveSession(tenantID, sessionID, agentCancel)
+		defer h.unregisterActiveSession(tenantID, sessionID)
+
 		// Heartbeat in background.
 		heartDone := make(chan struct{})
 		go func() {
@@ -310,17 +318,38 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 					writeMu.Unlock()
 				case <-heartDone:
 					return
-				case <-r.Context().Done():
+				case <-agentCtx.Done():
 					return
 				}
 			}
 		}()
 
 		// Run agent (deltas fire callbacks above in real-time).
-		result, err := runAgent(ctx, userMessage, history, callbacks)
+		result, err := runAgent(agentCtx, userMessage, history, callbacks)
 		close(heartDone)
+		close(activeSession.Done)
 
 		if err != nil {
+			// Check if this was an abort.
+			if agentCtx.Err() == context.Canceled {
+				slog.Info("agent_aborted", "tenant", tenantID, "session", sessionID)
+				abortEvt, _ := json.Marshal(map[string]any{
+					"reason":     "user_abort",
+					"session_id": sessionID,
+					"message":    "Agent execution was aborted by user",
+				})
+				fmt.Fprintf(w, "event: abort\ndata: %s\n\n", abortEvt)
+				rc.Flush()
+				// Still persist partial result if available.
+				if result != nil && result.FinalResponse != "" {
+					h.sendMsg(ctx, tenantID, sessionID, "user", userMessage)
+					h.sendMsgWithMeta(ctx, tenantID, sessionID, "assistant", result.FinalResponse, result.LastReasoning, eino.BlocksJSON(result.AgenticBlocks))
+				}
+				fmt.Fprintf(w, "data: [DONE]\n\n")
+				rc.Flush()
+				return
+			}
+
 			slog.Error("agent_stream_failed", "tenant", tenantID, "session", sessionID, "error", err)
 			errEvt, _ := json.Marshal(map[string]string{"error": "agent execution failed"})
 			fmt.Fprintf(w, "event: error\ndata: %s\n\n", errEvt)

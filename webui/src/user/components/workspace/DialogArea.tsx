@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react'
-import { Button, Tooltip } from 'antd'
+import { Button, Tooltip, message } from 'antd'
 import { PanelRightClose, PanelRightOpen } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useSseManager } from '@shared/hooks/useSseManager'
@@ -9,9 +9,17 @@ import { MessageList } from '@shared/components/MessageList'
 import { InputBar } from '@shared/components/InputBar'
 import { StatusDot } from './StatusDot'
 import { PlanSteps } from './PlanSteps'
+import { AgenticBlockRenderer } from './AgenticBlockRenderer'
+
+// A2UI block types
+interface AgenticBlock {
+  type: string
+  data?: Record<string, unknown>
+}
 
 export function DialogArea() {
   const [input, setInput] = useState('')
+  const [agenticBlocks, setAgenticBlocks] = useState<AgenticBlock[]>([])
   const { startStream, stopStream } = useSseManager()
   const queryClient = useQueryClient()
 
@@ -61,6 +69,9 @@ export function DialogArea() {
       addMessage(sessionId, assistantMsg)
     }
 
+    // Clear agentic blocks for new conversation
+    setAgenticBlocks([])
+
     // Start SSE stream for this session (runs in background, survives session switch)
     await startStream({
       sessionId,
@@ -81,6 +92,16 @@ export function DialogArea() {
         if (validStatus) {
           updatePlanStep(sessionId, data.step_id, data.status as 'running' | 'completed' | 'failed')
         }
+      },
+      onAbort: (data) => {
+        message.info(data.message || 'Agent 已停止')
+      },
+      onAgenticBlock: (block) => {
+        setAgenticBlocks((prev) => [...prev, block as AgenticBlock])
+      },
+      onToolCall: (data) => {
+        // Tool call events are handled by plan steps
+        console.log('Tool call:', data)
       },
     })
   }, [input, activeIsStreaming, activeSessionId, addMessage, upsertSession, switchSession, addPlanSteps, updatePlanStep, titleFromMessage, startStream, queryClient])
@@ -156,6 +177,13 @@ export function DialogArea() {
       {activeSessionId && (
         <div style={{ padding: '8px 16px 0', flexShrink: 0 }}>
           <PlanSteps sessionId={activeSessionId} />
+        </div>
+      )}
+
+      {/* Agentic Blocks (A2UI) */}
+      {agenticBlocks.length > 0 && (
+        <div style={{ padding: '0 16px', flexShrink: 0 }}>
+          <AgenticBlockRenderer blocks={agenticBlocks} />
         </div>
       )}
 

@@ -30,14 +30,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       })
       if (!res.ok) return false
       const data = await res.json()
+      const identity = data.identity ?? userId
       set({
         userApiKey: key,
-        userId,
+        userId: identity,
         tenantId: data.tenant_id ?? '',
         roles: data.roles ?? [],
         connected: true,
       })
-      sessionStorage.setItem('hx_user_id', userId)
+      sessionStorage.setItem('hx_user_id', identity)
       sessionStorage.setItem('hx_tenant_id', data.tenant_id ?? '')
       return true
     } catch {

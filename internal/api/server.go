@@ -276,6 +276,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	chatH.SetSSETracker(sseTracker)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
+	api.HandleFunc("POST /v1/chat/abort", chatH.AbortAgentHTTP)
 
 	// Memory management API (per-user long-term memory).
 	api.HandleFunc("GET /v1/memories", chatH.handleListMemories)

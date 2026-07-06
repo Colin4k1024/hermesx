@@ -28,6 +28,9 @@ interface StartStreamOpts {
   onToolResult?: (data: unknown) => void
   onPlanStart?: (data: { steps: Array<{ id: string; title: string }> }) => void
   onPlanStepUpdate?: (data: { step_id: string; status: string }) => void
+  onAbort?: (data: { reason: string; message: string }) => void
+  onAgenticBlock?: (data: unknown) => void
+  onToolCall?: (data: { tool: string; status: string }) => void
 }
 
 /* ------------------------------------------------------------------ */
@@ -61,7 +64,7 @@ export function useSseManager() {
    * If a stream is already running for that session, it is aborted first.
    */
   const startStream = useCallback(
-    async ({ sessionId, message, model = 'default', onToolResult, onPlanStart, onPlanStepUpdate }: StartStreamOpts) => {
+    async ({ sessionId, message, model = 'default', onToolResult, onPlanStart, onPlanStepUpdate, onAbort, onAgenticBlock, onToolCall }: StartStreamOpts) => {
       const store = useWorkspaceStore.getState()
 
       // Abort any existing stream for this session
@@ -171,6 +174,40 @@ export function useSseManager() {
             try {
               const chunk = JSON.parse(raw)
 
+              // Handle abort events
+              if (lastEventType === 'abort') {
+                onAbort?.(chunk)
+                controller.status = 'completed'
+                store.removeStreamingSession(sessionId)
+                store.updateSessionStatus(sessionId, 'completed')
+                notifyUpdate()
+                await reader.cancel()
+                return
+              }
+              // Handle error events
+              if (lastEventType === 'error') {
+                const errorMsg = chunk.error || 'Agent execution failed'
+                controller.status = 'error'
+                controller.error = errorMsg
+                store.updateLastMessage(sessionId, `Error: ${errorMsg}`)
+                store.removeStreamingSession(sessionId)
+                store.updateSessionStatus(sessionId, 'failed')
+                notifyUpdate()
+                await reader.cancel()
+                return
+              }
+              // Handle agentic_block events
+              if (lastEventType === 'agentic_block') {
+                onAgenticBlock?.(chunk)
+                lastEventType = ''
+                continue
+              }
+              // Handle tool_call events
+              if (lastEventType === 'tool_call') {
+                onToolCall?.(chunk)
+                lastEventType = ''
+                continue
+              }
               // Handle tool_result events
               if (lastEventType === 'tool_result') {
                 onToolResult?.(chunk)
@@ -236,9 +273,26 @@ export function useSseManager() {
 
   /**
    * Abort a specific session's stream.
+   * Sends abort signal to backend AND cancels local fetch.
    */
   const stopStream = useCallback(
-    (sessionId: string) => {
+    async (sessionId: string) => {
+      // First, send abort to backend to cancel the agent.
+      const { userApiKey } = useAuthStore.getState()
+      try {
+        await fetch('/v1/chat/abort', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(userApiKey ? { Authorization: `Bearer ${userApiKey}` } : {}),
+          },
+          body: JSON.stringify({ session_id: sessionId }),
+        })
+      } catch {
+        // Ignore abort API errors - we'll still cancel locally
+      }
+
+      // Then cancel local fetch.
       const controller = streamsRef.current.get(sessionId)
       if (controller) {
         controller.abortController.abort()
