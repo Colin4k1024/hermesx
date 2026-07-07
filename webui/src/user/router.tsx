@@ -9,6 +9,7 @@ import UserShell from './components/UserShell'
 const Login = lazy(() => import('./pages/Login'))
 const Register = lazy(() => import('./pages/Register'))
 const Chat = lazy(() => import('./pages/Chat'))
+const Workspace = lazy(() => import('./pages/Workspace'))
 const Memories = lazy(() => import('./pages/Memories'))
 const Skills = lazy(() => import('./pages/Skills'))
 const Usage = lazy(() => import('./pages/Usage'))
@@ -40,6 +41,7 @@ export const router = createHashRouter([
         element: <AuthGuard />,
         children: [
           { path: '/chat', element: <Lazy><Chat /></Lazy> },
+          { path: '/workspace', element: <Lazy><Workspace /></Lazy> },
           { path: '/memories', element: <Lazy><Memories /></Lazy> },
           { path: '/skills', element: <Lazy><Skills /></Lazy> },
           { path: '/agents', element: <Lazy><Agents /></Lazy> },

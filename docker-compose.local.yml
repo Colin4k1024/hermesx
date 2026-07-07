@@ -1,0 +1,106 @@
+# docker-compose.local.yml — Local deployment with adjusted host ports.
+# Resolves conflicts with other stacks running on this host:
+#   5432 (aetheris-memos-postgres), 6379 (aetheris-memos-redis),
+#   9001 (tqclient system service), 9090 (aetheris-memos-prometheus)
+#
+# Usage: docker compose -f docker-compose.local.yml up -d --build
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: hermesx-pg
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"    # 5432 taken by aetheris-memos-postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hermes}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7
+    container_name: hermesx-redis
+    ports:
+      - "6380:6379"    # 6379 taken by aetheris-memos-redis
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: hermesx-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"    # MinIO API
+      - "9002:9001"    # MinIO Console (9001 taken by tqclient)
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  hermesx-saas:
+    build:
+      context: .
+      dockerfile: Dockerfile.saas
+    container_name: hermesx-saas
+    command: ["saas-api"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      REDIS_URL: redis://redis:6379
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-hermes-skills}
+      SAAS_API_PORT: "8080"
+      SAAS_ALLOWED_ORIGINS: ${SAAS_ALLOWED_ORIGINS:?SAAS_ALLOWED_ORIGINS must be set explicitly}
+      SAAS_STATIC_DIR: /static
+      HERMES_ACP_TOKEN: ${HERMES_ACP_TOKEN}
+      HERMES_API_KEY: ${HERMES_API_KEY}
+      HERMES_API_PORT: "8081"
+      LLM_API_URL: ${LLM_API_URL}
+      LLM_API_KEY: ${LLM_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3-Coder-Next-4bit}
+      HERMES_MODEL: ${HERMES_MODEL:-Qwen3-Coder-Next-4bit}
+      HERMES_PROVIDER: ${HERMES_PROVIDER:-openai}
+      HERMES_BASE_URL: ${HERMES_BASE_URL}
+      HERMES_API_KEY_LLM: ${HERMES_API_KEY_LLM}
+      HERMES_API_MODE: ${HERMES_API_MODE:-openai}
+      HERMES_DEBUG: ${HERMES_DEBUG:-false}
+      # Allow superuser in local dev: postgres default user has SUPERUSER which
+      # bypasses RLS. Acceptable only for local dev, never for production.
+      HERMESX_ALLOW_SUPERUSER: "true"
+    volumes:
+      - ./skills:/home/hermesx/skills:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - "18080:8080"   # SaaS API + embedded WebUI
+      - "18081:8081"   # Hermes agent API
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:

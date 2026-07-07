@@ -79,8 +79,9 @@ func handleExecuteCode(ctx context.Context, args map[string]any, tctx *ToolConte
 	if t, ok := args["timeout"].(float64); ok && t > 0 {
 		timeout = int(t)
 	}
-	if timeout > 120 {
-		timeout = 120
+	maxTimeout := MaxTimeoutSec()
+	if timeout > maxTimeout {
+		timeout = maxTimeout
 	}
 	cfg.Timeout = time.Duration(timeout) * time.Second
 
@@ -161,18 +162,53 @@ func executePython(ctx context.Context, code string, cfg *SandboxConfig) string 
 	}
 	defer os.Remove(tmpFile)
 
-	return runSandboxed(ctx, "python3", []string{tmpFile}, tmpDir, "python", cfg)
+	// Create output directory for local sandbox
+	outputDir := cfg.OutputDir
+	if outputDir == "" {
+		outputDir = filepath.Join(tmpDir, "output")
+	}
+	os.MkdirAll(outputDir, 0755)
+	// Cleanup output directory on completion (timeout or error)
+	defer cleanupOutputDir(outputDir)
+
+	return runSandboxed(ctx, "python3", []string{tmpFile}, outputDir, "python", cfg)
 }
 
 func executeBash(ctx context.Context, code string, cfg *SandboxConfig) string {
-	cwd, _ := os.Getwd()
-	return runSandboxed(ctx, "bash", []string{"-c", code}, cwd, "bash", cfg)
+	// Create output directory for local sandbox
+	tmpDir := filepath.Join(config.HermesHome(), "cache")
+	outputDir := cfg.OutputDir
+	if outputDir == "" {
+		outputDir = filepath.Join(tmpDir, "output")
+	}
+	os.MkdirAll(outputDir, 0755)
+	// Cleanup output directory on completion (timeout or error)
+	defer cleanupOutputDir(outputDir)
+
+	return runSandboxed(ctx, "bash", []string{"-c", code}, outputDir, "bash", cfg)
+}
+
+// cleanupOutputDir removes all files in the output directory after execution.
+// This ensures no temp files persist after timeout or error conditions.
+func cleanupOutputDir(dir string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, entry := range entries {
+		os.RemoveAll(filepath.Join(dir, entry.Name()))
+	}
 }
 
 // executeViaEnvironment routes code execution through the environments package,
 // supporting docker and k8s-job backends selected via SANDBOX_MODE.
+// Resource limits from SandboxConfig are forwarded as environment parameters.
 func executeViaEnvironment(ctx context.Context, mode, language, code string, cfg *SandboxConfig) string {
-	env, err := environments.GetEnvironment(mode, map[string]string{})
+	params := map[string]string{
+		"memory_limit": fmt.Sprintf("%dMi", cfg.MemoryLimitMB),
+		"cpu_limit":    cfg.CPULimit,
+	}
+	env, err := environments.GetEnvironment(mode, params)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("Failed to initialize %s environment: %v", mode, err)})
 	}
@@ -185,13 +221,15 @@ func executeViaEnvironment(ctx context.Context, mode, language, code string, cfg
 	}
 
 	// Build the command string based on language.
+	// Output is restricted to cfg.OutputDir within the sandbox.
 	var command string
+	outputSetup := fmt.Sprintf("mkdir -p %s && ", cfg.OutputDir)
 	switch language {
 	case "python":
 		// Pass code via heredoc to avoid quoting issues.
-		command = fmt.Sprintf("python3 -c %q", code)
+		command = outputSetup + fmt.Sprintf("cd %s && python3 -c %q", cfg.OutputDir, code)
 	case "bash":
-		command = code
+		command = outputSetup + fmt.Sprintf("cd %s && %s", cfg.OutputDir, code)
 	default:
 		return toJSON(map[string]any{"error": fmt.Sprintf("Unsupported language: %s", language)})
 	}

@@ -9,6 +9,7 @@ type ObjectStore interface {
 	Ping(ctx context.Context) error
 	GetObject(ctx context.Context, key string) ([]byte, error)
 	PutObject(ctx context.Context, key string, data []byte) error
+	PutObjectWithContentType(ctx context.Context, key string, data []byte, contentType string) error
 	DeleteObject(ctx context.Context, key string) error
 	ObjectExists(ctx context.Context, key string) (bool, error)
 	ListObjects(ctx context.Context, prefix string) ([]string, error)

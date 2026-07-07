@@ -241,6 +241,9 @@ func (m *mockObjectStore) PutObject(_ context.Context, key string, data []byte) 
 	m.objects[key] = data
 	return nil
 }
+func (m *mockObjectStore) PutObjectWithContentType(_ context.Context, key string, data []byte, _ string) error {
+	return m.PutObject(context.Background(), key, data)
+}
 func (m *mockObjectStore) DeleteObject(_ context.Context, key string) error {
 	delete(m.objects, key)
 	return nil

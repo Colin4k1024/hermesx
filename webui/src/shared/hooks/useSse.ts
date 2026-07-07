@@ -7,6 +7,9 @@ interface SseOptions {
   onToken: (token: string) => void
   onDone: (sessionId: string | null) => void
   onError: (msg: string) => void
+  onToolResult?: (data: unknown) => void
+  onPlanStart?: (data: { steps: Array<{ id: string; title: string }> }) => void
+  onPlanStepUpdate?: (data: { step_id: string; status: string }) => void
 }
 
 export function useSse() {
@@ -48,6 +51,7 @@ export function useSse() {
       const decoder = new TextDecoder()
       let buf = ''
       let newSessionId: string | null = null
+      let lastEventType = ''
 
       while (true) {
         const { done, value } = await reader.read()
@@ -56,6 +60,11 @@ export function useSse() {
         const lines = buf.split('\n')
         buf = lines.pop() ?? ''
         for (const line of lines) {
+          // Track SSE event types
+          if (line.startsWith('event: ')) {
+            lastEventType = line.slice(7).trim()
+            continue
+          }
           if (!line.startsWith('data: ')) continue
           const raw = line.slice(6).trim()
           if (raw === '[DONE]') {
@@ -65,6 +74,27 @@ export function useSse() {
           }
           try {
             const chunk = JSON.parse(raw)
+
+            // Handle tool_result events
+            if (lastEventType === 'tool_result') {
+              opts.onToolResult?.(chunk)
+              lastEventType = ''
+              continue
+            }
+            // Handle plan_start events
+            if (lastEventType === 'plan_start') {
+              opts.onPlanStart?.(chunk)
+              lastEventType = ''
+              continue
+            }
+            // Handle plan_step_update events
+            if (lastEventType === 'plan_step_update') {
+              opts.onPlanStepUpdate?.(chunk)
+              lastEventType = ''
+              continue
+            }
+            lastEventType = ''
+
             if (chunk.id && !newSessionId) newSessionId = chunk.id
             const delta = chunk.choices?.[0]?.delta?.content
             if (delta) opts.onToken(delta)

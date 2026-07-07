@@ -45,8 +45,46 @@ func (c *Client) GoRedisClient() *redis.Client { return c.rdb }
 
 // --- Session Lock (Distributed) ---
 
+// Lock Key Design:
+//
+// The lock key hierarchy supports multi-task parallelism within a session:
+//
+//   Session-level lock (existing): hermes:lock:{tenant_id}:{session_id}
+//     - Prevents the same session from being processed concurrently by multiple pods
+//     - Used by AgentFactory.Run for the conversation turn lock
+//
+//   Task-level lock (new): hermes:lock:{tenant_id}:{session_id}:{tool_name}
+//     - Allows concurrent sessions for the same tenant to each acquire tool locks
+//     - Prevents the same tool from being invoked concurrently within a session
+//     - Enables parallel tool execution across different sessions
+//
+// Migration note: The old key format "lock:session:{tenant}:{session}" is preserved
+// for backward compatibility. New code should use the TaskLock functions for
+// finer-grained parallelism.
+
+// sessionLockKey returns the Redis key for a session-level lock.
+// Format: hermes:lock:{tenant_id}:{session_id}
+func sessionLockKey(tenantID, sessionID string) string {
+	return fmt.Sprintf("hermes:lock:%s:%s", tenantID, sessionID)
+}
+
+// taskLockKey returns the Redis key for a task/tool-level lock.
+// Format: hermes:lock:{tenant_id}:{session_id}:{tool_name}
+func taskLockKey(tenantID, sessionID, toolName string) string {
+	return fmt.Sprintf("hermes:lock:%s:%s:%s", tenantID, sessionID, toolName)
+}
+
+// legacySessionLockKey returns the old-format Redis key for a session-level lock.
+// Format: lock:session:{tenant_id}:{session_id}
+// Used for backward compatibility during rolling deploys.
+func legacySessionLockKey(tenantID, sessionID string) string {
+	return fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
+}
+
 // AcquireSessionLock attempts to acquire a distributed lock for a session.
 // Returns the lock token (for owner-verified release) and whether acquisition succeeded.
+// It also attempts to clean up any old-format lock key for backward compatibility
+// during rolling deploys where old pods may still use the legacy key format.
 func (c *Client) AcquireSessionLock(ctx context.Context, tenantID, sessionID string, ttl time.Duration) (string, bool, error) {
 	ctx, span := redisTracer.Start(ctx, "redis.AcquireSessionLock",
 		trace.WithAttributes(
@@ -56,13 +94,25 @@ func (c *Client) AcquireSessionLock(ctx context.Context, tenantID, sessionID str
 	)
 	defer span.End()
 
-	key := fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
+	key := sessionLockKey(tenantID, sessionID)
 	token := fmt.Sprintf("%d", time.Now().UnixNano())
 	ok, err := c.rdb.SetNX(ctx, key, token, ttl).Result()
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 	}
+
+	// During rolling deploy, old pods may still use the legacy key format.
+	// If we acquired the new-format lock, best-effort delete any legacy key
+	// to prevent old pods from also acquiring it.
+	if ok {
+		legacyKey := legacySessionLockKey(tenantID, sessionID)
+		if delErr := c.rdb.Del(ctx, legacyKey).Err(); delErr != nil {
+			slog.Debug("redis: failed to clean up legacy lock key (non-fatal)",
+				"key", legacyKey, "error", delErr)
+		}
+	}
+
 	span.SetAttributes(attribute.Bool("lock.acquired", ok))
 	return token, ok, err
 }
@@ -86,7 +136,7 @@ func (c *Client) ReleaseSessionLock(ctx context.Context, tenantID, sessionID, to
 	)
 	defer span.End()
 
-	key := fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
+	key := sessionLockKey(tenantID, sessionID)
 	_, err := releaseScript.Run(ctx, c.rdb, []string{key}, token).Result()
 	if err != nil {
 		span.RecordError(err)
@@ -97,13 +147,62 @@ func (c *Client) ReleaseSessionLock(ctx context.Context, tenantID, sessionID, to
 
 // ExtendSessionLock extends the TTL of a session lock only if the caller holds it.
 func (c *Client) ExtendSessionLock(ctx context.Context, tenantID, sessionID, token string, ttl time.Duration) error {
-	key := fmt.Sprintf("lock:session:%s:%s", tenantID, sessionID)
+	key := sessionLockKey(tenantID, sessionID)
 	// Verify ownership before extending
 	val, err := c.rdb.Get(ctx, key).Result()
 	if err != nil || val != token {
 		return fmt.Errorf("lock not owned by this token")
 	}
 	return c.rdb.Expire(ctx, key, ttl).Err()
+}
+
+// --- Task Lock (Distributed, session+tool granularity) ---
+
+// AcquireTaskLock attempts to acquire a distributed lock for a specific tool
+// within a session. This allows concurrent sessions for the same tenant to
+// proceed independently, while preventing the same tool from running concurrently
+// within a single session.
+//
+// Key format: hermes:lock:{tenant_id}:{session_id}:{tool_name}
+func (c *Client) AcquireTaskLock(ctx context.Context, tenantID, sessionID, toolName string, ttl time.Duration) (string, bool, error) {
+	ctx, span := redisTracer.Start(ctx, "redis.AcquireTaskLock",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+			attribute.String("tool.name", toolName),
+		),
+	)
+	defer span.End()
+
+	key := taskLockKey(tenantID, sessionID, toolName)
+	token := fmt.Sprintf("%d", time.Now().UnixNano())
+	ok, err := c.rdb.SetNX(ctx, key, token, ttl).Result()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	span.SetAttributes(attribute.Bool("lock.acquired", ok))
+	return token, ok, err
+}
+
+// ReleaseTaskLock releases a task lock only if the caller holds it.
+func (c *Client) ReleaseTaskLock(ctx context.Context, tenantID, sessionID, toolName, token string) error {
+	ctx, span := redisTracer.Start(ctx, "redis.ReleaseTaskLock",
+		trace.WithAttributes(
+			attribute.String("tenant.id", tenantID),
+			attribute.String("session.id", sessionID),
+			attribute.String("tool.name", toolName),
+		),
+	)
+	defer span.End()
+
+	key := taskLockKey(tenantID, sessionID, toolName)
+	_, err := releaseScript.Run(ctx, c.rdb, []string{key}, token).Result()
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return err
 }
 
 // --- Rate Limiting ---

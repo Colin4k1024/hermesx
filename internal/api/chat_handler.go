@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
@@ -9,10 +10,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Colin4k1024/hermesx/internal/auth"
 	"github.com/Colin4k1024/hermesx/internal/eino"
 	"github.com/Colin4k1024/hermesx/internal/evolution"
 	"github.com/Colin4k1024/hermesx/internal/llm"
 	"github.com/Colin4k1024/hermesx/internal/metering"
+	"github.com/Colin4k1024/hermesx/internal/middleware"
 	"github.com/Colin4k1024/hermesx/internal/objstore"
 	"github.com/Colin4k1024/hermesx/internal/safety"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
@@ -28,6 +31,12 @@ type chatMessage struct {
 
 type agentConversationRunner func(ctx context.Context, userMessage string, history []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error)
 
+// activeSession tracks an in-flight agent conversation for abort support.
+type activeSession struct {
+	Cancel context.CancelFunc
+	Done   chan struct{}
+}
+
 // chatHandler holds shared dependencies for agent chat, session, and memory endpoints.
 type chatHandler struct {
 	store             store.Store
@@ -42,6 +51,9 @@ type chatHandler struct {
 	usageStore        metering.UsageStore
 	skillsClient      objstore.ObjectStore
 
+	// sseTracker manages per-user SSE connection counts for the stream limit.
+	sseTracker *middleware.SSEConnectionTracker
+
 	// provisioner copies tenant skills into per-user OSS namespaces on first request.
 	provisioner *skills.Provisioner
 	// provisionedUsers tracks which (tenantID, userID) pairs have already been provisioned
@@ -55,6 +67,10 @@ type chatHandler struct {
 	evolutionImprover *evolution.Improver
 	runAgent          agentConversationRunner
 	sessionLocks      sync.Map
+
+	// activeSessions tracks in-flight agent sessions for abort support.
+	// Key: "tenantID:sessionID", Value: *activeSession
+	activeSessions sync.Map
 }
 
 // SetEvolutionImprover attaches a shared Oris Improver to the handler.
@@ -171,4 +187,76 @@ func (h *chatHandler) SetLeakScanner(scanner *secrets.LeakScanner) {
 
 func (h *chatHandler) SetUsageStore(store metering.UsageStore) {
 	h.usageStore = store
+}
+
+// SetSSETracker attaches a shared SSE connection tracker for per-user stream limiting.
+func (h *chatHandler) SetSSETracker(tracker *middleware.SSEConnectionTracker) {
+	h.sseTracker = tracker
+}
+
+// registerActiveSession registers an active session for abort support.
+func (h *chatHandler) registerActiveSession(tenantID, sessionID string, cancel context.CancelFunc) *activeSession {
+	key := tenantID + ":" + sessionID
+	session := &activeSession{
+		Cancel: cancel,
+		Done:   make(chan struct{}),
+	}
+	h.activeSessions.Store(key, session)
+	return session
+}
+
+// unregisterActiveSession removes a completed session.
+func (h *chatHandler) unregisterActiveSession(tenantID, sessionID string) {
+	key := tenantID + ":" + sessionID
+	h.activeSessions.Delete(key)
+}
+
+// abortSession cancels an active session.
+func (h *chatHandler) abortSession(tenantID, sessionID string) bool {
+	key := tenantID + ":" + sessionID
+	if val, ok := h.activeSessions.Load(key); ok {
+		session := val.(*activeSession)
+		session.Cancel()
+		return true
+	}
+	return false
+}
+
+// AbortAgentHTTP handles POST /v1/chat/abort to cancel an in-flight agent session.
+func (h *chatHandler) AbortAgentHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	ac, ok := auth.FromContext(r.Context())
+	if !ok || ac == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		http.Error(w, "invalid request: session_id required", http.StatusBadRequest)
+		return
+	}
+
+	if h.abortSession(ac.TenantID, req.SessionID) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"success":    true,
+			"session_id": req.SessionID,
+			"message":    "abort signal sent",
+		})
+	} else {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]any{
+			"success":    false,
+			"session_id": req.SessionID,
+			"message":    "session not found or already completed",
+		})
+	}
 }

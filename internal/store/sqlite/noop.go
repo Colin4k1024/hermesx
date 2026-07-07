@@ -220,6 +220,28 @@ func (n *noopExecutionReceiptStore) GetByIdempotencyID(_ context.Context, _, _ s
 
 var _ store.ExecutionReceiptStore = (*noopExecutionReceiptStore)(nil)
 
+// --- FileEntryStore no-op ---
+
+type noopFileEntryStore struct{}
+
+func (n *noopFileEntryStore) List(_ context.Context, _, _ string) ([]*store.FileEntry, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopFileEntryStore) Get(_ context.Context, _, _, _ string) (*store.FileEntry, error) {
+	return nil, errSQLiteUnsupported
+}
+func (n *noopFileEntryStore) Create(_ context.Context, _ *store.FileEntry) error {
+	return errSQLiteUnsupported
+}
+func (n *noopFileEntryStore) Delete(_ context.Context, _, _, _ string) error {
+	return errSQLiteUnsupported
+}
+func (n *noopFileEntryStore) GetUserStorageUsage(_ context.Context, _, _ string) (int64, error) {
+	return 0, errSQLiteUnsupported
+}
+
+var _ store.FileEntryStore = (*noopFileEntryStore)(nil)
+
 // --- WorkflowStore noop ---
 
 type noopWorkflowStore struct{}

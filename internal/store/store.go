@@ -24,6 +24,7 @@ type Store interface {
 	Roles() RoleStore
 	PricingRules() PricingRuleStore
 	ExecutionReceipts() ExecutionReceiptStore
+	FileEntries() FileEntryStore
 	Workflows() WorkflowStore
 	AgentProfiles() AgentProfileStore
 	Close() error
@@ -270,6 +271,15 @@ type WorkflowRunListOptions struct {
 	Status       string
 	Limit        int
 	Offset       int
+}
+
+// FileEntryStore manages workspace file metadata.
+type FileEntryStore interface {
+	List(ctx context.Context, tenantID, userID string) ([]*FileEntry, error)
+	Get(ctx context.Context, tenantID, userID, id string) (*FileEntry, error)
+	Create(ctx context.Context, entry *FileEntry) error
+	Delete(ctx context.Context, tenantID, userID, id string) error
+	GetUserStorageUsage(ctx context.Context, tenantID, userID string) (int64, error)
 }
 
 // ListOptions controls pagination and filtering for list queries.

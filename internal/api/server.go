@@ -145,6 +145,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	egressTransport := egress.NewSecureTransport(cachedEgressPolicy, egress.WithAuditLogger(egress.NewStoreAuditLogger(cfg.Store.AuditLogs(), nil)))
 	slog.Info("egress policy configured", "default", egressDefault, "tenant_allowlist", egressAdminStore != nil)
 
+	// Initialize SSE connection tracker for per-user stream limiting (ADR-001).
+	sseTracker := middleware.NewSSEConnectionTracker(middleware.DefaultMaxSSEStreamsPerUser)
+	cfg.RateLimit.SSETracker = sseTracker
+
 	stack := middleware.NewStack(middleware.StackConfig{
 		Tracing:   middleware.TracingMiddleware,
 		Metrics:   middleware.MetricsMiddleware,
@@ -278,8 +282,10 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	chatH.SetSafetyInterceptor(safetyInterceptor)
 	chatH.SetLeakScanner(leakScanner)
 	chatH.SetUsageStore(cfg.UsageStore)
+	chatH.SetSSETracker(sseTracker)
 	api.HandleFunc("POST /v1/chat/completions", chatH.ServeAgentHTTP)
 	api.HandleFunc("POST /v1/agent/chat", chatH.ServeAgentHTTP)
+	api.HandleFunc("POST /v1/chat/abort", chatH.AbortAgentHTTP)
 
 	// Memory management API (per-user long-term memory).
 	api.HandleFunc("GET /v1/memories", chatH.handleListMemories)
@@ -306,6 +312,13 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	agentProfileHandler := NewAgentProfileHandler(cfg.Store, cfg.SkillsClient)
 	api.Handle("/v1/agent-profiles", agentProfileHandler)
 	api.Handle("/v1/agent-profiles/", agentProfileHandler)
+
+	// File workspace API — requires ObjectStore (MinIO) for blob storage.
+	if cfg.SkillsClient != nil {
+		fileHandler := NewFileHandler(cfg.Store, cfg.SkillsClient)
+		api.Handle("/v1/files", fileHandler)
+		api.Handle("/v1/files/", fileHandler)
+	}
 
 	mux.Handle("/v1/", stack.Wrap(api))
 
@@ -347,7 +360,9 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	if cfg.StaticDir != "" {
 		if _, err := os.Stat(cfg.StaticDir); err == nil {
 			spaHandler = http.FileServer(http.Dir(cfg.StaticDir))
-			// Strip /static/ prefix.
+			// Serve static files under both /static/ and root /assets/ prefixes.
+			// /static/ is the canonical path; /assets/ is needed because Vite
+			// outputs index.html with root-relative asset references (/assets/...).
 			mux.Handle("/static/", http.StripPrefix("/static/", spaHandler))
 			// Also serve assets at root /assets/ path (Vite HTML references /assets/...).
 			assetsDir := filepath.Join(cfg.StaticDir, "assets")

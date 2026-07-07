@@ -1,0 +1,17 @@
+# docker-compose.override.yml
+# Resolves host port conflicts for local multi-stack deployments.
+# Postgres 5432, Redis 6379 are bound by aetheris-memos.
+# MinIO 9001 console uses 9002 to avoid transient conflicts.
+services:
+  postgres:
+    ports:
+      - "5433:5432"
+
+  redis:
+    ports:
+      - "6380:6379"
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9002:9001"

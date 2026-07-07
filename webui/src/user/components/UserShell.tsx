@@ -14,6 +14,7 @@ import {
   MenuIcon,
   BellRing,
   Bot,
+  Briefcase,
 } from 'lucide-react'
 import { useAuthStore } from '@shared/stores/authStore'
 import { useThemeStore } from '@shared/stores/themeStore'
@@ -23,6 +24,7 @@ import { SIDEBAR_WIDTH } from '@shared/theme/constants'
 const { Sider, Content, Header } = Layout
 
 const navItems = [
+  { key: '/workspace', icon: <Briefcase size={18} />, label: 'Workspace' },
   { key: '/chat', icon: <MessageSquare size={18} />, label: 'Chat' },
   { key: '/agents', icon: <Bot size={18} />, label: 'Agents' },
   { key: '/memories', icon: <Brain size={18} />, label: 'Memories' },

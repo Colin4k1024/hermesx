@@ -19,7 +19,10 @@ func (adapterObjectStore) GetObject(context.Context, string) ([]byte, error) {
 	return nil, nil
 }
 func (adapterObjectStore) PutObject(context.Context, string, []byte) error { return nil }
-func (adapterObjectStore) DeleteObject(context.Context, string) error      { return nil }
+func (adapterObjectStore) PutObjectWithContentType(context.Context, string, []byte, string) error {
+	return nil
+}
+func (adapterObjectStore) DeleteObject(context.Context, string) error { return nil }
 func (adapterObjectStore) ObjectExists(context.Context, string) (bool, error) {
 	return false, nil
 }

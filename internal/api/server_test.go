@@ -116,6 +116,7 @@ func (stubStore) CronJobs() store.CronJobStore                   { return nil }
 func (stubStore) Roles() store.RoleStore                         { return nil }
 func (stubStore) PricingRules() store.PricingRuleStore           { return nil }
 func (stubStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (stubStore) FileEntries() store.FileEntryStore              { return nil }
 func (stubStore) Workflows() store.WorkflowStore                 { return nil }
 func (stubStore) AgentProfiles() store.AgentProfileStore         { return nil }
 func (stubStore) Close() error                                   { return nil }

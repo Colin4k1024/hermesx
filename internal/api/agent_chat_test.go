@@ -695,3 +695,66 @@ func (s *agentChatCheckpointStore) Delete(_ context.Context, tenantID, sessionID
 	delete(s.entries, tenantID+"/"+sessionID+"/"+checkpointID)
 	return nil
 }
+
+func TestServeAgentHTTP_StreamPlanEvents(t *testing.T) {
+	h := NewChatHandler(stubStore{}, nil, nil)
+	h.llmModel = "test-model"
+	h.runAgent = func(_ context.Context, _ string, _ []llm.Message, callbacks *eino.StreamCallbacks) (*eino.ConversationResult, error) {
+		if callbacks != nil {
+			// First tool call: emits plan_start + plan_step_update(running) + tool_result + plan_step_update(completed)
+			callbacks.OnToolStart("web_search")
+			callbacks.OnToolComplete("web_search")
+			// Second tool call: only plan_step_update since plan already started
+			callbacks.OnToolStart("code_exec")
+			callbacks.OnToolComplete("code_exec")
+			callbacks.OnStreamDelta("final answer")
+		}
+		return &eino.ConversationResult{FinalResponse: "final answer"}, nil
+	}
+
+	rec := httptest.NewRecorder()
+	req := newAgentChatRequest(t, `{"messages":[{"role":"user","content":"search and run code"}],"stream":true}`)
+
+	h.ServeAgentHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+
+	// Verify plan_start event is emitted with both steps.
+	if !strings.Contains(body, "event: plan_start") {
+		t.Fatalf("expected plan_start event in SSE stream, got %q", body)
+	}
+	if !strings.Contains(body, `"steps"`) {
+		t.Fatalf("expected steps in plan_start payload, got %q", body)
+	}
+	if !strings.Contains(body, `"web_search"`) {
+		t.Fatalf("expected web_search in plan steps, got %q", body)
+	}
+
+	// Verify plan_step_update events are emitted.
+	if !strings.Contains(body, "event: plan_step_update") {
+		t.Fatalf("expected plan_step_update event in SSE stream, got %q", body)
+	}
+	if !strings.Contains(body, `"step_id":"web_search"`) {
+		t.Fatalf("expected step_id web_search, got %q", body)
+	}
+	if !strings.Contains(body, `"step_id":"code_exec"`) {
+		t.Fatalf("expected step_id code_exec, got %q", body)
+	}
+	if !strings.Contains(body, `"status":"running"`) {
+		t.Fatalf("expected status running, got %q", body)
+	}
+	if !strings.Contains(body, `"status":"completed"`) {
+		t.Fatalf("expected status completed, got %q", body)
+	}
+
+	// Verify existing tool_call and tool_result events are still present.
+	if !strings.Contains(body, "event: tool_call") {
+		t.Fatalf("expected tool_call event preserved, got %q", body)
+	}
+	if !strings.Contains(body, "event: tool_result") {
+		t.Fatalf("expected tool_result event preserved, got %q", body)
+	}
+}

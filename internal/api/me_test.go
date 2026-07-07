@@ -33,6 +33,7 @@ func (m *mockMeStore) CronJobs() store.CronJobStore                   { return n
 func (m *mockMeStore) Roles() store.RoleStore                         { return nil }
 func (m *mockMeStore) PricingRules() store.PricingRuleStore           { return nil }
 func (m *mockMeStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
+func (m *mockMeStore) FileEntries() store.FileEntryStore              { return nil }
 func (m *mockMeStore) Workflows() store.WorkflowStore                 { return nil }
 func (m *mockMeStore) AgentProfiles() store.AgentProfileStore         { return nil }
 func (m *mockMeStore) Close() error                                   { return nil }

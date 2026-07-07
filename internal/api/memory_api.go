@@ -216,8 +216,19 @@ func (h *chatHandler) handleGetSessionMessages(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Dispatch sub-routes: /v1/sessions/active and /v1/sessions/{id}/artifacts.
 	path := strings.TrimPrefix(r.URL.Path, "/v1/sessions/")
+	if path == "active" {
+		h.handleListActiveSessions(w, r)
+		return
+	}
+
 	parts := strings.SplitN(path, "/", 2)
+	if len(parts) >= 2 && parts[1] == "artifacts" {
+		h.handleListSessionArtifacts(w, r)
+		return
+	}
+
 	if len(parts) < 1 || parts[0] == "" {
 		http.Error(w, "session id required", http.StatusBadRequest)
 		return

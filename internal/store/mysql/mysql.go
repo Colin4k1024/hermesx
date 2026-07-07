@@ -87,6 +87,7 @@ func (s *MySQLStore) CronJobs() store.CronJobStore                   { return s.
 func (s *MySQLStore) Roles() store.RoleStore                         { return s.roles }
 func (s *MySQLStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *MySQLStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
+func (s *MySQLStore) FileEntries() store.FileEntryStore              { return &noopFileEntryStore{} }
 func (s *MySQLStore) Workflows() store.WorkflowStore                 { return s.workflows }
 func (s *MySQLStore) AgentProfiles() store.AgentProfileStore         { return &noopAgentProfileStore{} }
 
