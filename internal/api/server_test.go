@@ -51,6 +51,15 @@ func (stubUserStore) IsApproved(_ context.Context, _, _, _ string) (bool, error)
 func (stubUserStore) Approve(_ context.Context, _, _, _ string) error               { return nil }
 func (stubUserStore) Revoke(_ context.Context, _, _, _ string) error                { return nil }
 func (stubUserStore) ListApproved(_ context.Context, _, _ string) ([]string, error) { return nil, nil }
+func (stubUserStore) CreateWithPassword(_ context.Context, _ *store.User, _ string) error {
+	return nil
+}
+func (stubUserStore) GetByUsername(_ context.Context, _, _ string) (*store.User, string, error) {
+	return nil, "", store.ErrNotFound
+}
+func (stubUserStore) GetByID(_ context.Context, _, _ string) (*store.User, error) {
+	return nil, store.ErrNotFound
+}
 
 // stubTenantStore implements store.TenantStore with no-op methods.
 type stubTenantStore struct{}
@@ -108,6 +117,7 @@ func (stubStore) Roles() store.RoleStore                         { return nil }
 func (stubStore) PricingRules() store.PricingRuleStore           { return nil }
 func (stubStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
 func (stubStore) Workflows() store.WorkflowStore                 { return nil }
+func (stubStore) AgentProfiles() store.AgentProfileStore         { return nil }
 func (stubStore) Close() error                                   { return nil }
 func (stubStore) Migrate(_ context.Context) error                { return nil }
 

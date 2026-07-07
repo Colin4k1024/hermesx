@@ -3,6 +3,7 @@ import { useAuthStore } from '@shared/stores/authStore'
 
 interface SseOptions {
   sessionId?: string
+  agentId?: string
   onToken: (token: string) => void
   onDone: (sessionId: string | null) => void
   onError: (msg: string) => void
@@ -22,11 +23,13 @@ export function useSse() {
     if (userApiKey) headers['Authorization'] = `Bearer ${userApiKey}`
     if (userId) headers['X-Hermes-User-Id'] = userId
     if (opts.sessionId) headers['X-Hermes-Session-Id'] = opts.sessionId
+    if (opts.agentId) headers['X-Hermes-Agent-Id'] = opts.agentId
 
     try {
       const res = await fetch('/v1/chat/completions', {
         method: 'POST',
         headers,
+        credentials: 'include',
         body: JSON.stringify({ model, messages, stream: true }),
         signal: abortRef.current.signal,
       })

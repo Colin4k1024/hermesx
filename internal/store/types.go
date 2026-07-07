@@ -408,3 +408,17 @@ type APIKey struct {
 	RevokedAt *time.Time `json:"revoked_at,omitempty" db:"revoked_at"`
 	CreatedAt time.Time  `json:"created_at" db:"created_at"`
 }
+
+// AgentProfile represents a named agent configuration for a user.
+type AgentProfile struct {
+	ID             string    `json:"id" db:"id"`
+	TenantID       string    `json:"tenant_id" db:"tenant_id"`
+	UserID         string    `json:"user_id" db:"user_id"`
+	Name           string    `json:"name" db:"name"`
+	Description    string    `json:"description,omitempty" db:"description"`
+	Model          string    `json:"model,omitempty" db:"model"`
+	SelectedSkills []string  `json:"selected_skills,omitempty" db:"selected_skills"`
+	IsDefault      bool      `json:"is_default" db:"is_default"`
+	CreatedAt      time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at" db:"updated_at"`
+}

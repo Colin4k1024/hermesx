@@ -37,6 +37,7 @@ func (t *TracedStore) ExecutionReceipts() ExecutionReceiptStore {
 	return &tracedExecutionReceipts{t.inner.ExecutionReceipts()}
 }
 func (t *TracedStore) Workflows() WorkflowStore          { return &tracedWorkflows{t.inner.Workflows()} }
+func (t *TracedStore) AgentProfiles() AgentProfileStore  { return &tracedAgentProfiles{t.inner.AgentProfiles()} }
 func (t *TracedStore) Close() error                      { return t.inner.Close() }
 func (t *TracedStore) Migrate(ctx context.Context) error { return t.inner.Migrate(ctx) }
 
@@ -237,6 +238,42 @@ func (u *tracedUsers) ListApproved(ctx context.Context, tenantID, platform strin
 	defer span.End()
 	span.SetAttributes(attribute.String("tenant_id", tenantID))
 	v, err := u.inner.ListApproved(ctx, tenantID, platform)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (u *tracedUsers) CreateWithPassword(ctx context.Context, user *User, passwordHash string) error {
+	ctx, span := tracer.Start(ctx, "store.Users.CreateWithPassword")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", user.TenantID))
+	if err := u.inner.CreateWithPassword(ctx, user, passwordHash); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (u *tracedUsers) GetByUsername(ctx context.Context, tenantID, username string) (*User, string, error) {
+	ctx, span := tracer.Start(ctx, "store.Users.GetByUsername")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	user, hash, err := u.inner.GetByUsername(ctx, tenantID, username)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return user, hash, err
+}
+
+func (u *tracedUsers) GetByID(ctx context.Context, tenantID, userID string) (*User, error) {
+	ctx, span := tracer.Start(ctx, "store.Users.GetByID")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := u.inner.GetByID(ctx, tenantID, userID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -1093,4 +1130,92 @@ func (e *tracedExecutionReceipts) GetByIdempotencyID(ctx context.Context, tenant
 		span.SetStatus(codes.Error, err.Error())
 	}
 	return v, err
+}
+
+// ── AgentProfiles ─────────────────────────────────────────────────────────────
+
+type tracedAgentProfiles struct{ inner AgentProfileStore }
+
+func (a *tracedAgentProfiles) Create(ctx context.Context, p *AgentProfile) error {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.Create")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", p.TenantID))
+	if err := a.inner.Create(ctx, p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (a *tracedAgentProfiles) Get(ctx context.Context, tenantID, userID, profileID string) (*AgentProfile, error) {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.Get")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := a.inner.Get(ctx, tenantID, userID, profileID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (a *tracedAgentProfiles) List(ctx context.Context, tenantID, userID string) ([]*AgentProfile, error) {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.List")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := a.inner.List(ctx, tenantID, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (a *tracedAgentProfiles) Update(ctx context.Context, p *AgentProfile) error {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.Update")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", p.TenantID))
+	if err := a.inner.Update(ctx, p); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (a *tracedAgentProfiles) Delete(ctx context.Context, tenantID, userID, profileID string) error {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.Delete")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	if err := a.inner.Delete(ctx, tenantID, userID, profileID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (a *tracedAgentProfiles) GetDefault(ctx context.Context, tenantID, userID string) (*AgentProfile, error) {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.GetDefault")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	v, err := a.inner.GetDefault(ctx, tenantID, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+	}
+	return v, err
+}
+
+func (a *tracedAgentProfiles) SetDefault(ctx context.Context, tenantID, userID, profileID string) error {
+	ctx, span := tracer.Start(ctx, "store.AgentProfiles.SetDefault")
+	defer span.End()
+	span.SetAttributes(attribute.String("tenant_id", tenantID))
+	if err := a.inner.SetDefault(ctx, tenantID, userID, profileID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }

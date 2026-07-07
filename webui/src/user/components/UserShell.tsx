@@ -13,6 +13,7 @@ import {
   Moon,
   MenuIcon,
   BellRing,
+  Bot,
 } from 'lucide-react'
 import { useAuthStore } from '@shared/stores/authStore'
 import { useThemeStore } from '@shared/stores/themeStore'
@@ -23,6 +24,7 @@ const { Sider, Content, Header } = Layout
 
 const navItems = [
   { key: '/chat', icon: <MessageSquare size={18} />, label: 'Chat' },
+  { key: '/agents', icon: <Bot size={18} />, label: 'Agents' },
   { key: '/memories', icon: <Brain size={18} />, label: 'Memories' },
   { key: '/skills', icon: <Zap size={18} />, label: 'Skills' },
   { key: '/usage', icon: <BarChart3 size={18} />, label: 'Usage' },

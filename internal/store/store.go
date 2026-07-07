@@ -25,6 +25,7 @@ type Store interface {
 	PricingRules() PricingRuleStore
 	ExecutionReceipts() ExecutionReceiptStore
 	Workflows() WorkflowStore
+	AgentProfiles() AgentProfileStore
 	Close() error
 	Migrate(ctx context.Context) error
 }
@@ -62,6 +63,21 @@ type UserStore interface {
 	Approve(ctx context.Context, tenantID, platform, userID string) error
 	Revoke(ctx context.Context, tenantID, platform, userID string) error
 	ListApproved(ctx context.Context, tenantID, platform string) ([]string, error)
+	// Self-registration support.
+	CreateWithPassword(ctx context.Context, user *User, passwordHash string) error
+	GetByUsername(ctx context.Context, tenantID, username string) (*User, string, error) // returns user + passwordHash
+	GetByID(ctx context.Context, tenantID, userID string) (*User, error)
+}
+
+// AgentProfileStore manages named agent configurations per user.
+type AgentProfileStore interface {
+	Create(ctx context.Context, p *AgentProfile) error
+	Get(ctx context.Context, tenantID, userID, profileID string) (*AgentProfile, error)
+	List(ctx context.Context, tenantID, userID string) ([]*AgentProfile, error)
+	Update(ctx context.Context, p *AgentProfile) error
+	Delete(ctx context.Context, tenantID, userID, profileID string) error
+	GetDefault(ctx context.Context, tenantID, userID string) (*AgentProfile, error)
+	SetDefault(ctx context.Context, tenantID, userID, profileID string) error
 }
 
 // ChannelAppStore manages tenant-bound channel application configurations.

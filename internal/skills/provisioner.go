@@ -100,6 +100,9 @@ You are Hermes, an AI assistant built by Nous Research.
 5. Respect privacy — never log or transmit sensitive information unnecessarily.
 `
 
+// DefaultSoulContent returns the default SOUL.md content for new users and agents.
+func DefaultSoulContent() string { return defaultSoulContent }
+
 const maxSoulBytes = 64 * 1024
 
 type Provisioner struct {

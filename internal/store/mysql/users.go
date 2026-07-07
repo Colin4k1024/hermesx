@@ -88,4 +88,61 @@ func (u *myUserStore) ListApproved(ctx context.Context, tenantID, platform strin
 	return ids, rows.Err()
 }
 
+// CreateWithPassword inserts a new user with a bcrypt password hash (self-registration).
+func (u *myUserStore) CreateWithPassword(ctx context.Context, user *store.User, passwordHash string) error {
+	if user.ID == "" {
+		user.ID = uuid.New().String()
+	}
+	if user.ExternalID == "" {
+		user.ExternalID = "local:" + user.Username
+	}
+	if user.Role == "" {
+		user.Role = "user"
+	}
+	now := time.Now()
+	user.ApprovedAt = &now
+
+	_, err := u.db.ExecContext(ctx,
+		`INSERT INTO users (id, tenant_id, external_id, username, display_name, role, approved_at, password_hash)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		user.ID, user.TenantID, user.ExternalID, user.Username, user.DisplayName, user.Role, user.ApprovedAt, passwordHash)
+	if err != nil {
+		return fmt.Errorf("create user with password: %w", err)
+	}
+	return nil
+}
+
+// GetByUsername looks up a user by tenant-scoped username and returns both the user and the password hash.
+func (u *myUserStore) GetByUsername(ctx context.Context, tenantID, username string) (*store.User, string, error) {
+	user := &store.User{}
+	var passwordHash string
+	err := u.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, external_id, username, display_name, role, approved_at, password_hash
+		 FROM users WHERE tenant_id = ? AND username = ?`, tenantID, username).
+		Scan(&user.ID, &user.TenantID, &user.ExternalID, &user.Username, &user.DisplayName, &user.Role, &user.ApprovedAt, &passwordHash)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, "", store.ErrNotFound
+		}
+		return nil, "", fmt.Errorf("get user by username: %w", err)
+	}
+	return user, passwordHash, nil
+}
+
+// GetByID looks up a user by tenant-scoped user ID.
+func (u *myUserStore) GetByID(ctx context.Context, tenantID, userID string) (*store.User, error) {
+	user := &store.User{}
+	err := u.db.QueryRowContext(ctx,
+		`SELECT id, tenant_id, external_id, username, display_name, role, approved_at
+		 FROM users WHERE tenant_id = ? AND id = ?`, tenantID, userID).
+		Scan(&user.ID, &user.TenantID, &user.ExternalID, &user.Username, &user.DisplayName, &user.Role, &user.ApprovedAt)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, store.ErrNotFound
+		}
+		return nil, fmt.Errorf("get user by id: %w", err)
+	}
+	return user, nil
+}
+
 var _ store.UserStore = (*myUserStore)(nil)

@@ -814,6 +814,35 @@ var migrations = []migration{
 	);
 	CREATE INDEX IF NOT EXISTS idx_safety_policies_tenant ON safety_policies(tenant_id);
 	CREATE INDEX IF NOT EXISTS idx_safety_policies_updated ON safety_policies(updated_at DESC)`},
+
+	// v2.6.0: Username/password self-registration support.
+	{124, `ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT`},
+	{125, `CREATE UNIQUE INDEX IF NOT EXISTS idx_users_tenant_username ON users(tenant_id, username) WHERE username IS NOT NULL`},
+
+	// v2.6.0: Named agent profiles per user.
+	{126, `CREATE TABLE IF NOT EXISTS agent_profiles (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		tenant_id UUID NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+		user_id TEXT NOT NULL,
+		name TEXT NOT NULL,
+		description TEXT DEFAULT '',
+		model TEXT DEFAULT '',
+		selected_skills JSONB DEFAULT '[]'::jsonb,
+		is_default BOOLEAN DEFAULT false,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+		UNIQUE(tenant_id, user_id, name)
+	);
+	CREATE INDEX IF NOT EXISTS idx_agent_profiles_user ON agent_profiles(tenant_id, user_id)`},
+	{127, `ALTER TABLE agent_profiles ENABLE ROW LEVEL SECURITY;
+	ALTER TABLE agent_profiles FORCE ROW LEVEL SECURITY;
+	DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename = 'agent_profiles' AND policyname = 'tenant_isolation_agent_profiles') THEN
+			CREATE POLICY tenant_isolation_agent_profiles ON agent_profiles
+				USING (tenant_id::text = current_setting('app.current_tenant', true))
+				WITH CHECK (tenant_id::text = current_setting('app.current_tenant', false));
+		END IF;
+	END $$`},
 }
 
 const migrationLockID int64 = 0x48455231 // "HER1" — advisory lock for migration exclusion

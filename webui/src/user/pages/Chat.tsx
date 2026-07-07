@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Button, Input, List, Typography, Space, Spin } from 'antd'
+import { Button, Input, List, Typography, Space, Spin, Select } from 'antd'
 import { Send, Square, Plus, MessageSquare } from 'lucide-react'
 import { useSse } from '@shared/hooks/useSse'
 import { apiClient } from '@shared/api/client'
+import { useAgentProfiles } from '../hooks/useAgentProfiles'
 import type { ChatMessage, Session, SessionListResponse, SessionDetailResponse } from '@shared/types'
 
 const { Text } = Typography
@@ -17,9 +18,16 @@ export default function Chat() {
   const [input, setInput] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
+  const [selectedAgentId, setSelectedAgentId] = useState<string | undefined>()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const streamingRef = useRef('')
   const { loading, stream, abort } = useSse()
+  const { data: agentData } = useAgentProfiles()
+
+  const agentOptions = [
+    { label: 'Default Agent', value: '' },
+    ...(agentData?.profiles ?? []).map((p) => ({ label: p.name, value: p.id })),
+  ]
 
   useEffect(() => {
     apiClient.get<SessionListResponse>('/v1/sessions').then((data) => {
@@ -68,6 +76,7 @@ export default function Chat() {
 
     await stream('default', history, {
       sessionId: sessionId ?? undefined,
+      agentId: selectedAgentId || undefined,
       onToken: (token) => {
         streamingRef.current += token
         setMessages((prev) => {
@@ -173,6 +182,16 @@ export default function Chat() {
 
         {/* Input Area */}
         <div style={{ padding: '12px 24px', borderTop: '1px solid var(--ant-color-border)' }}>
+          <div style={{ marginBottom: 8 }}>
+            <Select
+              value={selectedAgentId ?? ''}
+              onChange={(val) => setSelectedAgentId(val || undefined)}
+              options={agentOptions}
+              size="small"
+              style={{ width: 200 }}
+              placeholder="Select agent"
+            />
+          </div>
           <Space.Compact style={{ width: '100%' }}>
             <TextArea
               value={input}

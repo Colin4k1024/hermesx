@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -215,6 +216,14 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		mux.HandleFunc("POST /auth/logout", channelNotConfigured)
 	}
 
+	// Local auth (username/password self-registration) — public routes.
+	if provider, ok := cfg.Store.(store.ChannelStoreProvider); ok {
+		localAuth := NewLocalAuthHandler(cfg.Store, provider.BrowserSessions(), cfg.Provisioner, cfg.ChannelHashSecret, cfg.ChannelCookieSecure)
+		mux.HandleFunc("POST /auth/register", localAuth.Register)
+		mux.HandleFunc("POST /auth/login", localAuth.Login)
+		mux.HandleFunc("GET /auth/tenants", localAuth.ListTenants)
+	}
+
 	// Authenticated routes — through middleware stack + audit.
 	api := http.NewServeMux()
 	tenantHandler := NewTenantHandler(cfg.Store.Tenants(), cfg.TenantOpts...)
@@ -286,7 +295,17 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		skillHandler := NewSkillHandler(cfg.SkillsClient)
 		api.Handle("/v1/skills", skillHandler)
 		api.Handle("/v1/skills/", skillHandler)
+
+		// Per-user skills management API.
+		userSkillHandler := NewUserSkillHandler(cfg.SkillsClient)
+		api.Handle("/v1/user-skills", userSkillHandler)
+		api.Handle("/v1/user-skills/", userSkillHandler)
 	}
+
+	// Agent profile CRUD API.
+	agentProfileHandler := NewAgentProfileHandler(cfg.Store, cfg.SkillsClient)
+	api.Handle("/v1/agent-profiles", agentProfileHandler)
+	api.Handle("/v1/agent-profiles/", agentProfileHandler)
 
 	mux.Handle("/v1/", stack.Wrap(api))
 
@@ -330,6 +349,11 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 			spaHandler = http.FileServer(http.Dir(cfg.StaticDir))
 			// Strip /static/ prefix.
 			mux.Handle("/static/", http.StripPrefix("/static/", spaHandler))
+			// Also serve assets at root /assets/ path (Vite HTML references /assets/...).
+			assetsDir := filepath.Join(cfg.StaticDir, "assets")
+			if _, err := os.Stat(assetsDir); err == nil {
+				mux.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir(assetsDir))))
+			}
 			slog.Info("Serving static files", "dir", cfg.StaticDir)
 		} else {
 			slog.Warn("Static directory not found, skipping static file serving", "dir", cfg.StaticDir)

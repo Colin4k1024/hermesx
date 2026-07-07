@@ -40,6 +40,7 @@ type PGStore struct {
 	browserSessions   *pgBrowserSessionStore
 	alertRules        *pgAlertRuleStore
 	alertEvents       *pgAlertEventStore
+	agentProfiles     *pgAgentProfileStore
 }
 
 // New creates a PGStore with a connection pool and query tracing.
@@ -94,6 +95,7 @@ func New(ctx context.Context, databaseURL string) (*PGStore, error) {
 	s.browserSessions = &pgBrowserSessionStore{pool: pool}
 	s.alertRules = &pgAlertRuleStore{pool: pool}
 	s.alertEvents = &pgAlertEventStore{pool: pool}
+	s.agentProfiles = &pgAgentProfileStore{pool: pool}
 	return s, nil
 }
 
@@ -116,6 +118,7 @@ func (s *PGStore) ChannelIdentities() store.ChannelIdentityStore  { return s.cha
 func (s *PGStore) BrowserSessions() store.BrowserSessionStore     { return s.browserSessions }
 func (s *PGStore) AlertRules() metering.AlertRuleStore            { return s.alertRules }
 func (s *PGStore) AlertEvents() metering.AlertEventStore          { return s.alertEvents }
+func (s *PGStore) AgentProfiles() store.AgentProfileStore         { return s.agentProfiles }
 
 func (s *PGStore) Close() error {
 	s.pool.Close()

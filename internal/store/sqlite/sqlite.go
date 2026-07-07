@@ -7,6 +7,7 @@ package sqlite
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/state"
@@ -52,9 +53,10 @@ func (s *SQLiteStore) PricingRules() store.PricingRuleStore { return &noopPricin
 func (s *SQLiteStore) ExecutionReceipts() store.ExecutionReceiptStore {
 	return &noopExecutionReceiptStore{}
 }
-func (s *SQLiteStore) Workflows() store.WorkflowStore  { return &noopWorkflowStore{} }
-func (s *SQLiteStore) Close() error                    { return s.db.Close() }
-func (s *SQLiteStore) Migrate(_ context.Context) error { return nil } // SQLite migrations handled by SessionDB
+func (s *SQLiteStore) Workflows() store.WorkflowStore         { return &noopWorkflowStore{} }
+func (s *SQLiteStore) AgentProfiles() store.AgentProfileStore { return &noopAgentProfileStore{} }
+func (s *SQLiteStore) Close() error                           { return s.db.Close() }
+func (s *SQLiteStore) Migrate(_ context.Context) error        { return nil } // SQLite migrations handled by SessionDB
 
 var _ store.Store = (*SQLiteStore)(nil)
 
@@ -163,6 +165,32 @@ func (su *sqliteUsers) Revoke(_ context.Context, _, _, _ string) error          
 func (su *sqliteUsers) ListApproved(_ context.Context, _, _ string) ([]string, error) {
 	return nil, nil
 }
+func (su *sqliteUsers) CreateWithPassword(_ context.Context, _ *store.User, _ string) error {
+	return fmt.Errorf("sqlite store does not support self-registration")
+}
+func (su *sqliteUsers) GetByUsername(_ context.Context, _, _ string) (*store.User, string, error) {
+	return nil, "", store.ErrNotFound
+}
+func (su *sqliteUsers) GetByID(_ context.Context, _, _ string) (*store.User, error) {
+	return nil, store.ErrNotFound
+}
+
+// noopAgentProfileStore is a no-op implementation for SQLite (testing only).
+type noopAgentProfileStore struct{}
+
+func (n *noopAgentProfileStore) Create(_ context.Context, _ *store.AgentProfile) error { return nil }
+func (n *noopAgentProfileStore) Get(_ context.Context, _, _, _ string) (*store.AgentProfile, error) {
+	return nil, store.ErrNotFound
+}
+func (n *noopAgentProfileStore) List(_ context.Context, _, _ string) ([]*store.AgentProfile, error) {
+	return nil, nil
+}
+func (n *noopAgentProfileStore) Update(_ context.Context, _ *store.AgentProfile) error { return nil }
+func (n *noopAgentProfileStore) Delete(_ context.Context, _, _, _ string) error        { return nil }
+func (n *noopAgentProfileStore) GetDefault(_ context.Context, _, _ string) (*store.AgentProfile, error) {
+	return nil, store.ErrNotFound
+}
+func (n *noopAgentProfileStore) SetDefault(_ context.Context, _, _, _ string) error { return nil }
 
 // --- helpers ---
 

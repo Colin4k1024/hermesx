@@ -88,6 +88,24 @@ func (s *MySQLStore) Roles() store.RoleStore                         { return s.
 func (s *MySQLStore) PricingRules() store.PricingRuleStore           { return s.pricingRules }
 func (s *MySQLStore) ExecutionReceipts() store.ExecutionReceiptStore { return s.executionReceipts }
 func (s *MySQLStore) Workflows() store.WorkflowStore                 { return s.workflows }
+func (s *MySQLStore) AgentProfiles() store.AgentProfileStore         { return &noopAgentProfileStore{} }
+
+// noopAgentProfileStore is a no-op implementation for MySQL (not yet implemented).
+type noopAgentProfileStore struct{}
+
+func (n *noopAgentProfileStore) Create(_ context.Context, _ *store.AgentProfile) error { return nil }
+func (n *noopAgentProfileStore) Get(_ context.Context, _, _, _ string) (*store.AgentProfile, error) {
+	return nil, store.ErrNotFound
+}
+func (n *noopAgentProfileStore) List(_ context.Context, _, _ string) ([]*store.AgentProfile, error) {
+	return nil, nil
+}
+func (n *noopAgentProfileStore) Update(_ context.Context, _ *store.AgentProfile) error { return nil }
+func (n *noopAgentProfileStore) Delete(_ context.Context, _, _, _ string) error        { return nil }
+func (n *noopAgentProfileStore) GetDefault(_ context.Context, _, _ string) (*store.AgentProfile, error) {
+	return nil, store.ErrNotFound
+}
+func (n *noopAgentProfileStore) SetDefault(_ context.Context, _, _, _ string) error { return nil }
 func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
 func (s *MySQLStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }
 func (s *MySQLStore) ChannelIdentities() store.ChannelIdentityStore  { return s.channelIdentities }

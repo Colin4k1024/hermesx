@@ -14,6 +14,7 @@ interface RequestOptions {
   asAdmin?: boolean
   sessionId?: string
   signal?: AbortSignal
+  agentId?: string
 }
 
 async function request<T>(method: string, path: string, body?: unknown, opts?: RequestOptions): Promise<T> {
@@ -24,10 +25,12 @@ async function request<T>(method: string, path: string, body?: unknown, opts?: R
   if (key) headers['Authorization'] = `Bearer ${key}`
   if (!opts?.asAdmin && state.userId) headers['X-Hermes-User-Id'] = state.userId
   if (opts?.sessionId) headers['X-Hermes-Session-Id'] = opts.sessionId
+  if (opts?.agentId) headers['X-Hermes-Agent-Id'] = opts.agentId
 
   const res = await fetch(path, {
     method,
     headers,
+    credentials: 'include',
     body: body ? JSON.stringify(body) : undefined,
     signal: opts?.signal,
   })

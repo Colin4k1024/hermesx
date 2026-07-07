@@ -121,6 +121,23 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 	// Load per-tenant soul from MinIO.
 	soulContent := h.getSoulPrompt(ctx, tenantID)
 
+	// Check for agent profile override via X-Hermes-Agent-Id header.
+	agentID := r.Header.Get("X-Hermes-Agent-Id")
+	var agentProfile *store.AgentProfile
+	if agentID != "" {
+		profile, err := h.store.AgentProfiles().Get(ctx, tenantID, userID, agentID)
+		if err == nil && profile != nil {
+			agentProfile = profile
+			// Override SOUL.md from agent profile.
+			if h.skillsClient != nil {
+				soulKey := tenantID + "/users/" + userID + "/agents/" + agentID + "/SOUL.md"
+				if agentSoul, err := h.skillsClient.GetObject(ctx, soulKey); err == nil && len(agentSoul) > 0 {
+					soulContent = string(agentSoul)
+				}
+			}
+		}
+	}
+
 	// Trigger per-user skill provisioning on the first request from this user.
 	// The check is done in-memory first (sync.Map) to avoid an OSS HEAD call on every request.
 	if h.provisioner != nil && userID != "" {
@@ -149,6 +166,10 @@ func (h *chatHandler) ServeAgentHTTP(w http.ResponseWriter, r *http.Request) {
 				skillLoader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
 			} else {
 				skillLoader = tenantLoader
+			}
+			// If agent profile has selected skills, wrap with a filtering loader.
+			if agentProfile != nil && len(agentProfile.SelectedSkills) > 0 {
+				skillLoader = skills.NewFilteredSkillLoader(skillLoader, agentProfile.SelectedSkills)
 			}
 		}
 
