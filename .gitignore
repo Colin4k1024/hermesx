@@ -9,6 +9,7 @@
 *.env.local
 *.exe
 *.out
+*.log
 *.so
 *.swo
 *.swp
@@ -27,6 +28,7 @@
 Thumbs.db
 vendor/
 node_modules/
+dist/
 # Generated test fixtures (written by bootstrap.sh / make quickstart)
 tests/fixtures/tenants.json
 .worktrees/

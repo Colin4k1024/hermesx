@@ -163,7 +163,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       deleteSession: (id) =>
         set((state) => {
-          const { [id]: _, ...rest } = state.sessions
+          const { [id]: deletedSession, ...rest } = state.sessions
+          void deletedSession
           return {
             sessions: rest,
             activeSessionId: state.activeSessionId === id ? null : state.activeSessionId,
@@ -237,7 +238,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       removeStreamingSession: (sessionId) =>
         set((state) => {
-          const { [sessionId]: _, ...rest } = state.streaming
+          const { [sessionId]: deletedSession, ...rest } = state.streaming
+          void deletedSession
           return { streaming: rest }
         }),
 
@@ -272,7 +274,8 @@ export const useWorkspaceStore = create<WorkspaceState>()(
 
       clearPlanSteps: (sessionId) =>
         set((state) => {
-          const { [sessionId]: _, ...rest } = state.planSteps
+          const { [sessionId]: deletedPlanSteps, ...rest } = state.planSteps
+          void deletedPlanSteps
           return { planSteps: rest }
         }),
 

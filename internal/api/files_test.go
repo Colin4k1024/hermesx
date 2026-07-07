@@ -134,6 +134,7 @@ func (m *mockFileStore) PricingRules() store.PricingRuleStore           { return
 func (m *mockFileStore) ExecutionReceipts() store.ExecutionReceiptStore { return nil }
 func (m *mockFileStore) FileEntries() store.FileEntryStore              { return m.fileEntries }
 func (m *mockFileStore) Workflows() store.WorkflowStore                 { return nil }
+func (m *mockFileStore) AgentProfiles() store.AgentProfileStore         { return nil }
 func (m *mockFileStore) Close() error                                   { return nil }
 func (m *mockFileStore) Migrate(_ context.Context) error                { return nil }
 

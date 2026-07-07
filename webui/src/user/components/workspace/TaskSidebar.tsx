@@ -39,10 +39,12 @@ export function TaskSidebar() {
   const grouped = useMemo(() => groupSessions(sessionsList, searchQuery), [sessionsList, searchQuery])
 
   const fetchSessions = useCallback(() => {
-    setFetchError(false)
     apiClient
       .get<SessionListResponse>('/v1/sessions')
-      .then((data) => setSessions(data.sessions ?? []))
+      .then((data) => {
+        setSessions(data.sessions ?? [])
+        setFetchError(false)
+      })
       .catch(() => {
         message.error('获取会话列表失败')
         setFetchError(true)
@@ -56,6 +58,11 @@ export function TaskSidebar() {
   const handleNewTask = useCallback(() => {
     switchSession(null)
   }, [switchSession])
+
+  const handleRetry = useCallback(() => {
+    setFetchError(false)
+    fetchSessions()
+  }, [fetchSessions])
 
   const hasAnySession = sessionsList.length > 0
 
@@ -231,7 +238,7 @@ export function TaskSidebar() {
             <span style={{ fontSize: 13, color: 'var(--ant-color-text-tertiary)', textAlign: 'center' }}>
               获取会话列表失败
             </span>
-            <Button ghost size="small" icon={<RefreshCw size={14} />} onClick={fetchSessions}>
+            <Button ghost size="small" icon={<RefreshCw size={14} />} onClick={handleRetry}>
               重试
             </Button>
           </div>
