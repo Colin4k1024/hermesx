@@ -60,7 +60,21 @@ func (h *SkillHandler) list(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	loader := skills.NewMinIOSkillLoader(h.minio, tenantID)
+	ac, _ := auth.FromContext(r.Context())
+	userID := ""
+	if ac != nil {
+		userID = ac.Identity
+	}
+
+	var loader skills.SkillLoader
+	tenantLoader := skills.NewMinIOSkillLoader(h.minio, tenantID)
+	if userID != "" {
+		userLoader := skills.NewMinIOUserSkillLoader(h.minio, tenantID, userID)
+		loader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+	} else {
+		loader = tenantLoader
+	}
+
 	entries, err := loader.LoadAll(r.Context())
 	if err != nil {
 		slog.Error("list skills failed", "tenant", tenantID, "error", err)
@@ -70,12 +84,19 @@ func (h *SkillHandler) list(w http.ResponseWriter, r *http.Request) {
 
 	manifest, _ := skills.LoadTenantManifestPublic(r.Context(), h.minio, tenantID)
 
-	items := make([]skillListItem, 0, len(entries))
+	type skillItem struct {
+		skillListItem
+		IsUserSkill bool `json:"is_user_skill"`
+	}
+
+	items := make([]skillItem, 0, len(entries))
 	for _, e := range entries {
-		item := skillListItem{
-			Name:        e.Meta.Name,
-			Description: e.Meta.Description,
-			Version:     e.Meta.Version,
+		item := skillItem{
+			skillListItem: skillListItem{
+				Name:        e.Meta.Name,
+				Description: e.Meta.Description,
+				Version:     e.Meta.Version,
+			},
 		}
 		if manifest != nil {
 			if me, ok := manifest.Skills[e.DirName]; ok {
@@ -89,6 +110,7 @@ func (h *SkillHandler) list(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
 		"tenant_id": tenantID,
+		"user_id":   userID,
 		"skills":    items,
 		"total":     len(items),
 	})
@@ -101,8 +123,21 @@ func (h *SkillHandler) get(w http.ResponseWriter, r *http.Request, name string) 
 		return
 	}
 
-	// Load all skills and find by name match.
-	loader := skills.NewMinIOSkillLoader(h.minio, tenantID)
+	ac, _ := auth.FromContext(r.Context())
+	userID := ""
+	if ac != nil {
+		userID = ac.Identity
+	}
+
+	var loader skills.SkillLoader
+	tenantLoader := skills.NewMinIOSkillLoader(h.minio, tenantID)
+	if userID != "" {
+		userLoader := skills.NewMinIOUserSkillLoader(h.minio, tenantID, userID)
+		loader = skills.NewCompositeSkillLoader(userLoader, tenantLoader)
+	} else {
+		loader = tenantLoader
+	}
+
 	entries, err := loader.LoadAll(r.Context())
 	if err != nil {
 		http.Error(w, "failed to load skills", http.StatusInternalServerError)
