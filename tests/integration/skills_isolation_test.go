@@ -306,3 +306,151 @@ func TestSkills_ListResponse_Structure(t *testing.T) {
 		t.Error("uploaded skill not in list response")
 	}
 }
+
+func TestSkills_UserSkill_ListAndFallback(t *testing.T) {
+	tenant := testEnv.CreateTestTenant(t, "skill-user-fallback", "pro")
+	ctx := context.Background()
+
+	// Upload tenant-level skill
+	tenantSkill := "---\nname: shared-skill\ndescription: Tenant version\n---\n# Shared Skill\nTenant content."
+	resp := testEnv.DoRequest(t, "PUT", "/v1/skills/shared-skill", tenantSkill, tenant.APIKey, nil)
+	ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload tenant skill failed: %d", resp.StatusCode)
+	}
+
+	// Upload user-level skill via MinIO directly (simulating user skill provisioning)
+	// In real scenario, this would be done via /v1/user-skills API
+	userSkillKey := tenant.ID + "/users/" + tenant.APIKey[:8] + "/personal-skill/SKILL.md"
+	userSkillContent := []byte("# Personal Skill\nUser content.")
+	if err := testEnv.MinIO.PutObject(ctx, userSkillKey, userSkillContent); err != nil {
+		t.Fatalf("put user skill: %v", err)
+	}
+
+	// List skills - should include both tenant and user skills
+	resp = testEnv.DoRequest(t, "GET", "/v1/skills", "", tenant.APIKey, nil)
+	body := ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("list skills failed: %d: %s", resp.StatusCode, body)
+	}
+
+	var listResult struct {
+		TenantID string `json:"tenant_id"`
+		UserID   string `json:"user_id"`
+		Skills   []struct {
+			Name         string `json:"name"`
+			Key          string `json:"key"`
+			IsUserSkill  bool   `json:"is_user_skill"`
+		} `json:"skills"`
+		Total int `json:"total"`
+	}
+	if err := json.Unmarshal([]byte(body), &listResult); err != nil {
+		t.Fatalf("unmarshal list: %v, body: %s", err, body[:min(len(body), 500)])
+	}
+
+	if listResult.Total < 2 {
+		t.Errorf("expected at least 2 skills, got %d: %s", listResult.Total, body)
+	}
+
+	foundPersonal := false
+	foundShared := false
+	for _, s := range listResult.Skills {
+		if s.Name == "personal-skill" {
+			foundPersonal = true
+			if !s.IsUserSkill {
+				t.Error("personal-skill should be marked as user skill")
+			}
+		}
+		if s.Name == "shared-skill" {
+			foundShared = true
+		}
+	}
+	if !foundPersonal {
+		t.Error("personal-skill not found in list")
+	}
+	if !foundShared {
+		t.Error("shared-skill not found in list")
+	}
+
+	// View user-level skill (should fallback to user path)
+	resp = testEnv.DoRequest(t, "GET", "/v1/skills/personal-skill", "", tenant.APIKey, nil)
+	viewBody := ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("view personal-skill failed: %d: %s", resp.StatusCode, viewBody)
+	}
+
+	var viewResult struct {
+		Name    string `json:"name"`
+		Content string `json:"content"`
+		Key     string `json:"key"`
+	}
+	if err := json.Unmarshal([]byte(viewBody), &viewResult); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if viewResult.Content != "# Personal Skill\nUser content." {
+		t.Errorf("unexpected content: %q", viewResult.Content)
+	}
+}
+
+func TestSkills_UserSkill_OverrideTenant(t *testing.T) {
+	tenant := testEnv.CreateTestTenant(t, "skill-user-override", "pro")
+	ctx := context.Background()
+
+	// Upload tenant-level skill
+	tenantSkill := "---\nname: override-me\ndescription: Original\n---\n# Original\nTenant version."
+	resp := testEnv.DoRequest(t, "PUT", "/v1/skills/override-me", tenantSkill, tenant.APIKey, nil)
+	ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload tenant skill failed: %d", resp.StatusCode)
+	}
+
+	// Upload user-level skill with same name (override)
+	userSkillKey := tenant.ID + "/users/" + tenant.APIKey[:8] + "/override-me/SKILL.md"
+	userSkillContent := []byte("---\nname: override-me\ndescription: User override\n---\n# Override\nUser version.")
+	if err := testEnv.MinIO.PutObject(ctx, userSkillKey, userSkillContent); err != nil {
+		t.Fatalf("put user skill: %v", err)
+	}
+
+	// List skills - user skill should override tenant skill
+	resp = testEnv.DoRequest(t, "GET", "/v1/skills", "", tenant.APIKey, nil)
+	body := ReadBody(t, resp)
+
+	var listResult struct {
+		Skills []struct {
+			Name        string `json:"name"`
+			Key         string `json:"key"`
+			IsUserSkill bool   `json:"is_user_skill"`
+		} `json:"skills"`
+	}
+	if err := json.Unmarshal([]byte(body), &listResult); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	overrideCount := 0
+	for _, s := range listResult.Skills {
+		if s.Name == "override-me" {
+			overrideCount++
+			if !s.IsUserSkill {
+				t.Error("override-me should be marked as user skill (user override)")
+			}
+		}
+	}
+	if overrideCount != 1 {
+		t.Errorf("expected exactly 1 override-me skill, got %d", overrideCount)
+	}
+
+	// View the overridden skill - should return user version
+	resp = testEnv.DoRequest(t, "GET", "/v1/skills/override-me", "", tenant.APIKey, nil)
+	viewBody := ReadBody(t, resp)
+
+	var viewResult struct {
+		Content string `json:"content"`
+		Key     string `json:"key"`
+	}
+	if err := json.Unmarshal([]byte(viewBody), &viewResult); err != nil {
+		t.Fatalf("unmarshal view: %v", err)
+	}
+	if !containsString(viewResult.Content, "User version") {
+		t.Errorf("expected user version, got: %q", viewResult.Content)
+	}
+}

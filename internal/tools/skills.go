@@ -245,27 +245,70 @@ func handleSkillsListSaaS(ctx context.Context, tctx *ToolContext) string {
 	if strings.TrimSpace(tctx.TenantID) == "" {
 		return `{"error":"tenant id is required for skills_list"}`
 	}
-	prefix := tctx.TenantID + "/"
-	keys, err := tctx.ObjectStore.ListObjects(ctx, prefix)
+
+	type skillEntry struct {
+		key         string
+		name        string
+		isUserSkill bool
+	}
+
+	seen := make(map[string]int) // name -> index in allEntries
+	var allEntries []skillEntry
+
+	// 1. List tenant-level skills: {tenantId}/{skill-name}/SKILL.md
+	tenantPrefix := tctx.TenantID + "/"
+	tenantKeys, err := tctx.ObjectStore.ListObjects(ctx, tenantPrefix)
 	if err != nil {
 		return toJSON(map[string]any{"error": fmt.Sprintf("failed to list tenant skills: %v", err)})
 	}
-
-	var skills []map[string]any
-	for _, key := range keys {
+	for _, key := range tenantKeys {
 		if !strings.HasSuffix(key, "/SKILL.md") {
 			continue
 		}
-		name := strings.TrimSuffix(strings.TrimPrefix(key, prefix), "/SKILL.md")
+		name := strings.TrimSuffix(strings.TrimPrefix(key, tenantPrefix), "/SKILL.md")
 		if name == "" || strings.Contains(name, "/") {
 			continue
 		}
-		skill := map[string]any{
-			"name":   name,
-			"key":    key,
-			"has_md": true,
+		if _, exists := seen[name]; !exists {
+			seen[name] = len(allEntries)
+			allEntries = append(allEntries, skillEntry{key: key, name: name, isUserSkill: false})
 		}
-		if data, err := tctx.ObjectStore.GetObject(ctx, key); err == nil {
+	}
+
+	// 2. List user-level skills: {tenantId}/users/{userId}/{skill-name}/SKILL.md
+	// User skills override tenant skills with the same name
+	if strings.TrimSpace(tctx.UserID) != "" {
+		userPrefix := tctx.TenantID + "/users/" + tctx.UserID + "/"
+		userKeys, err := tctx.ObjectStore.ListObjects(ctx, userPrefix)
+		if err == nil {
+			for _, key := range userKeys {
+				if !strings.HasSuffix(key, "/SKILL.md") {
+					continue
+				}
+				name := strings.TrimSuffix(strings.TrimPrefix(key, userPrefix), "/SKILL.md")
+				if name == "" || strings.Contains(name, "/") {
+					continue
+				}
+				if idx, exists := seen[name]; exists {
+					// Override tenant skill with user skill
+					allEntries[idx] = skillEntry{key: key, name: name, isUserSkill: true}
+				} else {
+					seen[name] = len(allEntries)
+					allEntries = append(allEntries, skillEntry{key: key, name: name, isUserSkill: true})
+				}
+			}
+		}
+	}
+
+	var skills []map[string]any
+	for _, entry := range allEntries {
+		skill := map[string]any{
+			"name":         entry.name,
+			"key":          entry.key,
+			"has_md":       true,
+			"is_user_skill": entry.isUserSkill,
+		}
+		if data, err := tctx.ObjectStore.GetObject(ctx, entry.key); err == nil {
 			if desc := firstSkillDescription(string(data)); desc != "" {
 				skill["description"] = desc
 			}
@@ -276,6 +319,7 @@ func handleSkillsListSaaS(ctx context.Context, tctx *ToolContext) string {
 
 	return toJSON(map[string]any{
 		"tenant_id": tctx.TenantID,
+		"user_id":   tctx.UserID,
 		"skills":    skills,
 		"count":     len(skills),
 	})
@@ -286,12 +330,24 @@ func handleSkillViewSaaS(ctx context.Context, tctx *ToolContext, name string) st
 		return `{"error":"tenant id is required for skill_view"}`
 	}
 	name = sanitizeSkillName(name)
+
+	// Try tenant-level skill first: {tenantId}/{name}/SKILL.md
 	key := skillObjectKey(tctx.TenantID, name)
 	data, err := tctx.ObjectStore.GetObject(ctx, key)
-	if err != nil {
+	if (err != nil || len(data) == 0) && strings.TrimSpace(tctx.UserID) != "" {
+		// Fall back to user-level skill: {tenantId}/users/{userId}/{name}/SKILL.md
+		userKey := userSkillKey(tctx.TenantID, tctx.UserID, name)
+		userData, userErr := tctx.ObjectStore.GetObject(ctx, userKey)
+		if userErr == nil && len(userData) > 0 {
+			data = userData
+			key = userKey
+			err = nil
+		}
+	}
+	if err != nil || len(data) == 0 {
 		return toJSON(map[string]any{
-			"error": fmt.Sprintf("Cannot read tenant skill %q: %v", name, err),
-			"hint":  "Use skills_list to see available tenant skills",
+			"error": fmt.Sprintf("Cannot read skill %q: not found", name),
+			"hint":  "Use skills_list to see available skills",
 		})
 	}
 	return toJSON(map[string]any{
@@ -378,6 +434,10 @@ func putTenantSkill(ctx context.Context, tctx *ToolContext, key, name, content, 
 
 func skillObjectKey(tenantID, name string) string {
 	return fmt.Sprintf("%s/%s/SKILL.md", tenantID, sanitizeSkillName(name))
+}
+
+func userSkillKey(tenantID, userID, name string) string {
+	return fmt.Sprintf("%s/users/%s/%s/SKILL.md", tenantID, userID, sanitizeSkillName(name))
 }
 
 func firstSkillDescription(content string) string {

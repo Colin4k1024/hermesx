@@ -159,3 +159,189 @@ func TestSkillManageSaaSUsesObjectStore(t *testing.T) {
 		t.Fatalf("expected tenant skill object key, got %s", view)
 	}
 }
+
+func TestSkillsListSaaS_TenantAndUserSkills(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	store.objects["tenant-1/shared-skill/SKILL.md"] = []byte("# Shared Skill\nTenant level.")
+	store.objects["tenant-1/tenant-only/SKILL.md"] = []byte("# Tenant Only\nOnly in tenant.")
+	store.objects["tenant-1/users/user-1/user-skill/SKILL.md"] = []byte("# User Skill\nUser level.")
+	store.objects["tenant-1/users/user-1/shared-skill/SKILL.md"] = []byte("# Shared Skill\nUser override.")
+
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		ObjectStore: store,
+	}
+
+	result := handleSkillsList(context.Background(), map[string]any{}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	skills, ok := m["skills"].([]any)
+	if !ok {
+		t.Fatalf("expected skills array, got %s", result)
+	}
+
+	if len(skills) != 3 {
+		t.Fatalf("expected 3 skills, got %d: %s", len(skills), result)
+	}
+
+	skillMap := make(map[string]map[string]any)
+	for _, s := range skills {
+		skill := s.(map[string]any)
+		skillMap[skill["name"].(string)] = skill
+	}
+
+	if _, ok := skillMap["tenant-only"]; !ok {
+		t.Error("expected tenant-only skill in list")
+	}
+	if _, ok := skillMap["user-skill"]; !ok {
+		t.Error("expected user-skill in list")
+	}
+	sharedSkill, ok := skillMap["shared-skill"]
+	if !ok {
+		t.Error("expected shared-skill in list")
+	} else if sharedSkill["is_user_skill"] != true {
+		t.Error("expected shared-skill to be user skill (user override)")
+	}
+}
+
+func TestSkillsListSaaS_OnlyUserSkills(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	store.objects["tenant-1/users/user-1/my-skill/SKILL.md"] = []byte("# My Skill\nPersonal skill.")
+
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		ObjectStore: store,
+	}
+
+	result := handleSkillsList(context.Background(), map[string]any{}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	skills, ok := m["skills"].([]any)
+	if !ok || len(skills) != 1 {
+		t.Fatalf("expected 1 skill, got %s", result)
+	}
+
+	skill := skills[0].(map[string]any)
+	if skill["name"] != "my-skill" {
+		t.Errorf("expected my-skill, got %s", skill["name"])
+	}
+	if skill["is_user_skill"] != true {
+		t.Error("expected is_user_skill=true")
+	}
+}
+
+func TestSkillsListSaaS_NoUserID(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	store.objects["tenant-1/tenant-skill/SKILL.md"] = []byte("# Tenant Skill")
+	store.objects["tenant-1/users/user-1/user-skill/SKILL.md"] = []byte("# User Skill")
+
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "",
+		ObjectStore: store,
+	}
+
+	result := handleSkillsList(context.Background(), map[string]any{}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	skills, ok := m["skills"].([]any)
+	if !ok || len(skills) != 1 {
+		t.Fatalf("expected 1 skill (tenant only), got %s", result)
+	}
+
+	skill := skills[0].(map[string]any)
+	if skill["name"] != "tenant-skill" {
+		t.Errorf("expected tenant-skill, got %s", skill["name"])
+	}
+}
+
+func TestSkillViewSaaS_FallbackToUserSkill(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	store.objects["tenant-1/users/user-1/personal-skill/SKILL.md"] = []byte("# Personal Skill\nUser content.")
+
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		ObjectStore: store,
+	}
+
+	result := handleSkillView(context.Background(), map[string]any{"name": "personal-skill"}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	if m["error"] != nil {
+		t.Fatalf("unexpected error: %v", m["error"])
+	}
+	if m["content"] != "# Personal Skill\nUser content." {
+		t.Errorf("unexpected content: %v", m["content"])
+	}
+	if m["key"] != "tenant-1/users/user-1/personal-skill/SKILL.md" {
+		t.Errorf("unexpected key: %v", m["key"])
+	}
+}
+
+func TestSkillViewSaaS_TenantSkill优先(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	store.objects["tenant-1/shared-skill/SKILL.md"] = []byte("# Shared Skill\nTenant version.")
+	store.objects["tenant-1/users/user-1/shared-skill/SKILL.md"] = []byte("# Shared Skill\nUser version.")
+
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		ObjectStore: store,
+	}
+
+	result := handleSkillView(context.Background(), map[string]any{"name": "shared-skill"}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	if m["error"] != nil {
+		t.Fatalf("unexpected error: %v", m["error"])
+	}
+	if m["content"] != "# Shared Skill\nTenant version." {
+		t.Errorf("expected tenant version, got: %v", m["content"])
+	}
+	if m["key"] != "tenant-1/shared-skill/SKILL.md" {
+		t.Errorf("expected tenant key, got: %v", m["key"])
+	}
+}
+
+func TestSkillViewSaaS_NotFound(t *testing.T) {
+	store := newFakeSkillObjectStore()
+	tctx := &ToolContext{
+		TenantID:    "tenant-1",
+		UserID:      "user-1",
+		ObjectStore: store,
+	}
+
+	result := handleSkillView(context.Background(), map[string]any{"name": "nonexistent"}, tctx)
+
+	var m map[string]any
+	if err := json.Unmarshal([]byte(result), &m); err != nil {
+		t.Fatalf("failed to parse result: %v", err)
+	}
+
+	if m["error"] == nil {
+		t.Error("expected error for nonexistent skill")
+	}
+}
