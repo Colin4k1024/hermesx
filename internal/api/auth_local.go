@@ -103,9 +103,9 @@ func (h *LocalAuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		newTenant := &store.Tenant{
-			Name:   req.NewTenantName,
-			Plan:   "free",
-			MaxSessions: 100,
+			Name:         req.NewTenantName,
+			Plan:         "free",
+			MaxSessions:  100,
 			RateLimitRPM: 60,
 		}
 		if err := h.store.Tenants().Create(ctx, newTenant); err != nil {

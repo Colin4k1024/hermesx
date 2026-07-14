@@ -107,10 +107,10 @@ func (n *noopAgentProfileStore) GetDefault(_ context.Context, _, _ string) (*sto
 	return nil, store.ErrNotFound
 }
 func (n *noopAgentProfileStore) SetDefault(_ context.Context, _, _, _ string) error { return nil }
-func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore   { return s.checkpoints }
-func (s *MySQLStore) ChannelApps() store.ChannelAppStore             { return s.channelApps }
-func (s *MySQLStore) ChannelIdentities() store.ChannelIdentityStore  { return s.channelIdentities }
-func (s *MySQLStore) BrowserSessions() store.BrowserSessionStore     { return s.browserSessions }
+func (s *MySQLStore) AgentCheckpoints() store.AgentCheckpointStore                  { return s.checkpoints }
+func (s *MySQLStore) ChannelApps() store.ChannelAppStore                            { return s.channelApps }
+func (s *MySQLStore) ChannelIdentities() store.ChannelIdentityStore                 { return s.channelIdentities }
+func (s *MySQLStore) BrowserSessions() store.BrowserSessionStore                    { return s.browserSessions }
 
 // DB exposes the underlying SQL pool for integrations that need a shared
 // transactional backend, such as usage metering.

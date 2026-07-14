@@ -53,7 +53,7 @@ func (s *SQLiteStore) PricingRules() store.PricingRuleStore { return &noopPricin
 func (s *SQLiteStore) ExecutionReceipts() store.ExecutionReceiptStore {
 	return &noopExecutionReceiptStore{}
 }
-func (s *SQLiteStore) FileEntries() store.FileEntryStore        { return &noopFileEntryStore{} }
+func (s *SQLiteStore) FileEntries() store.FileEntryStore      { return &noopFileEntryStore{} }
 func (s *SQLiteStore) Workflows() store.WorkflowStore         { return &noopWorkflowStore{} }
 func (s *SQLiteStore) AgentProfiles() store.AgentProfileStore { return &noopAgentProfileStore{} }
 func (s *SQLiteStore) Close() error                           { return s.db.Close() }
