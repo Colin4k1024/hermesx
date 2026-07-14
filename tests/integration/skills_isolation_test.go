@@ -309,7 +309,6 @@ func TestSkills_ListResponse_Structure(t *testing.T) {
 
 func TestSkills_UserSkill_ListAndFallback(t *testing.T) {
 	tenant := testEnv.CreateTestTenant(t, "skill-user-fallback", "pro")
-	ctx := context.Background()
 
 	// Upload tenant-level skill
 	tenantSkill := "---\nname: shared-skill\ndescription: Tenant version\n---\n# Shared Skill\nTenant content."
@@ -319,12 +318,12 @@ func TestSkills_UserSkill_ListAndFallback(t *testing.T) {
 		t.Fatalf("upload tenant skill failed: %d", resp.StatusCode)
 	}
 
-	// Upload user-level skill via MinIO directly (simulating user skill provisioning)
-	// In real scenario, this would be done via /v1/user-skills API
-	userSkillKey := tenant.ID + "/users/" + tenant.APIKey[:8] + "/personal-skill/SKILL.md"
-	userSkillContent := []byte("# Personal Skill\nUser content.")
-	if err := testEnv.MinIO.PutObject(ctx, userSkillKey, userSkillContent); err != nil {
-		t.Fatalf("put user skill: %v", err)
+	// Upload user-level skill via /v1/user-skills API
+	userSkill := "# Personal Skill\nUser content."
+	resp = testEnv.DoRequest(t, "PUT", "/v1/user-skills/personal-skill", userSkill, tenant.APIKey, nil)
+	ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload user skill failed: %d", resp.StatusCode)
 	}
 
 	// List skills - should include both tenant and user skills
@@ -394,7 +393,6 @@ func TestSkills_UserSkill_ListAndFallback(t *testing.T) {
 
 func TestSkills_UserSkill_OverrideTenant(t *testing.T) {
 	tenant := testEnv.CreateTestTenant(t, "skill-user-override", "pro")
-	ctx := context.Background()
 
 	// Upload tenant-level skill
 	tenantSkill := "---\nname: override-me\ndescription: Original\n---\n# Original\nTenant version."
@@ -405,10 +403,11 @@ func TestSkills_UserSkill_OverrideTenant(t *testing.T) {
 	}
 
 	// Upload user-level skill with same name (override)
-	userSkillKey := tenant.ID + "/users/" + tenant.APIKey[:8] + "/override-me/SKILL.md"
-	userSkillContent := []byte("---\nname: override-me\ndescription: User override\n---\n# Override\nUser version.")
-	if err := testEnv.MinIO.PutObject(ctx, userSkillKey, userSkillContent); err != nil {
-		t.Fatalf("put user skill: %v", err)
+	userSkill := "---\nname: override-me\ndescription: User override\n---\n# Override\nUser version."
+	resp = testEnv.DoRequest(t, "PUT", "/v1/user-skills/override-me", userSkill, tenant.APIKey, nil)
+	ReadBody(t, resp)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("upload user skill failed: %d", resp.StatusCode)
 	}
 
 	// List skills - user skill should override tenant skill
