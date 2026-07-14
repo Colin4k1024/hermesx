@@ -338,9 +338,9 @@ func TestSkills_UserSkill_ListAndFallback(t *testing.T) {
 		TenantID string `json:"tenant_id"`
 		UserID   string `json:"user_id"`
 		Skills   []struct {
-			Name         string `json:"name"`
-			Key          string `json:"key"`
-			IsUserSkill  bool   `json:"is_user_skill"`
+			Name        string `json:"name"`
+			Key         string `json:"key"`
+			IsUserSkill bool   `json:"is_user_skill"`
 		} `json:"skills"`
 		Total int `json:"total"`
 	}

@@ -303,9 +303,9 @@ func handleSkillsListSaaS(ctx context.Context, tctx *ToolContext) string {
 	var skills []map[string]any
 	for _, entry := range allEntries {
 		skill := map[string]any{
-			"name":         entry.name,
-			"key":          entry.key,
-			"has_md":       true,
+			"name":          entry.name,
+			"key":           entry.key,
+			"has_md":        true,
 			"is_user_skill": entry.isUserSkill,
 		}
 		if data, err := tctx.ObjectStore.GetObject(ctx, entry.key); err == nil {
