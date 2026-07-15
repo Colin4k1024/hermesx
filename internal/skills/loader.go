@@ -23,6 +23,9 @@ type SkillEntry struct {
 	Meta    *SkillMeta
 	Body    string
 	DirName string // Directory name (used as the command name)
+	// IsUserSkill marks entries loaded from a user-scoped namespace
+	// ({tenantID}/users/{userID}/) rather than the tenant-level namespace.
+	IsUserSkill bool
 }
 
 // LoadAllSkills scans the skills directory and loads all SKILL.md files.

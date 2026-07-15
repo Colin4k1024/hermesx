@@ -15,6 +15,9 @@ import (
 type MinIOSkillLoader struct {
 	client   objstore.ObjectStore
 	tenantID string
+	// userScope marks this loader as reading from a user-scoped namespace,
+	// so loaded entries are tagged with IsUserSkill.
+	userScope bool
 }
 
 func NewMinIOSkillLoader(client objstore.ObjectStore, tenantID string) *MinIOSkillLoader {
@@ -24,7 +27,7 @@ func NewMinIOSkillLoader(client objstore.ObjectStore, tenantID string) *MinIOSki
 // NewMinIOUserSkillLoader returns a loader scoped to the user's personal skill namespace:
 // {tenantID}/users/{userID}/ — populated by Provisioner.ProvisionUserSkills.
 func NewMinIOUserSkillLoader(client objstore.ObjectStore, tenantID, userID string) *MinIOSkillLoader {
-	return &MinIOSkillLoader{client: client, tenantID: tenantID + "/users/" + userID}
+	return &MinIOSkillLoader{client: client, tenantID: tenantID + "/users/" + userID, userScope: true}
 }
 
 func (m *MinIOSkillLoader) LoadAll(ctx context.Context) ([]*SkillEntry, error) {
@@ -75,9 +78,10 @@ func (m *MinIOSkillLoader) LoadAll(ctx context.Context) ([]*SkillEntry, error) {
 		}
 
 		entries = append(entries, &SkillEntry{
-			Meta:    meta,
-			Body:    body,
-			DirName: dirName,
+			Meta:        meta,
+			Body:        body,
+			DirName:     dirName,
+			IsUserSkill: m.userScope,
 		})
 	}
 
@@ -100,7 +104,7 @@ func (m *MinIOSkillLoader) Find(ctx context.Context, name string) (*SkillEntry, 
 		if meta.Name == "" {
 			meta.Name = name
 		}
-		return &SkillEntry{Meta: meta, Body: body, DirName: name}, nil
+		return &SkillEntry{Meta: meta, Body: body, DirName: name, IsUserSkill: m.userScope}, nil
 	}
 
 	// Fallback: load all and search by name

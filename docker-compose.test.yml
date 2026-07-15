@@ -3,13 +3,13 @@ services:
     image: postgres:16
     container_name: hermesx-pg-test
     environment:
-      POSTGRES_DB: hermesxx_test
-      POSTGRES_USER: hermesxx_test
-      POSTGRES_PASSWORD: hermesxx_test
+      POSTGRES_DB: hermesx_test
+      POSTGRES_USER: hermesx_test
+      POSTGRES_PASSWORD: hermesx_test
     ports:
       - "5433:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U hermesxx_test"]
+      test: ["CMD-SHELL", "pg_isready -U hermesx_test"]
       interval: 3s
       timeout: 3s
       retries: 10
@@ -32,7 +32,7 @@ services:
     container_name: hermesx-minio-test
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: hermesxx_test
+      MINIO_ROOT_USER: hermesx_test
       MINIO_ROOT_PASSWORD: hermesx_test
     ports:
       - "9002:9000"

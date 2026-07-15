@@ -97,6 +97,7 @@ func (h *SkillHandler) list(w http.ResponseWriter, r *http.Request) {
 				Description: e.Meta.Description,
 				Version:     e.Meta.Version,
 			},
+			IsUserSkill: e.IsUserSkill,
 		}
 		if manifest != nil {
 			if me, ok := manifest.Skills[e.DirName]; ok {
