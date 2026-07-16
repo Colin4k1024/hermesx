@@ -26,6 +26,11 @@ updates:
       webui-npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # typescript-eslint 要求 peer typescript ">=4.8.4 <6.1.0"，
+      # 暂不升级 typescript 主版本，避免 ERESOLVE 冲突（见 PR #87）。
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
