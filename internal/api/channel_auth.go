@@ -287,8 +287,8 @@ func (h *ChannelAuthHandler) createBrowserSession(w http.ResponseWriter, r *http
 	if err := h.sessions.Create(r.Context(), session); err != nil {
 		return err
 	}
-	setCookie(w, auth.ChannelSessionCookie, rawSession, true, h.cookieSecure, channelSessionTTL)
-	setCookie(w, auth.ChannelCSRFCookie, rawCSRF, false, h.cookieSecure, channelSessionTTL)
+	setSessionCookie(w, auth.ChannelSessionCookie, rawSession, h.cookieSecure, channelSessionTTL)
+	setJSCookie(w, auth.ChannelCSRFCookie, rawCSRF, h.cookieSecure, channelSessionTTL)
 	return nil
 }
 
@@ -331,19 +331,37 @@ func sanitizeReturnTo(v string) string {
 	if v == "" {
 		return "/"
 	}
-	if strings.HasPrefix(v, "/") && !strings.HasPrefix(v, "//") && !strings.Contains(v, "\n") && !strings.Contains(v, "\r") {
-		return v
+	if len(v) < 2 || v[0] != '/' {
+		return "/"
 	}
-	return "/"
+	if v[1] == '/' || v[1] == '\\' {
+		return "/"
+	}
+	if strings.Contains(v, "\n") || strings.Contains(v, "\r") {
+		return "/"
+	}
+	return v
 }
 
-func setCookie(w http.ResponseWriter, name, value string, httpOnly, secure bool, ttl time.Duration) {
+func setSessionCookie(w http.ResponseWriter, name, value string, secure bool, ttl time.Duration) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     name,
 		Value:    value,
 		Path:     "/",
 		MaxAge:   int(ttl.Seconds()),
-		HttpOnly: httpOnly,
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+	})
+}
+
+func setJSCookie(w http.ResponseWriter, name, value string, secure bool, ttl time.Duration) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     name,
+		Value:    value,
+		Path:     "/",
+		MaxAge:   int(ttl.Seconds()),
+		HttpOnly: false,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
 	})

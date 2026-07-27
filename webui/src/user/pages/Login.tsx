@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router'
 import { Button, Divider, Input, Typography, Space, message, Tabs } from 'antd'
 import { Bot } from 'lucide-react'
 import { UserOutlined, LockOutlined } from '@ant-design/icons'

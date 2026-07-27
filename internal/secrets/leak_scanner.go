@@ -77,7 +77,7 @@ func (s *LeakScanner) loadBuiltinPatterns() {
 		{Name: "discord_token", Pattern: regexp.MustCompile(`[MN][A-Za-z\d]{23,}\.[\w-]{6}\.[\w-]{27}`), Severity: SeverityHigh},
 		{Name: "azure_storage_key", Pattern: regexp.MustCompile(`DefaultEndpointsProtocol=https;AccountName=[^;]+;AccountKey=[A-Za-z0-9+/=]{88}`), Severity: SeverityCritical},
 		{Name: "gcp_service_account", Pattern: regexp.MustCompile(`"type"\s*:\s*"service_account"`), Severity: SeverityHigh},
-		{Name: "basic_auth_url", Pattern: regexp.MustCompile(`https?://[^:]+:[^@]+@[^\s]+`), Severity: SeverityHigh},
+		{Name: "basic_auth_url", Pattern: regexp.MustCompile(`\bhttps?://[^:]+:[^@]+@[^\s]+`), Severity: SeverityHigh},
 		{Name: "password_assignment", Pattern: regexp.MustCompile(`(?i)(password|passwd|pwd)\s*[:=]\s*["'][^"']{8,}["']`), Severity: SeverityMedium},
 		{Name: "bearer_token", Pattern: regexp.MustCompile(`[Bb]earer\s+[A-Za-z0-9_\-.~+/]+=*`), Severity: SeverityMedium},
 		{Name: "ssh_private_key", Pattern: regexp.MustCompile(`-----BEGIN OPENSSH PRIVATE KEY-----`), Severity: SeverityCritical},

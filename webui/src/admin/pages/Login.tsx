@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Button, Input, Typography, Space, message } from 'antd'
 import { Shield } from 'lucide-react'
 import { useAuthStore } from '@shared/stores/authStore'

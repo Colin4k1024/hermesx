@@ -122,6 +122,7 @@ func (w *WhatsAppAdapter) handleWebhook(rw http.ResponseWriter, r *http.Request)
 		token := r.URL.Query().Get("hub.verify_token")
 		challenge := r.URL.Query().Get("hub.challenge")
 		if mode == "subscribe" && token == w.verifyToken {
+			rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			fmt.Fprint(rw, challenge)
 			return
 		}

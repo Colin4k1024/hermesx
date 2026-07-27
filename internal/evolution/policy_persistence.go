@@ -198,6 +198,9 @@ func (p *policyPersistence) RevokeSharedGenes(ctx context.Context, criteria Shar
 }
 
 func (p *policyPersistence) listSharedGeneIDs(ctx context.Context, criteria SharedRevokeCriteria, limit int) ([]string, error) {
+	if limit <= 0 || limit > revokeBatchSize {
+		limit = revokeBatchSize
+	}
 	where, args := p.buildSharedRevokeWhere(criteria)
 	args = append(args, limit)
 

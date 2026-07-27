@@ -36,6 +36,11 @@ type RotatingCredential struct {
 	usageCount  int64
 }
 
+// label returns a redacted display label safe for logging.
+func (rc *RotatingCredential) label() string {
+	return labelFromKey(rc.APIKey)
+}
+
 // IsExhausted returns true if the credential is currently rate-limited.
 func (rc *RotatingCredential) IsExhausted() bool {
 	if rc.exhaustedAt.IsZero() {
@@ -110,7 +115,7 @@ func (r *CredentialRotator) Rotate() (*Credential, error) {
 	if rc != nil {
 		rc.usageCount++
 		slog.Debug("credential rotated",
-			"label", labelFromKey(rc.APIKey),
+			"label", rc.label(),
 			"provider", rc.Provider,
 			"strategy", r.Strategy,
 		)
@@ -192,7 +197,7 @@ func (r *CredentialRotator) MarkExhausted(apiKey string, retryAfter time.Duratio
 		if rc.APIKey == apiKey {
 			rc.MarkExhausted(retryAfter)
 			slog.Info("credential marked exhausted",
-				"label", labelFromKey(apiKey),
+				"label", rc.label(),
 				"retry_after", retryAfter.Round(time.Second),
 			)
 			return
@@ -203,17 +208,18 @@ func (r *CredentialRotator) MarkExhausted(apiKey string, retryAfter time.Duratio
 // MarkExhaustedByStatus marks a credential based on the HTTP status code.
 // 429 applies a 1-hour cooldown; 402 applies a 24-hour cooldown.
 func (r *CredentialRotator) MarkExhaustedByStatus(apiKey string, statusCode int) {
+	label := labelFromKey(apiKey)
 	var cooldown time.Duration
 	switch statusCode {
 	case 402:
 		cooldown = CooldownQuota
 		slog.Warn("credential quota exceeded (402), 24h cooldown",
-			"label", labelFromKey(apiKey),
+			"label", label,
 		)
 	case 429:
 		cooldown = CooldownRateLimit
 		slog.Warn("credential rate limited (429), 1h cooldown",
-			"label", labelFromKey(apiKey),
+			"label", label,
 		)
 	default:
 		return
@@ -258,7 +264,7 @@ func (r *CredentialRotator) Status() []map[string]any {
 	result := make([]map[string]any, len(r.keys))
 	for i, rc := range r.keys {
 		entry := map[string]any{
-			"label":       labelFromKey(rc.APIKey),
+			"label":       rc.label(),
 			"provider":    rc.Provider,
 			"exhausted":   rc.IsExhausted(),
 			"usage_count": rc.usageCount,

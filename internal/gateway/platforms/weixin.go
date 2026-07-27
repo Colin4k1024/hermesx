@@ -171,6 +171,7 @@ func (w *WeixinAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) 
 	// URL verification (GET)
 	if r.Method == http.MethodGet {
 		echostr := r.URL.Query().Get("echostr")
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		fmt.Fprint(rw, echostr)
 		return
 	}

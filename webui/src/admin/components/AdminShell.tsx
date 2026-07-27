@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Layout, Menu, Button, Tooltip, Drawer } from 'antd'
-import { Outlet, useNavigate, useLocation } from 'react-router-dom'
+import { Outlet, useNavigate, useLocation } from 'react-router'
 import {
   LayoutDashboard,
   Building2,

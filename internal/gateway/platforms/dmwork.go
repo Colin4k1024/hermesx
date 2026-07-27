@@ -422,7 +422,7 @@ func (d *DMWorkAdapter) handleConnack(data []byte, privateKey []byte) error {
 	}
 
 	secretB64 := base64.StdEncoding.EncodeToString(sharedSecret)
-	aesKeyFull := fmt.Sprintf("%x", md5.Sum([]byte(secretB64)))
+	aesKeyFull := fmt.Sprintf("%x", md5.Sum([]byte(secretB64))) //nolint:gosec // WuKongIM protocol requires MD5 for AES key derivation
 	d.aesKey = []byte(aesKeyFull[:16])
 
 	if len(salt) > 16 {

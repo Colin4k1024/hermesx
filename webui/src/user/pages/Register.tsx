@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router'
 import { Button, Input, Select, message, Typography, Space, Divider, Radio } from 'antd'
 import { UserOutlined, LockOutlined, TeamOutlined, PlusOutlined } from '@ant-design/icons'
 import { useAuthStore } from '@shared/stores/authStore'

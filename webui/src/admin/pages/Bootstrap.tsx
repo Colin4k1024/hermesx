@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { Button, Input, Typography, Space, Alert, message } from 'antd'
 import { KeyRound } from 'lucide-react'
 import type { ApiKeyCreateResponse } from '@shared/types'

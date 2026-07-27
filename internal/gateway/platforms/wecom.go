@@ -183,9 +183,10 @@ func (w *WeComAdapter) handleCallback(rw http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		rw.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		if w.encodingKey != "" {
 			if decrypted, err := w.decryptMsg(echostr); err == nil {
-				fmt.Fprint(rw, string(decrypted))
+				rw.Write(decrypted)
 				return
 			}
 		}

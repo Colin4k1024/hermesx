@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { createHashRouter, Navigate } from 'react-router-dom'
+import { createHashRouter, Navigate } from 'react-router'
 import { useAuthStore } from '@shared/stores/authStore'
 import { PageSkeleton } from '@shared/components/PageSkeleton'
 import { ErrorBoundary } from '@shared/components/ErrorBoundary'

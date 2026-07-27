@@ -301,8 +301,8 @@ func (h *LocalAuthHandler) createBrowserSession(w http.ResponseWriter, r *http.R
 	if err := h.sessions.Create(r.Context(), session); err != nil {
 		return err
 	}
-	setCookie(w, auth.ChannelSessionCookie, rawSession, true, h.cookieSecure, channelSessionTTL)
-	setCookie(w, auth.ChannelCSRFCookie, rawCSRF, false, h.cookieSecure, channelSessionTTL)
+	setSessionCookie(w, auth.ChannelSessionCookie, rawSession, h.cookieSecure, channelSessionTTL)
+	setJSCookie(w, auth.ChannelCSRFCookie, rawCSRF, h.cookieSecure, channelSessionTTL)
 	return nil
 }
 
