@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
+	"sync/atomic"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"gopkg.in/yaml.v3"
@@ -43,53 +43,46 @@ type PolicyDecision struct {
 	Reason string // explanation for the decision
 }
 
-// policyState holds the loaded policy (thread-safe singleton).
-var (
-	policyOnce sync.Once
-	policyMu   sync.RWMutex
-	loaded     *PermissionPolicy
-)
+// policyState holds the loaded policy (lock-free via atomic.Pointer).
+var policy atomic.Pointer[PermissionPolicy]
 
 // LoadPolicy loads the permission policy from project and user config directories.
 // Project-level rules take precedence over user-level rules.
 // Resolution: project/.hermes/permissions.yaml > ~/.hermes/permissions.yaml
 func LoadPolicy() *PermissionPolicy {
-	policyOnce.Do(func() {
-		loaded = loadPolicyFromDisk()
-	})
-	policyMu.RLock()
-	defer policyMu.RUnlock()
-	return loaded
+	if p := policy.Load(); p != nil {
+		return p
+	}
+	// First call — load from disk. CAS ensures only one goroutine wins.
+	p := loadPolicyFromDisk()
+	if policy.CompareAndSwap(nil, p) {
+		return p
+	}
+	// Another goroutine won the race; use their value.
+	return policy.Load()
 }
 
 // ReloadPolicy forces a policy reload (useful after config changes).
 func ReloadPolicy() *PermissionPolicy {
-	policyMu.Lock()
-	defer policyMu.Unlock()
-	loaded = loadPolicyFromDisk()
-	policyOnce = sync.Once{}
-	return loaded
+	p := loadPolicyFromDisk()
+	policy.Store(p)
+	return p
 }
 
 // SetPolicy replaces the current policy (used in tests).
 func SetPolicy(p *PermissionPolicy) {
-	policyMu.Lock()
-	defer policyMu.Unlock()
-	loaded = p
-	policyOnce = sync.Once{}
-	// Mark as already loaded so LoadPolicy() returns our value.
-	policyOnce.Do(func() {})
+	policy.Store(p)
 }
 
 func loadPolicyFromDisk() *PermissionPolicy {
-	policy := &PermissionPolicy{
+	p := &PermissionPolicy{
 		Default: ActionAsk, // default to "ask" for backward compat with ApprovalHandler
 	}
 
 	// Layer 1: User-level policy (~/.hermes/permissions.yaml)
 	userPath := filepath.Join(config.HermesHome(), "permissions.yaml")
 	if userPolicy := readPolicyFile(userPath); userPolicy != nil {
-		policy = mergePolicies(policy, userPolicy)
+		p = mergePolicies(p, userPolicy)
 	}
 
 	// Layer 2: Project-level policy ({project}/.hermes/permissions.yaml)
@@ -99,15 +92,15 @@ func loadPolicyFromDisk() *PermissionPolicy {
 		if root != "" {
 			projectPath := filepath.Join(root, config.ProjectConfigDir, "permissions.yaml")
 			if projectPolicy := readPolicyFile(projectPath); projectPolicy != nil {
-				policy = mergePolicies(policy, projectPolicy)
+				p = mergePolicies(p, projectPolicy)
 			}
 		}
 	}
 
-	if len(policy.Rules) > 0 {
-		slog.Debug("Permission policy loaded", "rules", len(policy.Rules))
+	if len(p.Rules) > 0 {
+		slog.Debug("Permission policy loaded", "rules", len(p.Rules))
 	}
-	return policy
+	return p
 }
 
 func readPolicyFile(path string) *PermissionPolicy {
@@ -156,7 +149,7 @@ func Check(toolName, command, filePath string) PolicyDecision {
 			continue
 		}
 
-		// If rule has path restrictions, check them.
+		// Path rules are skipped when filePath is empty (non-file tool calls). This is intentional — without a file path, path-based rules cannot be evaluated.
 		if len(rule.Paths) > 0 && filePath != "" {
 			if !matchesGlobs(rule.Paths, filePath) {
 				continue
@@ -165,7 +158,7 @@ func Check(toolName, command, filePath string) PolicyDecision {
 
 		// If rule has command restrictions, check them.
 		if len(rule.Commands) > 0 && command != "" {
-			if !matchesGlobs(rule.Commands, command) {
+			if !matchesCommand(rule.Commands, command) {
 				continue
 			}
 		}
@@ -193,14 +186,33 @@ func matchesTool(pattern, toolName string) bool {
 }
 
 // matchesGlobs checks if any glob pattern matches the given value.
+// Only filepath.Match glob patterns are supported (e.g. "*.env", "secret*").
+// Matching is performed against both the full path and the basename, so
+// "*.env" matches "/home/user/secrets.env" as well as "secrets.env".
+// Substring matching was intentionally removed to prevent permission policy
+// bypass (e.g. pattern "*.env" must not match "/etc/environment").
 func matchesGlobs(patterns []string, value string) bool {
 	for _, pattern := range patterns {
 		matched, err := filepath.Match(pattern, value)
 		if err == nil && matched {
 			return true
 		}
-		// Also check if the pattern is a simple substring match.
-		if strings.Contains(value, pattern) {
+		// Also match against the basename so "*.env" catches "/home/user/secrets.env".
+		matched, err = filepath.Match(pattern, filepath.Base(value))
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesCommand checks if any pattern matches the given command.
+// Command matching uses prefix matching: a pattern "rm -rf" matches
+// "rm -rf /tmp/foo". This is intentional — command rules express
+// "dangerous command prefixes" rather than filename globs.
+func matchesCommand(patterns []string, command string) bool {
+	for _, pattern := range patterns {
+		if strings.HasPrefix(command, pattern) {
 			return true
 		}
 	}

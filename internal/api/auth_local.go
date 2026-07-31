@@ -24,16 +24,18 @@ type LocalAuthHandler struct {
 	provisioner  *skills.Provisioner
 	hashSecret   string
 	cookieSecure bool
+	serverCtx    context.Context // cancelled on server shutdown
 }
 
 // NewLocalAuthHandler creates a handler for local (username/password) authentication.
-func NewLocalAuthHandler(s store.Store, sessions store.BrowserSessionStore, provisioner *skills.Provisioner, hashSecret string, cookieSecure bool) *LocalAuthHandler {
+func NewLocalAuthHandler(s store.Store, sessions store.BrowserSessionStore, provisioner *skills.Provisioner, hashSecret string, cookieSecure bool, serverCtx context.Context) *LocalAuthHandler {
 	return &LocalAuthHandler{
 		store:        s,
 		sessions:     sessions,
 		provisioner:  provisioner,
 		hashSecret:   hashSecret,
 		cookieSecure: cookieSecure,
+		serverCtx:    serverCtx,
 	}
 }
 
@@ -118,7 +120,7 @@ func (h *LocalAuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		// Provision tenant soul + bundled skills.
 		if h.provisioner != nil {
 			go func() {
-				bgCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+				bgCtx, cancel := context.WithTimeout(h.serverCtx, 2*time.Minute)
 				defer cancel()
 				if err := h.provisioner.Provision(bgCtx, tenantID); err != nil {
 					slog.Error("tenant provisioning failed", "tenant", tenantID, "error", err)
@@ -137,6 +139,10 @@ func (h *LocalAuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// NOTE: The uniqueness check + create below is not atomic. Concurrent registrations
+	// with the same username may both pass the check. Correctness relies on a database
+	// UNIQUE(tenant_id, username) index — CreateWithPassword will return a conflict error
+	// if the index is violated, which we handle as a 409 below.
 	// Check username uniqueness in tenant.
 	if _, _, err := h.store.Users().GetByUsername(ctx, tenantID, req.Username); err == nil {
 		http.Error(w, "username already taken in this tenant", http.StatusConflict)

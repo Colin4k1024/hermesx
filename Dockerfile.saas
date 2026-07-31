@@ -21,20 +21,19 @@ RUN go mod download
 
 COPY . .
 
+ARG VERSION=dev
+ARG RELEASE_DATE=unknown
+ARG COMMIT=none
+
 RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -ldflags="-s -w" -o /hermesx ./cmd/hermesx/
+    go build -ldflags="-s -w -X main.version=${VERSION} -X main.releaseDate=${RELEASE_DATE} -X main.commit=${COMMIT}" -o /hermesx ./cmd/hermesx/
 
 # Runtime stage
 FROM debian:bookworm-slim
 
 ARG TARGETARCH
 
-RUN sed -i \
-    -e 's|http://deb.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-    -e 's|http://deb.debian.org/debian|http://mirrors.aliyun.com/debian|g' \
-    -e 's|http://security.debian.org/debian-security|http://mirrors.aliyun.com/debian-security|g' \
-    /etc/apt/sources.list.d/debian.sources \
-    && apt-get update && apt-get install -y --no-install-recommends \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     && curl -fsSL "https://dl.k8s.io/release/v1.30.14/bin/linux/${TARGETARCH:-amd64}/kubectl" -o /usr/local/bin/kubectl \
     && chmod +x /usr/local/bin/kubectl \

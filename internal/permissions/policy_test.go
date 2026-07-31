@@ -91,6 +91,65 @@ rules:
 	}
 }
 
+func TestMatchesGlobs_NoSubstringFallback(t *testing.T) {
+	// Verify that glob matching does NOT fall back to substring matching.
+	// This is a security fix: pattern "*.env" must not match "/etc/environment".
+	tests := []struct {
+		name     string
+		patterns []string
+		value    string
+		want     bool
+	}{
+		{"exact glob match", []string{"*.env"}, "secret.env", true},
+		{"glob no match different ext", []string{"*.env"}, "secret.txt", false},
+		{"no substring bypass for *.env", []string{"*.env"}, "/etc/environment", false},
+		{"no substring bypass for secret", []string{"secret"}, "my-secret-file.txt", false},
+		{"wildcard matches all", []string{"*"}, "anything", true},
+		{"full path glob", []string{"/etc/*"}, "/etc/passwd", true},
+		{"full path glob no match", []string{"/etc/*"}, "/tmp/file", false},
+		{"multiple patterns first match", []string{"*.env", "*.key"}, "test.key", true},
+		{"multiple patterns no match", []string{"*.env", "*.key"}, "test.txt", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := matchesGlobs(tt.patterns, tt.value)
+			if got != tt.want {
+				t.Errorf("matchesGlobs(%v, %q) = %v, want %v", tt.patterns, tt.value, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCheck_DenyRule_SubstringBypass(t *testing.T) {
+	// Verify that a deny rule for "*.env" does NOT block access to
+	// files that merely contain "env" in their path.
+	SetPolicy(&PermissionPolicy{
+		Default: ActionAllow,
+		Rules: []PolicyRule{
+			{Tool: "file_read", Action: ActionDeny, Paths: []string{"*.env"}, Reason: "env files protected"},
+		},
+	})
+
+	tests := []struct {
+		name     string
+		path     string
+		expected Action
+	}{
+		{"deny .env file", "secrets.env", ActionDeny},
+		{"allow .txt file", "data.txt", ActionAllow},
+		{"allow environment file", "/etc/environment", ActionAllow},
+		{"allow env directory", "env/config.yaml", ActionAllow},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			decision := Check("file_read", "", tt.path)
+			if decision.Action != tt.expected {
+				t.Errorf("Check(file_read, %q) = %q, want %q", tt.path, decision.Action, tt.expected)
+			}
+		})
+	}
+}
+
 func TestMergePolicies(t *testing.T) {
 	base := &PermissionPolicy{
 		Default: ActionAsk,

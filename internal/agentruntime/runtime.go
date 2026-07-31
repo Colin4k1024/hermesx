@@ -171,7 +171,10 @@ func (r *EinoRuntime) SessionID() string { return r.sessionID }
 
 func (r *EinoRuntime) Model() string { return r.model }
 
-func (r *EinoRuntime) Close() {}
+func (r *EinoRuntime) Close() {
+	// EinoAgent uses the shared transport from LLM client,
+	// which is managed by the caller. No local resources to close.
+}
 
 func (r *EinoRuntime) IsSkill(input string) bool {
 	return isSkill(input, r.skillLoader)

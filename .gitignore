@@ -21,6 +21,7 @@
 .git
 .idea/
 .omc/
+.omo/
 .vscode/
 /hermes
 /hermes-*

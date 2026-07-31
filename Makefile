@@ -1,7 +1,8 @@
 BINARY=hermesx
-VERSION=2.0.0
-BUILD_TIME=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS=-ldflags "-X main.Version=$(VERSION) -X main.BuildTime=$(BUILD_TIME)"
+VERSION=$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
+RELEASE_DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+COMMIT=$(shell git rev-parse --short HEAD 2>/dev/null || echo "none")
+LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.releaseDate=$(RELEASE_DATE) -X main.commit=$(COMMIT)"
 
 .PHONY: all build build-linux build-all test test-short test-race test-cover clean install run lint saas-up saas-down test-e2e test-e2e-headed test-k8s test-infra-up test-infra-down test-integration
 

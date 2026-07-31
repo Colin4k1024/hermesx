@@ -39,6 +39,15 @@ jobs:
           total=$(go tool cover -func=coverage.out | grep total | awk '{print $3}')
           echo "### Test Coverage: ${total}" >> $GITHUB_STEP_SUMMARY
 
+      - name: Coverage threshold
+        run: |
+          pct=$(go tool cover -func=coverage.out | grep total | awk '{gsub(/%/,""); print $3}')
+          echo "Coverage: ${pct}%"
+          if awk "BEGIN{exit !($pct < 40)}"; then
+            echo "::error::Coverage ${pct}% is below the 40% minimum threshold"
+            exit 1
+          fi
+
       - name: Race detection
         run: go test -race ./internal/agent/... ./internal/tools/... ./internal/gateway/... -count=1 -short -timeout 60s
 
@@ -122,6 +131,9 @@ jobs:
       - name: Build Docker image
         run: |
           docker build -f Dockerfile.saas \
+                       --build-arg VERSION="${{ github.ref_name }}" \
+                       --build-arg RELEASE_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                       --build-arg COMMIT="${{ github.sha }}" \
                        -t ${{ env.IMAGE }}:${{ github.sha }} \
                        -t ${{ env.IMAGE }}:latest .
 
@@ -139,6 +151,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     needs: [test]
+    # Always run on main pushes and PRs. For path-based filtering on large repos,
+    # add dorny/paths-filter to gate on internal/store, agent, scheduler changes.
     services:
       postgres:
         image: postgres:16

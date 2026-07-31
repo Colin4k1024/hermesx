@@ -12,6 +12,7 @@ import (
 var (
 	Version     = "dev"
 	ReleaseDate = "unknown"
+	Commit      = "none"
 )
 
 // Banner text art for the Hermes Agent logo (simplified for terminal).
@@ -59,6 +60,13 @@ func PrintWelcomeBanner(model, sessionID string) {
 
 	// Version line.
 	versionLine := fmt.Sprintf("%s v%s (%s)", agentName, Version, ReleaseDate)
+	if Commit != "" && Commit != "none" {
+		short := Commit
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		versionLine += fmt.Sprintf(" [%s]", short)
+	}
 	info.WriteString(titleStyle.Render(versionLine))
 	info.WriteString("\n")
 

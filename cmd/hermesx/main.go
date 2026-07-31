@@ -21,6 +21,7 @@ var (
 func init() {
 	cli.Version = version
 	cli.ReleaseDate = releaseDate
+	cli.Commit = commit
 }
 
 func main() {

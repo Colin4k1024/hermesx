@@ -111,7 +111,10 @@ func corsMiddleware(next http.Handler, origins string) http.Handler {
 		w.Header().Add("Vary", "Origin")
 		if origin != "" && (allowAll || allowed[origin]) {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
+			// Credentials must NOT be set when Allow-Origin is "*", per the Fetch spec.
+			if !allowAll {
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+			}
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
 			w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Hermes-Session-Id, X-Hermes-User-Id, X-Hermes-CSRF")
 			w.Header().Set("Access-Control-Expose-Headers", "X-Hermes-Session-Id, X-Request-ID")
@@ -134,6 +137,8 @@ func egressStores(s store.Store) (egress.RuleStore, egress.RuleAdminStore) {
 
 // NewAPIServer creates and configures the API server with all routes and middleware.
 func NewAPIServer(cfg APIServerConfig) *APIServer {
+	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
+
 	egressStore, egressAdminStore := egressStores(cfg.Store)
 	egressPolicy, egressDefault, err := egress.NewAllowlistPolicyFromEnv(egressStore, nil)
 	if err != nil {
@@ -222,7 +227,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	// Local auth (username/password self-registration) — public routes.
 	if provider, ok := cfg.Store.(store.ChannelStoreProvider); ok {
-		localAuth := NewLocalAuthHandler(cfg.Store, provider.BrowserSessions(), cfg.Provisioner, cfg.ChannelHashSecret, cfg.ChannelCookieSecure)
+		localAuth := NewLocalAuthHandler(cfg.Store, provider.BrowserSessions(), cfg.Provisioner, cfg.ChannelHashSecret, cfg.ChannelCookieSecure, backgroundCtx)
 		mux.HandleFunc("POST /auth/register", localAuth.Register)
 		mux.HandleFunc("POST /auth/login", localAuth.Login)
 		mux.HandleFunc("GET /auth/tenants", localAuth.ListTenants)
@@ -383,13 +388,19 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 		handler = spaFallback(handler, cfg.StaticDir)
 	}
 
+	// Production safety: reject wildcard CORS with credentials.
+	env := os.Getenv("HERMES_ENV")
+	if cfg.AllowedOrigins == "*" && env == "production" {
+		slog.Error("CORS wildcard '*' is not allowed in production — refusing to start. Set AllowedOrigins to specific domains.")
+		os.Exit(1)
+	}
+
 	// Apply CORS if configured.
 	if cfg.AllowedOrigins != "" {
 		handler = corsMiddleware(handler, cfg.AllowedOrigins)
 		slog.Info("CORS enabled", "origins", cfg.AllowedOrigins)
 	}
 
-	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
 	if cfg.EvolutionStore != nil {
 		cfg.EvolutionStore.StartSharingPolicyWatcher(backgroundCtx, 30*time.Second)
 	}
