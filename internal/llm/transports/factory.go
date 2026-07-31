@@ -29,7 +29,7 @@ func DetectAPIMode(explicit, provider, baseURL string) llm.APIMode {
 		// fall through to auto-detect
 	}
 
-	if provider == "anthropic" {
+	if strings.ToLower(provider) == "anthropic" {
 		return llm.APIModeAnthropic
 	}
 

@@ -53,9 +53,10 @@ export function useSseManager() {
 
   // Cleanup all streams on unmount
   useEffect(() => {
+    const streams = streamsRef.current
     return () => {
-      streamsRef.current.forEach((ctrl) => ctrl.abortController.abort())
-      streamsRef.current.clear()
+      streams.forEach((ctrl) => ctrl.abortController.abort())
+      streams.clear()
     }
   }, [])
 

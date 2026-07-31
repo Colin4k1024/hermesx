@@ -28,6 +28,8 @@ func NewCodexTransport(model, baseURL, apiKey string) *CodexTransport {
 	if baseURL == "" {
 		baseURL = "https://api.openai.com"
 	}
+	// Normalize URL: remove trailing slash first, then /v1 suffix
+	baseURL = strings.TrimSuffix(baseURL, "/")
 	baseURL = strings.TrimSuffix(baseURL, "/v1")
 	baseURL = strings.TrimSuffix(baseURL, "/")
 

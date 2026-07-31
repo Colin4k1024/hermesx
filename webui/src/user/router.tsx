@@ -1,8 +1,5 @@
-import { lazy, Suspense } from 'react'
 import { createHashRouter, Navigate } from 'react-router'
-import { useAuthStore } from '@shared/stores/authStore'
-import { PageSkeleton } from '@shared/components/PageSkeleton'
-import { ErrorBoundary } from '@shared/components/ErrorBoundary'
+import { Lazy, AuthGuard, lazy } from '@shared/components/RouteHelpers'
 import App from './App'
 import UserShell from './components/UserShell'
 
@@ -17,20 +14,6 @@ const Settings = lazy(() => import('./pages/Settings'))
 const Notifications = lazy(() => import('./pages/Notifications'))
 const Agents = lazy(() => import('./pages/Agents'))
 
-function Lazy({ children }: { children: React.ReactNode }) {
-  return (
-    <ErrorBoundary>
-      <Suspense fallback={<PageSkeleton />}>{children}</Suspense>
-    </ErrorBoundary>
-  )
-}
-
-function AuthGuard() {
-  const connected = useAuthStore((s) => s.connected)
-  if (!connected) return <Navigate to="/login" replace />
-  return <UserShell />
-}
-
 export const router = createHashRouter([
   {
     element: <App />,
@@ -38,7 +21,7 @@ export const router = createHashRouter([
       { path: '/login', element: <Lazy><Login /></Lazy> },
       { path: '/register', element: <Lazy><Register /></Lazy> },
       {
-        element: <AuthGuard />,
+        element: <AuthGuard shell={<UserShell />} />,
         children: [
           { path: '/chat', element: <Lazy><Chat /></Lazy> },
           { path: '/workspace', element: <Lazy><Workspace /></Lazy> },

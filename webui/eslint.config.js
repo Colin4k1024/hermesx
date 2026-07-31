@@ -24,4 +24,11 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'warn',
     },
   },
+  // Router files export route config objects, not components — disable the fast-refresh warning.
+  {
+    files: ['**/router.tsx', '**/RouteHelpers.tsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 )
