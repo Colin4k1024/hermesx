@@ -391,6 +391,7 @@ func NewAPIServer(cfg APIServerConfig) (*APIServer, error) {
 	// Production safety: reject wildcard CORS with credentials.
 	env := os.Getenv("HERMES_ENV")
 	if cfg.AllowedOrigins == "*" && env == "production" {
+		backgroundCancel()
 		return nil, fmt.Errorf("CORS wildcard '*' is not allowed in production; set AllowedOrigins to specific domains")
 	}
 

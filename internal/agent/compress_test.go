@@ -218,12 +218,12 @@ func TestPruneToolResults_PreservesPreview(t *testing.T) {
 func TestTailKeepCount_BasicBudget(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model: "openai/gpt-4o", // 128000 context
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		CompressionCfg: CompressionConfig{
 			KeepCount: 2,
 		},
-	}
+		Model: "openai/gpt-4o", // 128000 context
+	})
 
 	// Each message ~100 chars = ~25 tokens. Budget = 128000 * 0.25 = 32000 tokens.
 	// All 10 messages fit easily (250 tokens total).
@@ -232,7 +232,7 @@ func TestTailKeepCount_BasicBudget(t *testing.T) {
 		messages[i] = llm.Message{Role: "user", Content: strings.Repeat("a", 100)}
 	}
 
-	keep := a.tailKeepCount(messages)
+	keep := cm.tailKeepCount(messages)
 	if keep < 10 {
 		t.Errorf("all messages should fit budget, got keep=%d", keep)
 	}
@@ -241,13 +241,13 @@ func TestTailKeepCount_BasicBudget(t *testing.T) {
 func TestTailKeepCount_BudgetExceeded(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model: "openai/gpt-4o", // 128000 context
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		CompressionCfg: CompressionConfig{
 			KeepCount:     2,
 			ContextWindow: 400, // tiny: budget = 100 tokens = 400 chars
 		},
-	}
+		Model: "openai/gpt-4o", // 128000 context
+	})
 
 	// 10 messages of 100 chars each = 1000 chars total; budget is 400 chars.
 	messages := make([]llm.Message, 10)
@@ -255,7 +255,7 @@ func TestTailKeepCount_BudgetExceeded(t *testing.T) {
 		messages[i] = llm.Message{Role: "user", Content: strings.Repeat("b", 100)}
 	}
 
-	keep := a.tailKeepCount(messages)
+	keep := cm.tailKeepCount(messages)
 	// 400 chars budget / 100 chars per msg => 4 messages fit, but the 5th
 	// would exceed.  So keep should be 4 (>= KeepCount=2).
 	if keep > 5 {
@@ -269,20 +269,20 @@ func TestTailKeepCount_BudgetExceeded(t *testing.T) {
 func TestTailKeepCount_FallbackToKeepCount(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model: "openai/gpt-4o",
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		CompressionCfg: CompressionConfig{
 			KeepCount:     8,
 			ContextWindow: 100, // very tiny budget
 		},
-	}
+		Model: "openai/gpt-4o",
+	})
 
 	messages := make([]llm.Message, 10)
 	for i := range messages {
 		messages[i] = llm.Message{Role: "user", Content: strings.Repeat("c", 200)}
 	}
 
-	keep := a.tailKeepCount(messages)
+	keep := cm.tailKeepCount(messages)
 	if keep < 8 {
 		t.Errorf("should not go below KeepCount=8, got %d", keep)
 	}
@@ -295,8 +295,8 @@ func TestTailKeepCount_FallbackToKeepCount(t *testing.T) {
 func TestCompressionCooldown_NoFailure(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{}
-	if a.isInCompressionCooldown() {
+	cm := NewContextManager(ContextManagerConfig{})
+	if cm.isInCompressionCooldown() {
 		t.Error("should not be in cooldown when no failure recorded")
 	}
 }
@@ -304,10 +304,10 @@ func TestCompressionCooldown_NoFailure(t *testing.T) {
 func TestCompressionCooldown_RecentFailure(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
+	cm := &ContextManager{
 		lastCompressionFailure: time.Now(),
 	}
-	if !a.isInCompressionCooldown() {
+	if !cm.isInCompressionCooldown() {
 		t.Error("should be in cooldown right after failure")
 	}
 }
@@ -315,10 +315,10 @@ func TestCompressionCooldown_RecentFailure(t *testing.T) {
 func TestCompressionCooldown_ExpiredFailure(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
+	cm := &ContextManager{
 		lastCompressionFailure: time.Now().Add(-11 * time.Minute),
 	}
-	if a.isInCompressionCooldown() {
+	if cm.isInCompressionCooldown() {
 		t.Error("cooldown should have expired after 11 minutes")
 	}
 }
@@ -326,13 +326,13 @@ func TestCompressionCooldown_ExpiredFailure(t *testing.T) {
 func TestRecordCompressionFailure(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{}
-	if a.isInCompressionCooldown() {
+	cm := NewContextManager(ContextManagerConfig{})
+	if cm.isInCompressionCooldown() {
 		t.Fatal("precondition: no cooldown")
 	}
 
-	a.recordCompressionFailure()
-	if !a.isInCompressionCooldown() {
+	cm.recordCompressionFailure()
+	if !cm.isInCompressionCooldown() {
 		t.Error("should be in cooldown after recordCompressionFailure")
 	}
 }
@@ -361,14 +361,16 @@ func TestGenerateSummary_StructuredPrompt(t *testing.T) {
 	t.Helper()
 
 	stub := &stubLLMClient{response: "## Conversation Summary\n### Goal\nTest goal"}
-	a := &AIAgent{summaryCompleter: stub}
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: stub,
+	})
 
 	messages := []llm.Message{
 		{Role: "user", Content: "Please refactor the auth module"},
 		{Role: "assistant", Content: "Sure, I will start with the login handler."},
 	}
 
-	summary, err := a.generateSummary(context.Background(), messages, 500)
+	summary, err := cm.generateSummary(context.Background(), messages, 500)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -389,7 +391,9 @@ func TestGenerateSummary_IterativeUpdate(t *testing.T) {
 	t.Helper()
 
 	stub := &stubLLMClient{response: "## Conversation Summary\n### Goal\nUpdated goal"}
-	a := &AIAgent{summaryCompleter: stub}
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: stub,
+	})
 
 	prevSummary := "## Conversation Summary\n### Goal\nOld goal\n### Progress\n- step 1"
 	messages := []llm.Message{
@@ -397,7 +401,7 @@ func TestGenerateSummary_IterativeUpdate(t *testing.T) {
 		{Role: "user", Content: "Now also update the tests"},
 	}
 
-	_, err := a.generateSummary(context.Background(), messages, 500)
+	_, err := cm.generateSummary(context.Background(), messages, 500)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -415,14 +419,16 @@ func TestGenerateSummary_PrunesToolResultsBeforeSummarising(t *testing.T) {
 	t.Helper()
 
 	stub := &stubLLMClient{response: "summary"}
-	a := &AIAgent{summaryCompleter: stub}
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: stub,
+	})
 
 	bigToolContent := strings.Repeat("Z", 700)
 	messages := []llm.Message{
 		{Role: "tool", Content: bigToolContent, ToolName: "search_files"},
 	}
 
-	_, err := a.generateSummary(context.Background(), messages, 300)
+	_, err := cm.generateSummary(context.Background(), messages, 300)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -440,9 +446,11 @@ func TestGenerateSummary_LLMError(t *testing.T) {
 	t.Helper()
 
 	stub := &stubLLMClient{err: fmt.Errorf("api timeout")}
-	a := &AIAgent{summaryCompleter: stub}
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: stub,
+	})
 
-	_, err := a.generateSummary(context.Background(), []llm.Message{
+	_, err := cm.generateSummary(context.Background(), []llm.Message{
 		{Role: "user", Content: "hello"},
 	}, 300)
 	if err == nil {
@@ -561,20 +569,15 @@ func TestGenerateSummary_RetryWithMainOnFailure(t *testing.T) {
 	summaryClient := &countingStubClient{err: fmt.Errorf("summary model overloaded")}
 	mainClient := &countingStubClient{response: "## Conversation Summary\n### Goal\nRetried successfully"}
 
-	a := &AIAgent{
-		summaryCompleter: summaryClient,
-		client:           &llm.Client{},
-		compressionCfg:   DefaultCompressionConfig(),
-	}
-	// Override client field with our mock using the chatCompleter interface.
-	// We need to set the client field to something that satisfies chatCompleter.
-	// Since *llm.Client implements it but we can't easily mock it, we'll use a
-	// wrapper approach: set summaryCompleter to failing stub, then test that
-	// generateSummaryWith is called with the correct fallback.
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: summaryClient,
+		Completer:        mainClient,
+		CompressionCfg:   DefaultCompressionConfig(),
+	})
 
 	// Direct test of generateSummary retry logic using internal fields.
 	// We need the main client to also be a chatCompleter. Let's restructure:
-	// Actually the retry logic uses a.client which is *llm.Client.
+	// Actually the retry logic uses cm.completer which is a chatCompleter.
 	// For unit testing, we'll test generateSummaryWith directly and test
 	// the retry orchestration in generateSummary separately.
 
@@ -584,7 +587,7 @@ func TestGenerateSummary_RetryWithMainOnFailure(t *testing.T) {
 		{Role: "assistant", Content: "I will start implementing feature X."},
 	}
 
-	result, err := a.generateSummaryWith(context.Background(), mainClient, messages, 500)
+	result, err := cm.generateSummaryWith(context.Background(), mainClient, messages, 500)
 	if err != nil {
 		t.Fatalf("generateSummaryWith should succeed with working completer: %v", err)
 	}
@@ -600,21 +603,21 @@ func TestGenerateSummary_RetryWithMainDisabled(t *testing.T) {
 	retryDisabled := false
 	summaryClient := &countingStubClient{err: fmt.Errorf("summary model overloaded")}
 
-	a := &AIAgent{
-		summaryCompleter: summaryClient,
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: summaryClient,
+		CompressionCfg: CompressionConfig{
 			Strategy:        StrategyHybrid,
 			KeepCount:       6,
 			SummaryMaxWords: 500,
 			RetryWithMain:   &retryDisabled,
 		},
-	}
+	})
 
 	messages := []llm.Message{
 		{Role: "user", Content: "hello"},
 	}
 
-	_, err := a.generateSummary(context.Background(), messages, 500)
+	_, err := cm.generateSummary(context.Background(), messages, 500)
 	if err == nil {
 		t.Fatal("expected error when retry is disabled and summary model fails")
 	}
@@ -624,28 +627,28 @@ func TestGenerateSummary_RetryWithMainDisabled(t *testing.T) {
 }
 
 func TestGenerateSummary_NoRetryWhenSameClient(t *testing.T) {
-	// When summaryCompleter is nil, compressionCompleter() returns a.client.
+	// When SummaryCompleter is nil, compressionCompleter() returns cm.completer.
 	// In that case, there's no separate summary model — retry should not happen.
 	mainClient := &countingStubClient{err: fmt.Errorf("model overloaded")}
 
-	a := &AIAgent{
-		summaryCompleter: nil,
-		compressionCfg:   DefaultCompressionConfig(),
-	}
-	// We can't set a.client to a countingStubClient directly since it's *llm.Client.
-	// But when summaryCompleter is nil AND client is nil, the retry path checks
-	// a.summaryCompleter != nil which is false, so it won't retry.
+	cm := NewContextManager(ContextManagerConfig{
+		SummaryCompleter: nil,
+		CompressionCfg:   DefaultCompressionConfig(),
+	})
+	// We can't set cm.completer to a countingStubClient directly since it's *llm.Client.
+	// But when SummaryCompleter is nil AND completer is nil, the retry path checks
+	// cm.summaryCompleter != nil which is false, so it won't retry.
 	// Let's verify the logic: when summaryCompleter is nil, no retry happens.
 	_ = mainClient
 
-	// With summaryCompleter nil, compressionCompleter returns a.client (which is nil here).
+	// With summaryCompleter nil, compressionCompleter returns cm.completer (which is nil here).
 	// The call will panic if we try to call it. Instead we test the logic path:
-	// The retry condition is: a.summaryCompleter != nil && a.client != nil
+	// The retry condition is: cm.summaryCompleter != nil && cm.completer != nil
 	// When summaryCompleter is nil, this is false — no retry.
-	if a.summaryCompleter != nil {
+	if cm.summaryCompleter != nil {
 		t.Error("expected summaryCompleter to be nil for this test")
 	}
-	if a.compressionCfg.retryWithMainEnabled() != true {
+	if cm.cfg.retryWithMainEnabled() != true {
 		t.Error("retryWithMainEnabled should be true by default")
 	}
 }

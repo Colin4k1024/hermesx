@@ -157,8 +157,7 @@ func withAuthContext(next http.Handler, tenantID, userID string) http.Handler {
 func TestFileHandler_Upload(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	// Build multipart form
 	var buf bytes.Buffer
@@ -207,8 +206,7 @@ func TestFileHandler_Upload(t *testing.T) {
 func TestFileHandler_Upload_PathTraversal(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -232,8 +230,7 @@ func TestFileHandler_Upload_PathTraversal(t *testing.T) {
 func TestFileHandler_Upload_AbsolutePath(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -257,8 +254,7 @@ func TestFileHandler_Upload_AbsolutePath(t *testing.T) {
 func TestFileHandler_List(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	// Pre-populate some entries
 	fileStore.entries["id-1"] = &store.FileEntry{
@@ -300,8 +296,7 @@ func TestFileHandler_List(t *testing.T) {
 func TestFileHandler_List_Empty(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/files", nil)
 	rr := httptest.NewRecorder()
@@ -331,8 +326,7 @@ func TestFileHandler_List_Empty(t *testing.T) {
 func TestFileHandler_Download(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	// Pre-populate
 	fileStore.entries["id-1"] = &store.FileEntry{
@@ -362,8 +356,7 @@ func TestFileHandler_Download(t *testing.T) {
 func TestFileHandler_Download_NotFound(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	req := httptest.NewRequest(http.MethodGet, "/v1/files/nonexistent/download", nil)
 	rr := httptest.NewRecorder()
@@ -379,8 +372,7 @@ func TestFileHandler_Download_NotFound(t *testing.T) {
 func TestFileHandler_Delete(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	fileStore.entries["id-1"] = &store.FileEntry{
 		ID: "id-1", TenantID: "tenant-1", UserID: "user-1",
@@ -413,8 +405,7 @@ func TestFileHandler_Delete(t *testing.T) {
 func TestFileHandler_Delete_NotFound(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/files/nonexistent", nil)
 	rr := httptest.NewRecorder()
@@ -430,8 +421,7 @@ func TestFileHandler_Delete_NotFound(t *testing.T) {
 func TestFileHandler_Promote(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	// Simulate a session file in MinIO
 	objStore.objects["tenant-1/user-1/sessions/sess-abc/output.json"] = []byte(`{"result":"ok"}`)
@@ -469,8 +459,7 @@ func TestFileHandler_Promote(t *testing.T) {
 func TestFileHandler_Promote_SourceNotFound(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	body := `{"session_id":"sess-abc","source_path":"nonexistent.json"}`
 	req := httptest.NewRequest(http.MethodPost, "/v1/files/promote", strings.NewReader(body))
@@ -488,8 +477,7 @@ func TestFileHandler_Promote_SourceNotFound(t *testing.T) {
 func TestFileHandler_Promote_WithDestPath(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	objStore.objects["tenant-1/user-1/sessions/sess-abc/data.csv"] = []byte("a,b,c")
 
@@ -545,8 +533,7 @@ func TestFileHandler_QuotaExceeded(t *testing.T) {
 	fileStore := newMockFileEntryStore()
 	fileStore.usage = 512*1024*1024 - 10 // almost at 512MB limit
 	objStore := newMockFileObjectStore()
-	s := &mockFileStore{fileEntries: fileStore}
-	handler := NewFileHandler(s, objStore)
+	handler := NewFileHandler(fileStore, objStore)
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)

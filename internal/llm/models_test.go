@@ -46,7 +46,7 @@ func TestEstimateTokens(t *testing.T) {
 }
 
 func TestGetModelMeta_AllKnownModels(t *testing.T) {
-	for name, expected := range KnownModels {
+	for name, expected := range AllKnownModels() {
 		meta := GetModelMeta(name)
 		if meta.ContextLength != expected.ContextLength {
 			t.Errorf("Model %s: expected context %d, got %d", name, expected.ContextLength, meta.ContextLength)
@@ -103,10 +103,11 @@ func TestEstimateTokens_Short(t *testing.T) {
 }
 
 func TestKnownModels_NonEmpty(t *testing.T) {
-	if len(KnownModels) == 0 {
-		t.Error("KnownModels should not be empty")
+	all := AllKnownModels()
+	if len(all) == 0 {
+		t.Error("knownModels should not be empty")
 	}
-	if len(KnownModels) < 10 {
-		t.Errorf("Expected at least 10 known models, got %d", len(KnownModels))
+	if len(all) < 10 {
+		t.Errorf("Expected at least 10 known models, got %d", len(all))
 	}
 }

@@ -142,11 +142,14 @@ func TestNewAPIServer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			srv := NewAPIServer(APIServerConfig{
+			srv, err := NewAPIServer(APIServerConfig{
 				Port:  tt.port,
 				Store: stubStore{},
 				DB:    nil,
 			})
+			if err != nil {
+				t.Fatalf("NewAPIServer returned error: %v", err)
+			}
 
 			if srv == nil {
 				t.Fatal("NewAPIServer returned nil")
@@ -161,11 +164,14 @@ func TestNewAPIServer(t *testing.T) {
 }
 
 func TestNewAPIServer_WiresAgentSafetyDependencies(t *testing.T) {
-	srv := NewAPIServer(APIServerConfig{
+	srv, err := NewAPIServer(APIServerConfig{
 		Port:  8080,
 		Store: stubStore{},
 		DB:    nil,
 	})
+	if err != nil {
+		t.Fatalf("NewAPIServer returned error: %v", err)
+	}
 
 	if srv.AgentChat == nil {
 		t.Fatal("expected AgentChat handler")
@@ -290,12 +296,15 @@ func TestCORSMiddleware_MultipleOrigins(t *testing.T) {
 
 func TestBootstrapCreateIsRateLimited(t *testing.T) {
 	t.Setenv("HERMES_ACP_TOKEN", "test-bootstrap-token-with-enough-entropy")
-	srv := NewAPIServer(APIServerConfig{
+	srv, err := NewAPIServer(APIServerConfig{
 		Port:                  8080,
 		Store:                 stubStore{},
 		DB:                    nil,
 		BootstrapRateLimitRPM: 1,
 	})
+	if err != nil {
+		t.Fatalf("NewAPIServer returned error: %v", err)
+	}
 
 	body := `{"name":"initial-admin-key"}`
 	for i, want := range []int{http.StatusCreated, http.StatusTooManyRequests} {

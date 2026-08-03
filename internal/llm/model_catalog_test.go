@@ -88,17 +88,19 @@ func TestCatalogRefreshFromRemote(t *testing.T) {
 		t.Errorf("InputPrice=%f, want 1.0", entry.InputPrice)
 	}
 
-	// Verify KnownModels was updated
-	meta, ok := KnownModels["test/new-model"]
+	// Verify knownModels was updated
+	meta, ok := LookupKnownModel("test/new-model")
 	if !ok {
-		t.Fatal("expected test/new-model in KnownModels")
+		t.Fatal("expected test/new-model in knownModels")
 	}
 	if meta.ContextLength != 256000 {
-		t.Errorf("KnownModels ContextLength=%d, want 256000", meta.ContextLength)
+		t.Errorf("knownModels ContextLength=%d, want 256000", meta.ContextLength)
 	}
 
 	// Cleanup
-	delete(KnownModels, "test/new-model")
+	knownModelsMu.Lock()
+	delete(knownModels, "test/new-model")
+	knownModelsMu.Unlock()
 }
 
 func TestCatalogFallbackToCache(t *testing.T) {
@@ -129,7 +131,9 @@ func TestCatalogFallbackToCache(t *testing.T) {
 	}
 
 	// Cleanup
-	delete(KnownModels, "test/new-model")
+	knownModelsMu.Lock()
+	delete(knownModels, "test/new-model")
+	knownModelsMu.Unlock()
 }
 
 func TestCatalogRefreshFailureDoesNotClear(t *testing.T) {
@@ -240,7 +244,9 @@ func TestCatalogSaveAndLoadCache(t *testing.T) {
 	}
 
 	// Cleanup
-	delete(KnownModels, "test/new-model")
+	knownModelsMu.Lock()
+	delete(knownModels, "test/new-model")
+	knownModelsMu.Unlock()
 }
 
 func TestCatalogStartStop(t *testing.T) {

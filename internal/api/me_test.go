@@ -118,7 +118,7 @@ func TestMeHandler_OK_WithStore(t *testing.T) {
 		RateLimitRPM: 500,
 		MaxSessions:  50,
 	}}
-	h := NewMeHandler(s)
+	h := NewMeHandler(s.Tenants())
 	ac := &auth.AuthContext{
 		TenantID:   "tenant-abc",
 		Identity:   "admin-1",
@@ -165,7 +165,7 @@ func TestMeHandler_MethodNotAllowed(t *testing.T) {
 func TestMeHandler_StoreTenantNotFound(t *testing.T) {
 	// Store returns not-found for any tenant lookup — should not panic.
 	s := &mockMeStore{tenant: nil}
-	h := NewMeHandler(s)
+	h := NewMeHandler(s.Tenants())
 	ac := &auth.AuthContext{
 		TenantID:   "unknown",
 		Identity:   "user-1",

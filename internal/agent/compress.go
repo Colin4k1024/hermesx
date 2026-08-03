@@ -232,20 +232,29 @@ func estimateConversationTokens(messages []llm.Message, systemPrompt string) int
 	return total
 }
 
+// ToolSpineEntry represents a tool call with its result status.
+type ToolSpineEntry struct {
+	ToolName  string
+	Success   bool
+	KeyResult string
+}
+
 // ExtractToolSpine extracts tool call/result pairs for structural preservation.
-func ExtractToolSpine(messages []llm.Message) []llm.Message {
-	var spine []llm.Message
+func ExtractToolSpine(messages []llm.Message) []ToolSpineEntry {
+	var spine []ToolSpineEntry
 	for i, m := range messages {
 		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
-			spine = append(spine, m)
-			// Find matching tool results.
+			// Find matching tool results for each call.
 			for _, tc := range m.ToolCalls {
+				entry := ToolSpineEntry{ToolName: tc.Function.Name}
 				for j := i + 1; j < len(messages); j++ {
 					if messages[j].Role == "tool" && messages[j].ToolCallID == tc.ID {
-						spine = append(spine, messages[j])
+						entry.Success = !strings.Contains(messages[j].Content, "error")
+						entry.KeyResult = truncate(messages[j].Content, 200)
 						break
 					}
 				}
+				spine = append(spine, entry)
 			}
 		}
 	}
@@ -254,25 +263,22 @@ func ExtractToolSpine(messages []llm.Message) []llm.Message {
 
 // FormatToolSpine converts a tool spine into a human-readable string
 // for embedding in the context summary.
-func FormatToolSpine(spine []llm.Message) string {
+func FormatToolSpine(spine []ToolSpineEntry) string {
 	if len(spine) == 0 {
 		return ""
 	}
 	var sb strings.Builder
-	sb.WriteString("### Tool Activity\n")
-	for _, m := range spine {
-		if m.Role == "assistant" {
-			for _, tc := range m.ToolCalls {
-				sb.WriteString(fmt.Sprintf("- Called `%s`", tc.Function.Name))
-				if len(tc.Function.Arguments) > 0 {
-					sb.WriteString(fmt.Sprintf(" with args: %s", truncate(tc.Function.Arguments, 100)))
-				}
-				sb.WriteString("\n")
-			}
-		} else if m.Role == "tool" {
-			preview := truncate(m.Content, 80)
-			sb.WriteString(fmt.Sprintf("  → Result: %s\n", preview))
+	sb.WriteString("### Tool Call History\n")
+	for _, entry := range spine {
+		status := "ok"
+		if !entry.Success {
+			status = "FAIL"
 		}
+		sb.WriteString(fmt.Sprintf("- %s [%s]", entry.ToolName, status))
+		if entry.KeyResult != "" {
+			sb.WriteString(fmt.Sprintf(": %s", truncate(entry.KeyResult, 100)))
+		}
+		sb.WriteString("\n")
 	}
 	return sb.String()
 }
