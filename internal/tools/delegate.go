@@ -129,10 +129,14 @@ func handleDelegateTask(ctx context.Context, args map[string]any, tctx *ToolCont
 		return `{"error":"No valid tasks found. Each task must have a 'goal' field."}`
 	}
 
+	// Use injected config from ToolContext; fall back to config.Load() for backward compat.
+	defaultModel := tctx.DefaultModel
 	cfg := config.Load()
-	defaultModel := cfg.Model
-	if cfg.Delegation.Model != "" {
-		defaultModel = cfg.Delegation.Model
+	if defaultModel == "" {
+		defaultModel = cfg.Model
+		if cfg.Delegation.Model != "" {
+			defaultModel = cfg.Delegation.Model
+		}
 	}
 
 	childDepth := currentDepth + 1

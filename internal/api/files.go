@@ -24,15 +24,17 @@ import (
 
 // FileHandler serves workspace file management endpoints.
 type FileHandler struct {
-	store     store.Store
+	files     store.FileEntryStore
 	objStore  objstore.ObjectStore
 	maxUpload int64 // max upload size in bytes (default 100MB)
 }
 
 // NewFileHandler creates a FileHandler for workspace file management.
-func NewFileHandler(s store.Store, os objstore.ObjectStore) *FileHandler {
+// Accepts store.FileEntryStore for narrow dependency; callers can pass
+// store.Store.FileEntries().
+func NewFileHandler(fe store.FileEntryStore, os objstore.ObjectStore) *FileHandler {
 	return &FileHandler{
-		store:     s,
+		files:     fe,
 		objStore:  os,
 		maxUpload: 100 * 1024 * 1024, // 100MB default
 	}
@@ -147,7 +149,7 @@ func (h *FileHandler) handleUpload(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt: time.Now().UTC(),
 	}
 
-	if err := h.store.FileEntries().Create(r.Context(), entry); err != nil {
+	if err := h.files.Create(r.Context(), entry); err != nil {
 		// Rollback MinIO object on PG failure
 		_ = h.objStore.DeleteObject(r.Context(), minioKey)
 		slog.Error("file upload: pg create failed", "error", err)
@@ -166,7 +168,7 @@ func (h *FileHandler) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := h.store.FileEntries().List(r.Context(), tenantID, userID)
+	entries, err := h.files.List(r.Context(), tenantID, userID)
 	if err != nil {
 		slog.Error("file list failed", "error", err)
 		writeJSONError(w, http.StatusInternalServerError, "failed to list files")
@@ -197,7 +199,7 @@ func (h *FileHandler) handleDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.store.FileEntries().Get(r.Context(), tenantID, userID, id)
+	entry, err := h.files.Get(r.Context(), tenantID, userID, id)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")
@@ -237,7 +239,7 @@ func (h *FileHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.store.FileEntries().Get(r.Context(), tenantID, userID, path)
+	entry, err := h.files.Get(r.Context(), tenantID, userID, path)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeJSONError(w, http.StatusNotFound, "file not found")
@@ -248,7 +250,7 @@ func (h *FileHandler) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Soft-delete in PG
-	if err := h.store.FileEntries().Delete(r.Context(), tenantID, userID, path); err != nil {
+	if err := h.files.Delete(r.Context(), tenantID, userID, path); err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "failed to delete file")
 		return
 	}
@@ -372,7 +374,7 @@ func (h *FileHandler) handlePromote(w http.ResponseWriter, r *http.Request) {
 		UpdatedAt:     time.Now().UTC(),
 	}
 
-	if err := h.store.FileEntries().Create(r.Context(), entry); err != nil {
+	if err := h.files.Create(r.Context(), entry); err != nil {
 		// Rollback MinIO object on PG failure
 		_ = h.objStore.DeleteObject(r.Context(), dstKey)
 		slog.Error("promote: pg create failed", "error", err)
@@ -413,7 +415,7 @@ func (h *FileHandler) requireAuth(w http.ResponseWriter, r *http.Request) (strin
 
 // checkQuota verifies that the user has not exceeded their storage quota.
 func (h *FileHandler) checkQuota(ctx context.Context, tenantID, userID string, additionalBytes int64) error {
-	currentBytes, err := h.store.FileEntries().GetUserStorageUsage(ctx, tenantID, userID)
+	currentBytes, err := h.files.GetUserStorageUsage(ctx, tenantID, userID)
 	if err != nil {
 		return fmt.Errorf("get storage usage: %w", err)
 	}

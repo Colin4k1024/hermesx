@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net/http"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/config"
 	"github.com/Colin4k1024/hermesx/internal/observability"
+	"github.com/Colin4k1024/hermesx/internal/utils"
 	openai "github.com/sashabaranov/go-openai"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -414,7 +414,7 @@ func newDefaultTransport(provider, baseURL, apiKey, model string, mode APIMode) 
 	default:
 		cfg := openai.DefaultConfig(apiKey)
 		cfg.BaseURL = baseURL
-		cfg.HTTPClient = &http.Client{Timeout: 300 * time.Second}
+		cfg.HTTPClient = utils.NewLLMHTTPClient()
 		return &openaiTransportImpl{
 			client: openai.NewClientWithConfig(cfg),
 			model:  model,

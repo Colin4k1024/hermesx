@@ -73,7 +73,7 @@ func NewCatalog(cfg CatalogConfig) *Catalog {
 }
 
 func (c *Catalog) seedFromKnownModels() {
-	for name, meta := range KnownModels {
+	for name, meta := range AllKnownModels() {
 		c.entries[name] = CatalogEntry{
 			Name:           name,
 			Provider:       providerFromName(name),
@@ -172,17 +172,17 @@ func (c *Catalog) applyManifest(m *CatalogManifest) {
 		c.entries[entry.Name] = entry
 	}
 
-	// Update the global KnownModels map so GetModelMeta benefits.
+	// Update the global known models map so GetModelMeta benefits (thread-safe).
 	for _, entry := range m.Models {
 		if entry.Name == "" {
 			continue
 		}
-		KnownModels[entry.Name] = ModelMeta{
+		SetModelMeta(entry.Name, ModelMeta{
 			ContextLength:  entry.ContextLength,
 			MaxOutput:      entry.MaxOutput,
 			SupportsTools:  entry.SupportsTools,
 			SupportsVision: entry.SupportsVision,
-		}
+		})
 	}
 }
 

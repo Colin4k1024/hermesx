@@ -207,7 +207,7 @@ func RunSetupWizard() {
 		cfg.APIMode = "anthropic"
 	}
 
-	if err := config.Save(cfg); err != nil {
+	if err := config.SaveFull(cfg); err != nil {
 		fmt.Printf("  Error saving config.yaml: %v\n", err)
 	} else {
 		fmt.Printf("  Saved config.yaml\n")

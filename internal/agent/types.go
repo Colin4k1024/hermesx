@@ -83,6 +83,7 @@ func WithCallbacks(cb *StreamCallbacks) AgentOption {
 // SetCallbacks replaces the streaming callbacks after construction.
 func (a *AIAgent) SetCallbacks(cb *StreamCallbacks) {
 	a.callbacks = cb
+	a.streamHandler.SetCallbacks(cb)
 }
 
 // WithEnabledToolsets sets the enabled toolsets.

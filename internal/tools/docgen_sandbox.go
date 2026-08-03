@@ -84,7 +84,7 @@ func executePythonForFileLocal(ctx context.Context, script string, outputPath st
 
 	if err := cmd.Run(); err != nil {
 		if execCtx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("python execution timed out after %v", cfg.Timeout)
+			return nil, fmt.Errorf("python execution timed out after %v: %w", cfg.Timeout, ctx.Err())
 		}
 		return nil, fmt.Errorf("python execution failed: %w (stderr: %s)", err, stderrBuf.String())
 	}
@@ -161,7 +161,7 @@ sys.exit(proc.returncode)
 
 	if err := cmd.Run(); err != nil {
 		if execCtx.Err() == context.DeadlineExceeded {
-			return nil, fmt.Errorf("docker execution timed out after %v", cfg.Timeout)
+			return nil, fmt.Errorf("docker execution timed out after %v: %w", cfg.Timeout, execCtx.Err())
 		}
 		return nil, fmt.Errorf("docker execution failed: %w (stdout: %s, stderr: %s)", err, stdoutBuf.String(), stderrBuf.String())
 	}

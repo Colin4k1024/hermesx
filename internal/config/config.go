@@ -287,8 +287,26 @@ func InvalidateConfig() {
 	configPtr.Store(nil)
 }
 
-// Save writes the current configuration to disk.
+// Save writes the current configuration to disk with sensitive fields redacted.
+// IMPORTANT: After Save(), Load() will read masked values (e.g. "sk-a****xyz")
+// instead of real credentials. Use SaveFull() when credentials must persist
+// (e.g. during initial setup). This function is intended for non-credential
+// config changes like plugin/toolset settings.
 func Save(cfg *Config) error {
+	redacted := *cfg
+	redacted.APIKey = maskSecret(redacted.APIKey)
+	redacted.ObjStore.AccessKey = maskSecret(redacted.ObjStore.AccessKey)
+	redacted.ObjStore.SecretKey = maskSecret(redacted.ObjStore.SecretKey)
+	return saveConfig(&redacted)
+}
+
+// SaveFull writes the full configuration to disk without redacting sensitive fields.
+// Use only in CLI setup flows where the user explicitly intends to persist credentials.
+func SaveFull(cfg *Config) error {
+	return saveConfig(cfg)
+}
+
+func saveConfig(cfg *Config) error {
 	configPath := filepath.Join(HermesHome(), "config.yaml")
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
@@ -300,6 +318,18 @@ func Save(cfg *Config) error {
 		return err
 	}
 	return os.Rename(tmpPath, configPath)
+}
+
+// maskSecret replaces a secret string with a masked version showing only
+// the first and last 4 characters. Returns empty string for empty input.
+func maskSecret(s string) string {
+	if s == "" {
+		return ""
+	}
+	if len(s) <= 8 {
+		return "****"
+	}
+	return s[:4] + "****" + s[len(s)-4:]
 }
 
 func mergeConfig(dst, src *Config) {

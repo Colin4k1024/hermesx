@@ -1,5 +1,7 @@
 package llm
 
+import "sync"
+
 // ModelMeta holds metadata for a known model.
 type ModelMeta struct {
 	ContextLength  int
@@ -8,8 +10,12 @@ type ModelMeta struct {
 	SupportsVision bool
 }
 
-// KnownModels maps model identifiers to their metadata.
-var KnownModels = map[string]ModelMeta{
+// knownModelsMu protects concurrent access to knownModels.
+var knownModelsMu sync.RWMutex
+
+// knownModels maps model identifiers to their metadata.
+// Use GetModelMeta / SetModelMeta for thread-safe access.
+var knownModels = map[string]ModelMeta{
 	"anthropic/claude-opus-4-20250514":   {ContextLength: 200000, MaxOutput: 32000, SupportsTools: true, SupportsVision: true},
 	"anthropic/claude-sonnet-4-20250514": {ContextLength: 200000, MaxOutput: 16000, SupportsTools: true, SupportsVision: true},
 	"anthropic/claude-haiku-4-20250414":  {ContextLength: 200000, MaxOutput: 8192, SupportsTools: true, SupportsVision: true},
@@ -32,6 +38,32 @@ var KnownModels = map[string]ModelMeta{
 
 	// Codex / Responses API
 	"openai/codex-mini": {ContextLength: 200000, MaxOutput: 100000, SupportsTools: true, SupportsVision: false},
+}
+
+// LookupKnownModel returns metadata for a known model from the hardcoded table. Thread-safe.
+func LookupKnownModel(model string) (ModelMeta, bool) {
+	knownModelsMu.RLock()
+	defer knownModelsMu.RUnlock()
+	meta, ok := knownModels[model]
+	return meta, ok
+}
+
+// SetModelMeta adds or updates a model's metadata (e.g. during catalog hot-reload). Thread-safe.
+func SetModelMeta(model string, meta ModelMeta) {
+	knownModelsMu.Lock()
+	defer knownModelsMu.Unlock()
+	knownModels[model] = meta
+}
+
+// AllKnownModels returns a snapshot of all known models. Thread-safe.
+func AllKnownModels() map[string]ModelMeta {
+	knownModelsMu.RLock()
+	defer knownModelsMu.RUnlock()
+	snapshot := make(map[string]ModelMeta, len(knownModels))
+	for k, v := range knownModels {
+		snapshot[k] = v
+	}
+	return snapshot
 }
 
 // EstimateTokens gives a rough token count for a string.

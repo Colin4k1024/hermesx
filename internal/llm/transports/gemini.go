@@ -10,9 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/utils"
 )
 
 // GeminiTransport implements llm.Transport for Google Gemini (API key only).
@@ -37,7 +37,7 @@ func NewGeminiTransport(model, apiKey string) *GeminiTransport {
 		apiKey:  apiKey,
 		model:   geminiModel,
 		baseURL: "https://generativelanguage.googleapis.com/v1beta",
-		client:  &http.Client{Timeout: 300 * time.Second},
+		client:  utils.NewLLMHTTPClient(),
 	}
 }
 

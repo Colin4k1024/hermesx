@@ -9,7 +9,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/utils"
 )
 
 // PromptCacheOpts controls Anthropic prompt caching behavior.
@@ -43,7 +44,7 @@ func NewAnthropicClient(model, baseURL, apiKey, provider string) *AnthropicClien
 	baseURL = strings.TrimSuffix(baseURL, "/v1")
 
 	return &AnthropicClient{
-		httpClient: &http.Client{Timeout: 300 * time.Second},
+		httpClient: utils.NewLLMHTTPClient(),
 		cacheOpts:  DefaultPromptCacheOpts(),
 		model:      model,
 		provider:   provider,

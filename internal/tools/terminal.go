@@ -503,6 +503,21 @@ func toJSON(v any) string {
 	return string(b)
 }
 
+// CleanupAllBackgroundProcesses terminates all running background processes
+// tracked by the legacy processRegistry. Called during graceful shutdown.
+func CleanupAllBackgroundProcesses() {
+	processMu.Lock()
+	defer processMu.Unlock()
+
+	for id, p := range processRegistry {
+		if !p.Done && p.Cmd != nil && p.Cmd.Process != nil {
+			_ = p.Cmd.Process.Kill()
+			p.Done = true
+			slog.Debug("Killed background process on shutdown", "id", id)
+		}
+	}
+}
+
 // fileExists checks if a file or directory exists
 func fileExists(path string) bool {
 	_, err := os.Stat(path)

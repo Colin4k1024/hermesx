@@ -27,6 +27,7 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/observability"
 	"github.com/Colin4k1024/hermesx/internal/scheduler"
 	"github.com/Colin4k1024/hermesx/internal/secrets"
+	"github.com/Colin4k1024/hermesx/internal/tools"
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/store"
 	_ "github.com/Colin4k1024/hermesx/internal/store/mysql"
@@ -354,7 +355,10 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		ChannelSecrets:        channelSecrets,
 	}
 
-	saasServer := api.NewAPIServer(serverCfg)
+	saasServer, err := api.NewAPIServer(serverCfg)
+	if err != nil {
+		return fmt.Errorf("init API server: %w", err)
+	}
 	if evolutionImprover != nil {
 		saasServer.AgentChat.SetEvolutionImprover(evolutionImprover)
 	}
@@ -481,6 +485,10 @@ func runSaaSAPI(cmd *cobra.Command, args []string) error {
 		}
 		// 4a. Cancel background sync.
 		syncCancel()
+		// 4b. Shut down MCP server connections and background goroutines.
+		tools.ShutdownAllMCP()
+		// 4c. Kill all background terminal processes.
+		tools.CleanupAllBackgroundProcesses()
 		// 5. Close evolution store (flushes SQLite WAL / MySQL pool) (B3).
 		if evolutionStore != nil {
 			_ = evolutionStore.Close()

@@ -10,11 +10,13 @@ import (
 
 // MeHandler returns the current authenticated identity and tenant info.
 type MeHandler struct {
-	store store.Store
+	tenants store.TenantStore
 }
 
-func NewMeHandler(s store.Store) *MeHandler {
-	return &MeHandler{store: s}
+// NewMeHandler creates a MeHandler. Accepts store.TenantStore for narrow
+// dependency; callers can pass store.Store.Tenants().
+func NewMeHandler(ts store.TenantStore) *MeHandler {
+	return &MeHandler{tenants: ts}
 }
 
 // meResponse mirrors the fields needed by the SaaS admin SPA.
@@ -48,8 +50,8 @@ func (h *MeHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Enrich with tenant config if available.
-	if h.store != nil && ac.TenantID != "" {
-		t, err := h.store.Tenants().Get(r.Context(), ac.TenantID)
+	if h.tenants != nil && ac.TenantID != "" {
+		t, err := h.tenants.Get(r.Context(), ac.TenantID)
 		if err == nil && t != nil {
 			resp.Plan = t.Plan
 			resp.RateLimitRPM = t.RateLimitRPM

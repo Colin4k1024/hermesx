@@ -118,7 +118,9 @@ func runSinglePrompt(prompt string, cfg BatchConfig) BatchResult {
 	}
 	defer runtime.Close()
 
-	convResult, err := runtime.RunConversation(context.Background(), prompt, nil)
+	llmCtx, llmCancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer llmCancel()
+	convResult, err := runtime.RunConversation(llmCtx, prompt, nil)
 	if err != nil {
 		result.Error = fmt.Sprintf("conversation: %v", err)
 		result.Duration = time.Since(start)

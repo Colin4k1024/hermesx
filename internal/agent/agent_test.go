@@ -96,56 +96,55 @@ func TestStreamCallbacksFiring(t *testing.T) {
 	var toolStartReceived string
 	var stepReceived int
 
-	a := &AIAgent{
-		callbacks: &StreamCallbacks{
-			OnStreamDelta: func(text string) { deltaReceived = text },
-			OnToolStart:   func(name string) { toolStartReceived = name },
-			OnStep:        func(i int, _ []string) { stepReceived = i },
-		},
+	cb := &StreamCallbacks{
+		OnStreamDelta: func(text string) { deltaReceived = text },
+		OnToolStart:   func(name string) { toolStartReceived = name },
+		OnStep:        func(i int, _ []string) { stepReceived = i },
 	}
+	sh := NewStreamHandler(cb)
 
-	a.fireStreamDelta("hello")
+	sh.FireStreamDelta("hello")
 	if deltaReceived != "hello" {
 		t.Errorf("Expected 'hello', got '%s'", deltaReceived)
 	}
 
-	a.fireToolStart("terminal")
+	sh.FireToolStart("terminal")
 	if toolStartReceived != "terminal" {
 		t.Errorf("Expected 'terminal', got '%s'", toolStartReceived)
 	}
 
-	a.fireStep(5, nil)
+	sh.FireStep(5, nil)
 	if stepReceived != 5 {
 		t.Errorf("Expected step 5, got %d", stepReceived)
 	}
 }
 
 func TestStreamCallbacksNil(t *testing.T) {
-	a := &AIAgent{}
+	sh := NewStreamHandler(nil)
 
 	// Should not panic with nil callbacks
-	a.fireStreamDelta("test")
-	a.fireReasoning("test")
-	a.fireToolProgress("test", "args")
-	a.fireToolStart("test")
-	a.fireToolComplete("test")
-	a.fireStep(1, nil)
-	a.fireStatus("test")
+	sh.FireStreamDelta("test")
+	sh.FireReasoning("test")
+	sh.FireToolProgress("test", "args")
+	sh.FireToolStart("test")
+	sh.FireToolComplete("test")
+	sh.FireStep(1, nil)
+	sh.FireStatus("test")
 }
 
 func TestHasStreamConsumers(t *testing.T) {
-	a := &AIAgent{}
-	if a.hasStreamConsumers() {
-		t.Error("Expected false with nil callbacks")
+	sh := NewStreamHandler(nil)
+	if sh.HasStreamConsumers() {
+		t.Error("Expected false with nil handler")
 	}
 
-	a.callbacks = &StreamCallbacks{}
-	if a.hasStreamConsumers() {
+	sh = NewStreamHandler(&StreamCallbacks{})
+	if sh.HasStreamConsumers() {
 		t.Error("Expected false with empty callbacks")
 	}
 
-	a.callbacks = &StreamCallbacks{OnStreamDelta: func(s string) {}}
-	if !a.hasStreamConsumers() {
+	sh = NewStreamHandler(&StreamCallbacks{OnStreamDelta: func(s string) {}})
+	if !sh.HasStreamConsumers() {
 		t.Error("Expected true with OnStreamDelta set")
 	}
 }
@@ -1090,8 +1089,8 @@ func TestCredentialPool_LoadFromConfig_WithRouting(t *testing.T) {
 
 func TestFireReasoning_WithCallback(t *testing.T) {
 	var received string
-	a := &AIAgent{callbacks: &StreamCallbacks{OnReasoning: func(s string) { received = s }}}
-	a.fireReasoning("thought")
+	sh := NewStreamHandler(&StreamCallbacks{OnReasoning: func(s string) { received = s }})
+	sh.FireReasoning("thought")
 	if received != "thought" {
 		t.Errorf("Expected 'thought', got '%s'", received)
 	}
@@ -1099,8 +1098,8 @@ func TestFireReasoning_WithCallback(t *testing.T) {
 
 func TestFireToolComplete_WithCallback(t *testing.T) {
 	var received string
-	a := &AIAgent{callbacks: &StreamCallbacks{OnToolComplete: func(s string) { received = s }}}
-	a.fireToolComplete("terminal")
+	sh := NewStreamHandler(&StreamCallbacks{OnToolComplete: func(s string) { received = s }})
+	sh.FireToolComplete("terminal")
 	if received != "terminal" {
 		t.Errorf("Expected 'terminal', got '%s'", received)
 	}
@@ -1108,8 +1107,8 @@ func TestFireToolComplete_WithCallback(t *testing.T) {
 
 func TestFireStatus_WithCallback(t *testing.T) {
 	var received string
-	a := &AIAgent{callbacks: &StreamCallbacks{OnStatus: func(s string) { received = s }}}
-	a.fireStatus("thinking...")
+	sh := NewStreamHandler(&StreamCallbacks{OnStatus: func(s string) { received = s }})
+	sh.FireStatus("thinking...")
 	if received != "thinking..." {
 		t.Errorf("Expected 'thinking...', got '%s'", received)
 	}
@@ -1117,8 +1116,8 @@ func TestFireStatus_WithCallback(t *testing.T) {
 
 func TestFireToolProgress_WithCallback(t *testing.T) {
 	var receivedName, receivedArgs string
-	a := &AIAgent{callbacks: &StreamCallbacks{OnToolProgress: func(n, a string) { receivedName = n; receivedArgs = a }}}
-	a.fireToolProgress("terminal", "ls -la")
+	sh := NewStreamHandler(&StreamCallbacks{OnToolProgress: func(n, a string) { receivedName = n; receivedArgs = a }})
+	sh.FireToolProgress("terminal", "ls -la")
 	if receivedName != "terminal" {
 		t.Errorf("Expected 'terminal', got '%s'", receivedName)
 	}

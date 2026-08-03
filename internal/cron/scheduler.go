@@ -222,20 +222,14 @@ func (s *Scheduler) executeJob(job *Job) {
 }
 
 func (s *Scheduler) runJob(job *Job) (success bool, output, response, errMsg string) {
-	// Switch to job-specific working directory if configured.
+	// Validate job working directory if configured (no longer using os.Chdir
+	// which is process-global and unsafe with concurrent goroutines).
 	if job.Workdir != "" {
-		origDir, err := os.Getwd()
-		if err != nil {
-			errMsg = fmt.Sprintf("failed to get working directory: %v", err)
+		if info, err := os.Stat(job.Workdir); err != nil || !info.IsDir() {
+			errMsg = fmt.Sprintf("workdir %q does not exist or is not a directory: %v", job.Workdir, err)
 			output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
 			return false, output, "", errMsg
 		}
-		if err := os.Chdir(job.Workdir); err != nil {
-			errMsg = fmt.Sprintf("failed to chdir to %s: %v", job.Workdir, err)
-			output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
-			return false, output, "", errMsg
-		}
-		defer os.Chdir(origDir)
 	}
 
 	// Build the prompt (with optional skill loading).
@@ -258,8 +252,10 @@ func (s *Scheduler) runJob(job *Job) (success bool, output, response, errMsg str
 	}
 	defer runtime.Close()
 
-	// Run the agent.
-	result, err := runtime.Chat(context.Background(), prompt)
+	// Run the agent with timeout protection.
+	llmCtx, llmCancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer llmCancel()
+	result, err := runtime.Chat(llmCtx, prompt)
 	if err != nil {
 		errMsg = fmt.Sprintf("agent error: %v", err)
 		output = fmt.Sprintf("# Cron Job: %s (FAILED)\n\n## Error\n\n%s", job.Name, errMsg)
@@ -288,6 +284,16 @@ func (s *Scheduler) buildJobPrompt(job *Job) string {
 		`final response and the system handles the rest. ` +
 		`SILENT: If there is genuinely nothing new to report, respond ` +
 		`with exactly "[SILENT]" (nothing else) to suppress delivery.]` + "\n\n"
+
+	// Inject workdir guidance so the agent uses absolute paths.
+	if job.Workdir != "" {
+		cronHint += fmt.Sprintf(
+			`[SYSTEM: This job's working directory is %q. When using terminal commands, `+
+				`always specify the working_directory parameter as %q. `+
+				`When reading or writing files, use absolute paths rooted at %q.]`+"\n\n",
+			job.Workdir, job.Workdir, job.Workdir,
+		)
+	}
 
 	prompt = cronHint + prompt
 

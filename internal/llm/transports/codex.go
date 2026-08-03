@@ -10,9 +10,9 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/llm"
+	"github.com/Colin4k1024/hermesx/internal/utils"
 )
 
 // CodexTransport implements llm.Transport for the OpenAI Responses API (/v1/responses).
@@ -37,7 +37,7 @@ func NewCodexTransport(model, baseURL, apiKey string) *CodexTransport {
 		apiKey:  apiKey,
 		model:   model,
 		baseURL: baseURL,
-		client:  &http.Client{Timeout: 300 * time.Second},
+		client:  utils.NewLLMHTTPClient(),
 	}
 }
 

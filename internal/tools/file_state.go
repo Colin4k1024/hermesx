@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/tenant"
 )
 
 // FileStateCoordinator tracks file modifications across parallel agents
@@ -25,6 +27,12 @@ var globalFileState = &FileStateCoordinator{states: make(map[string]*fileState)}
 
 // GlobalFileState returns the global coordinator.
 func GlobalFileState() *FileStateCoordinator { return globalFileState }
+
+// compositeKey builds a tenant-scoped file state key.
+// Delegates to tenant.CompositeKey for shared logic.
+func fileStateCompositeKey(tenantID, sessionID string) string {
+	return tenant.CompositeKey(tenantID, sessionID)
+}
 
 // MarkModified records that an agent modified a file.
 func (c *FileStateCoordinator) MarkModified(path, agentID string) {
@@ -91,12 +99,18 @@ func handleFileState(ctx context.Context, args map[string]any, tctx *ToolContext
 	action, _ := args["action"].(string)
 	path, _ := args["path"].(string)
 
+	// Use tenant-scoped session key to prevent cross-tenant conflict false positives.
+	sessionID := ""
+	if tctx != nil {
+		sessionID = fileStateCompositeKey(tctx.TenantID, tctx.SessionID)
+	}
+
 	switch action {
 	case "check":
-		conflict, owner := globalFileState.CheckConflict(path, tctx.SessionID)
+		conflict, owner := globalFileState.CheckConflict(path, sessionID)
 		return toJSON(map[string]any{"conflict": conflict, "owner": owner, "state": globalFileState.GetState(path)})
 	case "mark":
-		globalFileState.MarkModified(path, tctx.SessionID)
+		globalFileState.MarkModified(path, sessionID)
 		return toJSON(map[string]any{"status": "marked"})
 	default:
 		return toJSON(map[string]any{"error": "unknown action: " + action})

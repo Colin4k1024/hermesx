@@ -2,7 +2,6 @@ package agent
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -21,7 +20,6 @@ import (
 	"github.com/Colin4k1024/hermesx/internal/skills"
 	"github.com/Colin4k1024/hermesx/internal/state"
 	"github.com/Colin4k1024/hermesx/internal/tools"
-	"github.com/Colin4k1024/hermesx/internal/toolsets"
 	"github.com/google/uuid"
 )
 
@@ -92,7 +90,8 @@ type AIAgent struct {
 	auxiliaryClient *AuxiliaryClient
 	sessionDB       *state.SessionDB
 	budget          *IterationBudget
-	callbacks       *StreamCallbacks
+	callbacks       *StreamCallbacks   // kept for backward-compat access via Callbacks()
+	streamHandler   *StreamHandler     // owns all fire* dispatch logic
 	toolDefs        []llm.ToolDef
 	validTools      map[string]bool
 	systemPrompt    string
@@ -113,6 +112,7 @@ type AIAgent struct {
 
 	// Compression cooldown
 	lastCompressionFailure time.Time
+	contextManager         *ContextManager
 
 	// summaryCompleter overrides the LLM client used for context
 	// compression summaries.  Nil means use the main client.
@@ -162,6 +162,9 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 		opt(a)
 	}
 
+	// Initialize stream handler from callbacks (may have been set by options).
+	a.streamHandler = NewStreamHandler(a.callbacks)
+
 	// Build the shared egress-aware transport once (M-1: avoid per-call pool).
 	egressPolicy, _, egressErr := egress.NewAllowlistPolicyFromEnv(nil, nil)
 	if egressErr != nil {
@@ -203,6 +206,16 @@ func New(opts ...AgentOption) (*AIAgent, error) {
 	if a.auxiliaryClient != nil && a.auxiliaryClient.SummaryClient() != nil {
 		a.summaryCompleter = a.auxiliaryClient.SummaryClient()
 	}
+
+	// Initialize context manager for compression.
+	a.contextManager = NewContextManager(ContextManagerConfig{
+		CompressionCfg:   a.compressionCfg,
+		Model:            a.model,
+		SystemPrompt:     a.systemPrompt,
+		Completer:        a.client,
+		SummaryCompleter: a.summaryCompleter,
+		Stream:           a.streamHandler,
+	})
 
 	// Open session DB
 	if a.persistSession {
@@ -296,7 +309,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 	emptyRetryCount := 0
 	for a.apiCallCount < a.maxIterations {
 		if !a.budget.Consume() {
-			a.fireStatus("Iteration budget exhausted")
+			a.streamHandler.FireStatus("Iteration budget exhausted")
 			break
 		}
 
@@ -319,7 +332,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 		}
 
 		// Fire step callback
-		a.fireStep(a.apiCallCount, nil)
+		a.streamHandler.FireStep(a.apiCallCount, nil)
 
 		// Build API request
 		apiMessages := a.buildAPIMessages(messages)
@@ -327,7 +340,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 		req := llm.ChatRequest{
 			Messages:       apiMessages,
 			Tools:          a.toolDefs,
-			Stream:         a.hasStreamConsumers(),
+			Stream:         a.streamHandler.HasStreamConsumers(),
 			ReasoningLevel: a.reasoningLevel,
 		}
 
@@ -350,7 +363,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 				if a.safetyInterceptor.IsModeEnforce(ctx, a.tenantID) {
 					// B-5: fail-closed under ModeEnforce — safety unavailable must block.
 					blockErr := fmt.Errorf("safety enforce: CheckInput unavailable: %w", inputErr)
-					a.fireError(blockErr)
+					a.streamHandler.FireError(blockErr)
 					a.interruptRequested.Store(true)
 					result.Interrupted = true
 					break
@@ -359,7 +372,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 			} else if inputResult != nil && inputResult.Action == safety.ActionBlock {
 				slog.Warn("safety: input blocked", "reason", inputResult.Reason, "session", a.sessionID)
 				blockErr := fmt.Errorf("safety block: %s", inputResult.Reason)
-				a.fireError(blockErr)
+				a.streamHandler.FireError(blockErr)
 				a.interruptRequested.Store(true)
 				result.Interrupted = true
 				break
@@ -384,7 +397,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 
 		if err != nil {
 			classified := ClassifyError(err, 0, a.provider, a.model)
-			if classified != nil && classified.ShouldCompress && !a.isInCompressionCooldown() {
+			if classified != nil && classified.ShouldCompress && !a.contextManager.isInCompressionCooldown() {
 				slog.Warn("Context overflow detected, compressing and retrying", "session", a.sessionID)
 				if compressed, compErr := a.CompressContext(ctx, messages); compErr == nil {
 					messages = compressed
@@ -461,7 +474,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 				if a.safetyInterceptor.IsModeEnforce(ctx, a.tenantID) {
 					// B-5: fail-closed under ModeEnforce — safety unavailable must block.
 					blockErr := fmt.Errorf("safety enforce: CheckOutput unavailable: %w", outputErr)
-					a.fireError(blockErr)
+					a.streamHandler.FireError(blockErr)
 					a.interruptRequested.Store(true)
 					result.Interrupted = true
 					break
@@ -470,7 +483,7 @@ func (a *AIAgent) RunConversationWithContext(ctx context.Context, userMessage st
 			} else if outputResult != nil && outputResult.Action == safety.ActionBlock {
 				slog.Warn("safety: output blocked", "reason", outputResult.Reason, "session", a.sessionID)
 				blockErr := fmt.Errorf("safety block: %s", outputResult.Reason)
-				a.fireError(blockErr)
+				a.streamHandler.FireError(blockErr)
 				a.interruptRequested.Store(true)
 				result.Interrupted = true
 				break
@@ -702,356 +715,4 @@ func (a *AIAgent) Close() {
 	if a.sessionDB != nil {
 		a.sessionDB.Close()
 	}
-}
-
-// executeToolCalls runs tool calls, parallelizing when safe.
-// Uses smart path-based overlap detection for file-scoped tools.
-func (a *AIAgent) executeToolCalls(ctx context.Context, toolCalls []llm.ToolCall) []llm.Message {
-	if len(toolCalls) == 1 || !ShouldParallelizeToolBatch(toolCalls) {
-		// Sequential execution
-		var results []llm.Message
-		for _, tc := range toolCalls {
-			if a.isInterrupted() {
-				break
-			}
-			results = append(results, a.executeSingleTool(ctx, tc))
-		}
-		return results
-	}
-
-	// Parallel execution with WaitGroup + timeout
-	type indexedResult struct {
-		index int
-		msg   llm.Message
-	}
-
-	parallelCtx, cancel := context.WithTimeout(ctx, 5*time.Minute)
-	defer cancel()
-
-	var wg sync.WaitGroup
-	resultCh := make(chan indexedResult, len(toolCalls))
-	sem := make(chan struct{}, MaxParallelWorkers)
-
-	for i, tc := range toolCalls {
-		wg.Add(1)
-		go func(idx int, call llm.ToolCall) {
-			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					slog.Error("Tool panicked", "tool", call.Function.Name, "panic", r)
-					resultCh <- indexedResult{index: idx, msg: llm.Message{
-						Role:       "tool",
-						Content:    fmt.Sprintf(`{"error":"tool panicked: %v"}`, r),
-						ToolCallID: call.ID,
-						ToolName:   call.Function.Name,
-					}}
-				}
-			}()
-			select {
-			case sem <- struct{}{}:
-				defer func() { <-sem }()
-				msg := a.executeSingleTool(parallelCtx, call)
-				resultCh <- indexedResult{index: idx, msg: msg}
-			case <-parallelCtx.Done():
-				resultCh <- indexedResult{index: idx, msg: llm.Message{
-					Role:       "tool",
-					Content:    `{"error":"tool execution timed out"}`,
-					ToolCallID: call.ID,
-					ToolName:   call.Function.Name,
-				}}
-			}
-		}(i, tc)
-	}
-
-	go func() { wg.Wait(); close(resultCh) }()
-
-	collected := make([]llm.Message, len(toolCalls))
-	for ir := range resultCh {
-		collected[ir.index] = ir.msg
-	}
-
-	return collected
-}
-
-func (a *AIAgent) executeSingleTool(ctx context.Context, tc llm.ToolCall) llm.Message {
-	toolName := tc.Function.Name
-	a.fireToolStart(toolName)
-	a.fireToolProgress(toolName, truncate(tc.Function.Arguments, 100))
-
-	args, err := llm.ParseToolArgs(tc.Function.Arguments)
-	if err != nil {
-		args = map[string]any{}
-		slog.Warn("Failed to parse tool args", "tool", toolName, "error", err)
-	}
-
-	// Attach tenant ID to context so CheckRedirect and DialContext can enforce
-	// egress policy on redirect targets without a separate parameter.
-	ctx = egress.WithTenant(ctx, a.tenantID)
-
-	// Look up the tool entry to read MaxRedirects before building the client.
-	entry := tools.Registry().Lookup(toolName)
-	maxRedirects := 0
-	if entry != nil {
-		maxRedirects = entry.MaxRedirects
-	}
-
-	// Build a per-call http.Client backed by the shared SecureTransport (M-1:
-	// reuse the agent-level transport to avoid creating a new idle-pool per call).
-	// AllowAllPolicy transition: per-tenant allowlists wired in v2.4.0 (ADR).
-	httpClient := &http.Client{
-		Transport: a.sharedTransport,
-		Timeout:   30 * time.Second,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			if maxRedirects == 0 {
-				return http.ErrUseLastResponse
-			}
-			// Reject redirects whose Location target is a blocked IP literal
-			// (loopback, private, CGNAT, link-local) before the dial happens.
-			if err := egress.ValidateRedirectTarget(req); err != nil {
-				return err
-			}
-			if len(via) >= maxRedirects {
-				// M-2: limit exceeded must return ErrNotAllowed, not ErrUseLastResponse.
-				return egress.ErrNotAllowed
-			}
-			return nil
-		},
-	}
-
-	toolCtx := &tools.ToolContext{
-		SessionID:      a.sessionID,
-		ToolCallID:     tc.ID,
-		Platform:       a.platform,
-		TenantID:       a.tenantID,
-		UserID:         a.userID,
-		MemoryProvider: a.memoryProvider,
-		HTTPClient:     httpClient,
-		SecretResolver: a.secretResolver, // B-1: inject resolver so tools skip os.Getenv
-		Interceptor:    tools.WrapSafetyInterceptor(a.safetyInterceptor),
-	}
-
-	toolResult := tools.Registry().Dispatch(ctx, toolName, args, toolCtx)
-
-	// Redact secrets before the result enters conversation history
-	toolResult = RedactSecrets(toolResult)
-
-	// Save oversized results to disk
-	if IsOversizedResult(toolResult) {
-		slog.Info("Tool result oversized, saving to file", "tool", toolName, "chars", len(toolResult))
-		toolResult = SaveOversizedResult(toolName, toolResult)
-	}
-
-	a.fireToolComplete(toolName)
-
-	return llm.Message{
-		Role:       "tool",
-		Content:    toolResult,
-		ToolCallID: tc.ID,
-		ToolName:   toolName,
-	}
-}
-
-func (a *AIAgent) buildAPIMessages(messages []llm.Message) []llm.Message {
-	apiMessages := make([]llm.Message, 0, len(messages)+1)
-
-	// System prompt
-	apiMessages = append(apiMessages, llm.Message{
-		Role:    "system",
-		Content: a.systemPrompt,
-	})
-
-	// Conversation messages
-	apiMessages = append(apiMessages, messages...)
-
-	return apiMessages
-}
-
-func (a *AIAgent) buildToolDefs(cfg *config.Config) {
-	// Resolve which tools to enable
-	toolNames := resolveTools(a.enabledToolsets, a.disabledToolsets)
-	a.validTools = toolNames
-
-	// Get OpenAI-format definitions
-	defs := tools.Registry().GetDefinitions(toolNames, a.quietMode)
-
-	a.toolDefs = make([]llm.ToolDef, 0, len(defs))
-	for _, d := range defs {
-		fnDef, ok := d["function"].(map[string]any)
-		if !ok {
-			continue
-		}
-		name, _ := fnDef["name"].(string)
-		desc, _ := fnDef["description"].(string)
-		var params map[string]any
-		if p, ok := fnDef["parameters"]; ok {
-			if pm, ok := p.(map[string]any); ok {
-				params = pm
-			} else {
-				b, _ := json.Marshal(p)
-				json.Unmarshal(b, &params)
-			}
-		}
-		a.toolDefs = append(a.toolDefs, llm.ToolDef{
-			Name:        name,
-			Description: desc,
-			Parameters:  params,
-		})
-	}
-}
-
-func (a *AIAgent) streamingAPICall(ctx context.Context, req llm.ChatRequest) (*llm.ChatResponse, error) {
-	deltaCh, errCh := a.client.CreateChatCompletionStream(ctx, req)
-	return a.consumeStream(deltaCh, errCh)
-}
-
-// consumeStream drains a streaming delta channel and collects the response.
-func (a *AIAgent) consumeStream(deltaCh <-chan llm.StreamDelta, errCh <-chan error) (*llm.ChatResponse, error) {
-	resp := &llm.ChatResponse{}
-	var contentBuilder []byte
-
-	for delta := range deltaCh {
-		if delta.Done {
-			resp.ToolCalls = delta.ToolCalls
-			break
-		}
-
-		if delta.Content != "" {
-			contentBuilder = append(contentBuilder, delta.Content...)
-			a.fireStreamDelta(delta.Content)
-		}
-
-		if delta.Reasoning != "" {
-			a.fireReasoning(delta.Reasoning)
-			resp.Reasoning += delta.Reasoning
-		}
-	}
-
-	// Block until the stream wrapper closes errCh (always happens after deltaCh drains).
-	if err := <-errCh; err != nil {
-		return nil, err
-	}
-
-	resp.Content = string(contentBuilder)
-
-	if len(resp.ToolCalls) > 0 {
-		resp.FinishReason = "tool_calls"
-	} else {
-		resp.FinishReason = "stop"
-	}
-
-	return resp, nil
-}
-
-func resolveTools(enabled, disabled []string) map[string]bool {
-	var toolList []string
-
-	if len(enabled) > 0 {
-		toolList = toolsets.ResolveMultipleToolsets(enabled)
-	} else {
-		// Default: use hermes-cli toolset (which equals CoreTools)
-		toolList = toolsets.ResolveToolset("hermesx-cli")
-	}
-
-	result := make(map[string]bool, len(toolList))
-	for _, t := range toolList {
-		result[t] = true
-	}
-
-	// Remove disabled toolset tools
-	if len(disabled) > 0 {
-		disabledTools := toolsets.ResolveMultipleToolsets(disabled)
-		for _, t := range disabledTools {
-			delete(result, t)
-		}
-	}
-
-	return result
-}
-
-// ResumeSession loads history from a previous session and resumes it.
-func (a *AIAgent) ResumeSession(sessionID string) error {
-	a.resumeSessionID = sessionID
-	return a.loadResumedSession()
-}
-
-// loadResumedSession loads messages from the session DB for a resumed session.
-func (a *AIAgent) loadResumedSession() error {
-	if a.sessionDB == nil {
-		return fmt.Errorf("session DB not available")
-	}
-	if a.resumeSessionID == "" {
-		return nil
-	}
-
-	// Verify the session exists
-	sess, err := a.sessionDB.GetSession(a.resumeSessionID)
-	if err != nil {
-		return fmt.Errorf("get session: %w", err)
-	}
-	if sess == nil {
-		return fmt.Errorf("session %s not found", a.resumeSessionID)
-	}
-
-	// Use the resumed session's ID going forward
-	a.sessionID = a.resumeSessionID
-
-	slog.Info("Resumed session", "session_id", a.sessionID)
-	return nil
-}
-
-// tryFallbackModels attempts each fallback model in order after the primary fails.
-func (a *AIAgent) tryFallbackModels(ctx context.Context, req llm.ChatRequest, primaryErr error) (*llm.ChatResponse, error) {
-	if len(a.fallbackModels) == 0 {
-		return nil, primaryErr
-	}
-
-	for _, fb := range a.fallbackModels {
-		slog.Warn("Primary model failed, trying fallback",
-			"primary_error", primaryErr,
-			"fallback_model", fb.Model)
-
-		apiKey := fb.APIKey
-		if apiKey == "" {
-			apiKey = a.apiKey
-		}
-		baseURL := fb.BaseURL
-		if baseURL == "" {
-			baseURL = a.baseURL
-		}
-
-		fbClient, err := llm.NewClientWithParams(fb.Model, baseURL, apiKey, fb.Provider)
-		if err != nil {
-			slog.Warn("Failed to create fallback client", "model", fb.Model, "error", err)
-			continue
-		}
-
-		var resp *llm.ChatResponse
-		var fbErr error
-
-		if req.Stream && a.hasStreamConsumers() {
-			deltaCh, errCh := fbClient.CreateChatCompletionStream(ctx, req)
-			resp, fbErr = a.consumeStream(deltaCh, errCh)
-		} else {
-			resp, fbErr = fbClient.CreateChatCompletion(ctx, req)
-		}
-
-		if fbErr != nil {
-			slog.Warn("Fallback model also failed", "model", fb.Model, "error", fbErr)
-			primaryErr = fbErr
-			continue
-		}
-
-		slog.Info("Fallback model succeeded", "model", fb.Model)
-		return resp, nil
-	}
-
-	return nil, primaryErr
-}
-
-func truncate(s string, maxLen int) string {
-	runes := []rune(s)
-	if len(runes) <= maxLen {
-		return s
-	}
-	return string(runes[:maxLen]) + "..."
 }

@@ -9,7 +9,8 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"time"
+
+	"github.com/Colin4k1024/hermesx/internal/utils"
 )
 
 // geminiHTTPTransport is a minimal inline Gemini transport to avoid circular imports.
@@ -23,7 +24,7 @@ func (t *geminiHTTPTransport) Name() string { return "gemini" }
 
 func (t *geminiHTTPTransport) ensureClient() *http.Client {
 	if t.client == nil {
-		t.client = &http.Client{Timeout: 300 * time.Second}
+		t.client = utils.NewLLMHTTPClient()
 	}
 	return t.client
 }

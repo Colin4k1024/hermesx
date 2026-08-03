@@ -93,56 +93,18 @@ func (c CompressionConfig) retryWithMainEnabled() bool {
 }
 
 // ShouldCompress returns true if the conversation should be compressed.
+// Delegates to ContextManager.
 func (a *AIAgent) ShouldCompress(messages []llm.Message) bool {
-	if a.isInCompressionCooldown() {
-		return false
-	}
-
-	meta := llm.GetModelMeta(a.model)
-	totalTokens := estimateConversationTokens(messages, a.systemPrompt)
-
-	threshold := int(float64(meta.ContextLength) * a.compressionCfg.Threshold)
-	return totalTokens > threshold
+	return a.contextManager.ShouldCompress(messages)
 }
 
 // CompressContext applies the configured compression strategy to free context space.
+// Delegates to ContextManager.
 func (a *AIAgent) CompressContext(ctx context.Context, messages []llm.Message) ([]llm.Message, error) {
-	cfg := a.compressionCfg
-	keepCount := a.tailKeepCount(messages)
-
-	if len(messages) <= keepCount {
-		return messages, nil
-	}
-
-	slog.Info("Compressing context",
-		"strategy", string(cfg.Strategy),
-		"message_count", len(messages),
-		"keep_count", keepCount,
-	)
-	a.fireStatus("Compressing context...")
-
-	var result []llm.Message
-	var err error
-
-	switch cfg.Strategy {
-	case StrategySlidingWindow:
-		result = compressSlidingWindow(messages, keepCount)
-	case StrategySummarize:
-		result, err = a.compressSummarize(ctx, messages, keepCount, cfg)
-	case StrategyHybrid:
-		result, err = a.compressHybrid(ctx, messages, keepCount, cfg)
-	default:
-		result, err = a.compressHybrid(ctx, messages, keepCount, cfg)
-	}
-
-	if err != nil {
-		a.recordCompressionFailure()
-		return messages, err
-	}
-	return result, nil
+	return a.contextManager.CompressContext(ctx, messages)
 }
 
-// --- Sliding window strategy ---
+// --- Sliding window strategy (standalone) ---
 
 func compressSlidingWindow(messages []llm.Message, keepCount int) []llm.Message {
 	if keepCount > len(messages) {
@@ -166,126 +128,44 @@ func compressSlidingWindow(messages []llm.Message, keepCount int) []llm.Message 
 	return result
 }
 
-// --- Summarize strategy ---
-
-func (a *AIAgent) compressSummarize(ctx context.Context, messages []llm.Message, keepCount int, cfg CompressionConfig) ([]llm.Message, error) {
-	if keepCount > len(messages) {
-		return messages, nil
-	}
-
-	toSummarize := messages[:len(messages)-keepCount]
-	toKeep := messages[len(messages)-keepCount:]
-
-	summary, err := a.generateSummary(ctx, toSummarize, cfg.SummaryMaxWords)
-	if err != nil {
-		return messages, fmt.Errorf("compress summarize: %w", err)
-	}
-
-	result := make([]llm.Message, 0, keepCount+1)
-	result = append(result, llm.Message{
-		Role:    "system",
-		Content: fmt.Sprintf("[Context Summary -- %d messages compressed]\n%s", len(toSummarize), summary),
-	})
-	result = append(result, toKeep...)
-
-	slog.Info("Summarize compression",
-		"summarized", len(toSummarize),
-		"kept", keepCount,
-		"summary_len", len(summary),
-	)
-	return result, nil
-}
-
-// --- Hybrid strategy ---
-// Keeps key messages (user corrections, decisions) + summarizes the rest.
-
-func (a *AIAgent) compressHybrid(ctx context.Context, messages []llm.Message, keepCount int, cfg CompressionConfig) ([]llm.Message, error) {
-	if keepCount > len(messages) {
-		return messages, nil
-	}
-
-	// Split into old (compressible) and recent (keep as-is)
-	oldMessages := messages[:len(messages)-keepCount]
-	recentMessages := messages[len(messages)-keepCount:]
-
-	// Identify key messages in the old section
-	var keyMessages []llm.Message
-	var summarizable []llm.Message
-
-	for _, m := range oldMessages {
-		if isKeyMessage(m) {
-			keyMessages = append(keyMessages, m)
-		} else {
-			summarizable = append(summarizable, m)
-		}
-	}
-
-	// Summarize non-key messages
-	var summaryText string
-	if len(summarizable) > 0 {
-		var err error
-		summaryText, err = a.generateSummary(ctx, summarizable, cfg.SummaryMaxWords)
-		if err != nil {
-			// Fallback to sliding window on summarization failure
-			return compressSlidingWindow(messages, keepCount), nil
-		}
-	}
-
-	// Assemble result: summary (with tool spine) + key messages + recent messages
-	result := make([]llm.Message, 0, len(keyMessages)+keepCount+2)
-
-	if summaryText != "" {
-		// Extract tool spine from compressed messages for structural preservation.
-		spine := ExtractToolSpine(oldMessages)
-		spineText := FormatToolSpine(spine)
-
-		content := fmt.Sprintf("[Context Summary -- %d messages compressed, %d key messages preserved]\n%s",
-			len(summarizable), len(keyMessages), summaryText)
-		if spineText != "" {
-			content += "\n" + spineText
-		}
-		result = append(result, llm.Message{
-			Role:    "system",
-			Content: content,
-		})
-	}
-
-	result = append(result, keyMessages...)
-	result = append(result, recentMessages...)
-
-	slog.Info("Hybrid compression",
-		"total_old", len(oldMessages),
-		"key_preserved", len(keyMessages),
-		"summarized", len(summarizable),
-		"recent_kept", keepCount,
-	)
-	return result, nil
-}
-
-// --- Helpers ---
-
 // isKeyMessage returns true if a message should be preserved during compression.
-// Key messages include: user corrections, explicit decisions, error resolutions.
+// Key messages include: system prompts, user corrections/decisions, assistant
+// corrections, and short messages that are cheap in tokens.
 func isKeyMessage(m llm.Message) bool {
-	if m.Role != "user" && m.Role != "assistant" {
-		return false
+	if m.Role == "system" {
+		return true
 	}
 
 	lower := strings.ToLower(m.Content)
 
 	// User corrections / decisions
-	correctionMarkers := []string{
-		"no, ", "wrong", "don't ", "do not ", "stop ", "instead ",
-		"actually ", "correction:", "important:", "remember:",
-		"decision:", "note:", "always ", "never ",
-	}
-	for _, marker := range correctionMarkers {
-		if strings.Contains(lower, marker) {
-			return true
+	if m.Role == "user" {
+		correctionMarkers := []string{
+			"no, ", "wrong", "don't ", "do not ", "stop ", "instead ",
+			"actually ", "correction:", "important:", "remember:",
+			"decision:", "note:", "always ", "never ",
+		}
+		for _, marker := range correctionMarkers {
+			if strings.Contains(lower, marker) {
+				return true
+			}
 		}
 	}
 
-	// Short messages are often corrections or confirmations -- keep them
+	// Assistant corrections / feedback
+	if m.Role == "assistant" {
+		correctionMarkers := []string{
+			"correction:", "actually", "i was wrong", "let me fix",
+			"apologize", "mistake",
+		}
+		for _, marker := range correctionMarkers {
+			if strings.Contains(lower, marker) {
+				return true
+			}
+		}
+	}
+
+	// Short messages are often corrections or confirmations — keep them
 	// (they're cheap in tokens anyway)
 	if len(m.Content) < 100 {
 		return true
@@ -294,324 +174,105 @@ func isKeyMessage(m llm.Message) bool {
 	return false
 }
 
-// generateSummary builds an LLM prompt from messages and returns a structured
-// summary.  When the messages already contain a previous summary (identified by
-// summaryHeader), the LLM is asked to update it incrementally instead of
-// recreating from scratch.
-//
-// If the summary model fails and RetryWithMain is enabled, it retries with the
-// main LLM client before returning an error.
-func (a *AIAgent) generateSummary(ctx context.Context, messages []llm.Message, maxWords int) (string, error) {
-	completer := a.compressionCompleter()
-	result, err := a.generateSummaryWith(ctx, completer, messages, maxWords)
-	if err == nil {
-		return result, nil
-	}
-
-	// Retry with main client if the summary model failed and it's a different client.
-	if a.compressionCfg.retryWithMainEnabled() && a.summaryCompleter != nil && a.client != nil {
-		slog.Warn("Summary model failed, retrying with main model",
-			"error", err,
-			"model", a.model,
-		)
-		result, retryErr := a.generateSummaryWith(ctx, a.client, messages, maxWords)
-		if retryErr == nil {
-			return result, nil
-		}
-		return "", fmt.Errorf("generate summary (main model retry also failed): %w", retryErr)
-	}
-
-	return "", err
-}
-
-// generateSummaryWith sends the summarisation prompt to the given completer.
-func (a *AIAgent) generateSummaryWith(ctx context.Context, completer chatCompleter, messages []llm.Message, maxWords int) (string, error) {
-	// Pre-pass: prune large tool results.
-	pruned := pruneToolResults(messages)
-
-	// Detect a previous summary in the message stream.
-	var prevSummary string
-	for _, m := range pruned {
-		if idx := strings.Index(m.Content, summaryHeader); idx >= 0 {
-			prevSummary = m.Content[idx:]
+// extractKeyMessages returns a set of indices for messages that should be preserved.
+func extractKeyMessages(messages []llm.Message, keepCount int) map[int]bool {
+	result := make(map[int]bool)
+	for i, m := range messages {
+		if i >= len(messages)-keepCount {
 			break
 		}
-	}
-
-	var sb strings.Builder
-
-	if prevSummary != "" {
-		// Iterative update mode.
-		sb.WriteString(fmt.Sprintf(
-			"Below is an existing conversation summary followed by new messages. "+
-				"Update the summary to incorporate the new information (max %d words). "+
-				"Keep the same structured format with these sections:\n"+
-				"## Conversation Summary\n"+
-				"### Goal\n### Progress\n### Decisions\n### Files Modified\n### Next Steps\n\n"+
-				"--- EXISTING SUMMARY ---\n%s\n--- END EXISTING SUMMARY ---\n\n"+
-				"--- NEW MESSAGES ---\n",
-			maxWords, prevSummary,
-		))
-	} else {
-		sb.WriteString(fmt.Sprintf(
-			"Summarize the following conversation history (max %d words) using this structure:\n\n"+
-				"## Conversation Summary\n"+
-				"### Goal\n<one-line description of the user's objective>\n"+
-				"### Progress\n<bullet list of completed steps>\n"+
-				"### Decisions\n<bullet list of decisions and constraints>\n"+
-				"### Files Modified\n<bullet list of file paths changed, if any>\n"+
-				"### Next Steps\n<bullet list of remaining work>\n\n"+
-				"Preserve specific file paths, variable names, and technical details.\n\n",
-			maxWords,
-		))
-	}
-
-	for _, m := range pruned {
-		// Skip the message that carries the old summary to avoid duplication.
-		if prevSummary != "" && strings.Contains(m.Content, summaryHeader) {
-			continue
-		}
-
-		content := truncate(m.Content, 800)
-		sb.WriteString(fmt.Sprintf("[%s]: %s\n", sanitizeForPrompt(m.Role, 20), content))
-
-		// Include tool call info
-		for _, tc := range m.ToolCalls {
-			args := truncate(tc.Function.Arguments, 200)
-			sb.WriteString(fmt.Sprintf("  -> tool: %s(%s)\n", tc.Function.Name, args))
+		if isKeyMessage(m) {
+			result[i] = true
 		}
 	}
-
-	if prevSummary != "" {
-		sb.WriteString("--- END NEW MESSAGES ---\n")
-	}
-
-	req := llm.ChatRequest{
-		Messages: []llm.Message{
-			{Role: "user", Content: sb.String()},
-		},
-	}
-
-	resp, err := completer.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return "", fmt.Errorf("generate summary: %w", err)
-	}
-
-	return resp.Content, nil
+	return result
 }
 
-// compressionCompleter returns the chatCompleter used for summarisation.
-// It prefers the dedicated summaryCompleter and falls back to the main
-// LLM client.
-func (a *AIAgent) compressionCompleter() chatCompleter {
-	if a.summaryCompleter != nil {
-		return a.summaryCompleter
-	}
-	return a.client
-}
-
-// pruneToolResults replaces large tool-role message content with a short
-// placeholder to reduce tokens before sending to the summarisation LLM.
+// pruneToolResults replaces oversized tool results with placeholders.
 func pruneToolResults(messages []llm.Message) []llm.Message {
-	out := make([]llm.Message, len(messages))
-	for i, m := range messages {
-		out[i] = m
+	result := make([]llm.Message, len(messages))
+	copy(result, messages)
+	for i, m := range result {
 		if m.Role == "tool" && len(m.Content) > toolResultPruneThreshold {
 			preview := m.Content
 			if len(preview) > toolResultPreviewLen {
 				preview = preview[:toolResultPreviewLen]
 			}
-			name := m.ToolName
-			if name == "" {
-				name = "unknown"
-			}
-			out[i].Content = fmt.Sprintf("[Tool result: %s -- %s... (pruned)]", name, preview)
+			result[i].Content = fmt.Sprintf("[Tool result truncated: %s... (%d chars)]", preview, len(m.Content))
 		}
 	}
-	return out
+	return result
 }
 
-// tailKeepCount determines how many recent messages to protect from
-// compression.  It uses a token-budget heuristic: keep enough tail messages to
-// fill ~25 % of the context window.  Falls back to KeepCount when the budget
-// cannot be computed or KeepCount is larger.
-func (a *AIAgent) tailKeepCount(messages []llm.Message) int {
-	ctxLen := a.compressionCfg.ContextWindow
-	if ctxLen == 0 {
-		ctxLen = llm.GetModelMeta(a.model).ContextLength
-	}
-	if ctxLen == 0 {
-		return a.compressionCfg.KeepCount
-	}
+// buildSummaryPrompt creates a prompt for the LLM to summarize messages.
+func buildSummaryPrompt(messages []llm.Message, maxWords int) string {
+	var sb strings.Builder
+	sb.WriteString("Please summarize the following conversation in under ")
+	sb.WriteString(fmt.Sprintf("%d words. ", maxWords))
+	sb.WriteString("Focus on key decisions, action items, and important context.\n\n")
 
-	budgetTokens := int(float64(ctxLen) * tailBudgetFraction)
-	accumulated := 0
-	keep := 0
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		tokens := llm.EstimateTokens(messages[i].Content)
-		for _, tc := range messages[i].ToolCalls {
-			tokens += llm.EstimateTokens(tc.Function.Arguments)
-		}
-		if accumulated+tokens > budgetTokens {
-			break
-		}
-		accumulated += tokens
-		keep++
-	}
-
-	// Never keep fewer than the configured minimum.
-	if keep < a.compressionCfg.KeepCount {
-		keep = a.compressionCfg.KeepCount
-	}
-	return keep
-}
-
-// isInCompressionCooldown returns true when a recent compression failure
-// should prevent another attempt.
-func (a *AIAgent) isInCompressionCooldown() bool {
-	if a.lastCompressionFailure.IsZero() {
-		return false
-	}
-	return time.Since(a.lastCompressionFailure) < compressionFailureCooldown
-}
-
-// recordCompressionFailure stores the current time so that the cooldown logic
-// can skip future attempts.
-func (a *AIAgent) recordCompressionFailure() {
-	a.lastCompressionFailure = time.Now()
-	slog.Warn("Compression failed, entering cooldown", "cooldown", compressionFailureCooldown)
-}
-
-func estimateConversationTokens(messages []llm.Message, systemPrompt string) int {
-	total := llm.EstimateTokens(systemPrompt)
 	for _, m := range messages {
-		total += llm.EstimateTokens(m.Content)
-		for _, tc := range m.ToolCalls {
-			total += llm.EstimateTokens(tc.Function.Arguments)
-		}
+		sb.WriteString(fmt.Sprintf("[%s]: %s\n\n", m.Role, m.Content))
+	}
+
+	return sb.String()
+}
+
+// estimateTokens gives a rough token count for a string.
+func estimateTokens(text string) int {
+	return len(text) / 4
+}
+
+// estimateConversationTokens estimates total tokens for a conversation.
+func estimateConversationTokens(messages []llm.Message, systemPrompt string) int {
+	total := estimateTokens(systemPrompt)
+	for _, m := range messages {
+		total += estimateTokens(m.Content)
 	}
 	return total
 }
 
-// --- Tool Spine (structured compaction enhancement) ---
-
-// ToolSpineEntry represents a single tool invocation's outcome summary.
-type ToolSpineEntry struct {
-	ToolName  string
-	Success   bool
-	KeyResult string // one-line outcome
-}
-
-// ExtractToolSpine extracts a sequence of tool call outcomes from messages.
-// This preserves "what was tried and what happened" even after full text compression.
-func ExtractToolSpine(messages []llm.Message) []ToolSpineEntry {
-	var spine []ToolSpineEntry
-
-	// Track tool calls (assistant messages) and their results (tool messages).
-	pendingCalls := make(map[string]string) // toolCallID → toolName
-
-	for _, m := range messages {
-		// Collect pending tool calls from assistant messages.
-		for _, tc := range m.ToolCalls {
-			pendingCalls[tc.ID] = tc.Function.Name
-		}
-
-		// Match tool results to their calls.
-		if m.Role == "tool" && m.ToolCallID != "" {
-			toolName := pendingCalls[m.ToolCallID]
-			if toolName == "" {
-				toolName = m.ToolName
+// ExtractToolSpine extracts tool call/result pairs for structural preservation.
+func ExtractToolSpine(messages []llm.Message) []llm.Message {
+	var spine []llm.Message
+	for i, m := range messages {
+		if m.Role == "assistant" && len(m.ToolCalls) > 0 {
+			spine = append(spine, m)
+			// Find matching tool results.
+			for _, tc := range m.ToolCalls {
+				for j := i + 1; j < len(messages); j++ {
+					if messages[j].Role == "tool" && messages[j].ToolCallID == tc.ID {
+						spine = append(spine, messages[j])
+						break
+					}
+				}
 			}
-			if toolName == "" {
-				toolName = "unknown"
-			}
-
-			entry := ToolSpineEntry{
-				ToolName:  toolName,
-				Success:   classifyToolSuccess(m.Content),
-				KeyResult: extractToolKeyResult(toolName, m.Content),
-			}
-			spine = append(spine, entry)
-			delete(pendingCalls, m.ToolCallID)
 		}
 	}
 	return spine
 }
 
-// FormatToolSpine renders a tool spine as a compact text summary.
-func FormatToolSpine(spine []ToolSpineEntry) string {
+// FormatToolSpine converts a tool spine into a human-readable string
+// for embedding in the context summary.
+func FormatToolSpine(spine []llm.Message) string {
 	if len(spine) == 0 {
 		return ""
 	}
-
 	var sb strings.Builder
-	sb.WriteString("### Tool Call History\n")
-	for i, entry := range spine {
-		status := "ok"
-		if !entry.Success {
-			status = "FAIL"
+	sb.WriteString("### Tool Activity\n")
+	for _, m := range spine {
+		if m.Role == "assistant" {
+			for _, tc := range m.ToolCalls {
+				sb.WriteString(fmt.Sprintf("- Called `%s`", tc.Function.Name))
+				if len(tc.Function.Arguments) > 0 {
+					sb.WriteString(fmt.Sprintf(" with args: %s", truncate(tc.Function.Arguments, 100)))
+				}
+				sb.WriteString("\n")
+			}
+		} else if m.Role == "tool" {
+			preview := truncate(m.Content, 80)
+			sb.WriteString(fmt.Sprintf("  → Result: %s\n", preview))
 		}
-		sb.WriteString(fmt.Sprintf("%d. %s [%s]: %s\n", i+1, entry.ToolName, status, entry.KeyResult))
 	}
 	return sb.String()
-}
-
-// classifyToolSuccess returns true if the tool result suggests success.
-func classifyToolSuccess(content string) bool {
-	lower := strings.ToLower(content)
-	failureIndicators := []string{
-		"error:", "failed", "not found", "permission denied",
-		"exit code 1", "exit status 1", "timeout", "panic:",
-		"fatal:", "no such file",
-	}
-	for _, indicator := range failureIndicators {
-		if strings.Contains(lower, indicator) {
-			return false
-		}
-	}
-	return true
-}
-
-// extractToolKeyResult extracts a one-line summary from a tool result based on tool type.
-func extractToolKeyResult(toolName, content string) string {
-	switch {
-	case strings.Contains(toolName, "read") || strings.Contains(toolName, "file"):
-		// File read: report filename or line count.
-		lines := strings.Count(content, "\n")
-		if lines > 0 {
-			return fmt.Sprintf("%d lines read", lines)
-		}
-		return truncate(content, 60)
-
-	case strings.Contains(toolName, "search") || strings.Contains(toolName, "grep") || strings.Contains(toolName, "glob"):
-		// Search: count matches.
-		lines := strings.Count(content, "\n")
-		if lines > 0 {
-			return fmt.Sprintf("%d results", lines)
-		}
-		return truncate(content, 60)
-
-	case strings.Contains(toolName, "edit") || strings.Contains(toolName, "write"):
-		// Write/edit: success or file path.
-		if strings.Contains(strings.ToLower(content), "success") || strings.Contains(content, "written") {
-			return "success"
-		}
-		return truncate(content, 60)
-
-	case strings.Contains(toolName, "terminal") || strings.Contains(toolName, "bash") || strings.Contains(toolName, "exec"):
-		// Terminal: exit code + first/last meaningful line.
-		lines := strings.Split(strings.TrimSpace(content), "\n")
-		if len(lines) == 0 {
-			return "(empty output)"
-		}
-		if len(lines) <= 3 {
-			return truncate(strings.Join(lines, "; "), 80)
-		}
-		return fmt.Sprintf("%s ... (%d lines) ... %s",
-			truncate(lines[0], 40), len(lines), truncate(lines[len(lines)-1], 40))
-
-	default:
-		return truncate(content, 80)
-	}
 }

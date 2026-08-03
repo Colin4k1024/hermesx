@@ -48,7 +48,8 @@ return {0, 0}
 
 // Allow checks if the request is within the rate limit using a Lua-based atomic ZSET sliding window.
 func (r *RedisRateLimiter) Allow(key string, limit int) (bool, int, error) {
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	now := time.Now()
 	nowNano := now.UnixNano()
 	windowStart := now.Add(-r.window).UnixNano()

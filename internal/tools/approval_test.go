@@ -76,31 +76,40 @@ func TestGetAllDangerousReasons(t *testing.T) {
 
 func TestApprovalStore_SessionScope(t *testing.T) {
 	store := NewApprovalStore()
+	tenant := "t1"
 
-	if store.IsApproved("sess1", "rm -rf") {
+	if store.IsApprovedWithTenant(tenant, "sess1", "rm -rf") {
 		t.Error("should not be approved initially")
 	}
 
-	store.ApproveForSession("sess1", "rm -rf")
-	if !store.IsApproved("sess1", "rm -rf") {
+	store.ApproveForSessionWithTenant(tenant, "sess1", "rm -rf")
+	if !store.IsApprovedWithTenant(tenant, "sess1", "rm -rf") {
 		t.Error("should be approved after session approval")
 	}
-	if store.IsApproved("sess2", "rm -rf") {
+	if store.IsApprovedWithTenant(tenant, "sess2", "rm -rf") {
 		t.Error("different session should not be approved")
 	}
+	// Different tenant should not see the approval.
+	if store.IsApprovedWithTenant("t2", "sess1", "rm -rf") {
+		t.Error("different tenant should not be approved")
+	}
 
-	store.ClearSession("sess1")
-	if store.IsApproved("sess1", "rm -rf") {
+	store.ClearSession(compositeKey(tenant, "sess1"))
+	if store.IsApprovedWithTenant(tenant, "sess1", "rm -rf") {
 		t.Error("should not be approved after clear")
 	}
 }
 
 func TestApprovalStore_PermanentScope(t *testing.T) {
 	store := NewApprovalStore()
-	store.ApprovePermanently("git force push")
+	store.ApprovePermanentlyForTenant("t1", "git force push")
 
-	if !store.IsApproved("any-session", "git force push") {
-		t.Error("should be permanently approved")
+	if !store.IsApprovedWithTenant("t1", "any-session", "git force push") {
+		t.Error("should be permanently approved for same tenant")
+	}
+	// Different tenant should not see the approval.
+	if store.IsApprovedWithTenant("t2", "any-session", "git force push") {
+		t.Error("different tenant should not see tenant-scoped permanent approval")
 	}
 
 	patterns := store.PermanentPatterns()
@@ -113,6 +122,7 @@ func TestApprovalStore_LoadPermanent(t *testing.T) {
 	store := NewApprovalStore()
 	store.LoadPermanent([]string{"p1", "p2"})
 
+	// LoadPermanent loads into global (empty tenant) scope.
 	tests := []struct {
 		pattern  string
 		expected bool
@@ -123,6 +133,7 @@ func TestApprovalStore_LoadPermanent(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.pattern, func(t *testing.T) {
+			// Global approvals are visible via IsApproved (deprecated, global-only).
 			if got := store.IsApproved("any", tt.pattern); got != tt.expected {
 				t.Errorf("IsApproved(%q) = %v, want %v", tt.pattern, got, tt.expected)
 			}
@@ -138,13 +149,13 @@ func TestApprovalStore_Concurrency(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			store.ApproveForSession("sess", "pattern")
-			store.IsApproved("sess", "pattern")
+			store.ApproveForSessionWithTenant("t1", "sess", "pattern")
+			store.IsApprovedWithTenant("t1", "sess", "pattern")
 		}()
 	}
 	wg.Wait()
 
-	if !store.IsApproved("sess", "pattern") {
+	if !store.IsApprovedWithTenant("t1", "sess", "pattern") {
 		t.Error("pattern should be approved after concurrent writes")
 	}
 }
@@ -323,15 +334,15 @@ func TestCheckDangerousCommand(t *testing.T) {
 
 func TestCheckDangerousCommand_SessionApproved(t *testing.T) {
 	store := GlobalApprovalStore()
-	store.ApproveForSession("pre-approved", "recursive file deletion (rm -rf)")
+	store.ApproveForSessionWithTenant("cli", "pre-approved", "recursive file deletion (rm -rf)")
 
-	ctx := &ToolContext{SessionID: "pre-approved", Platform: "cli"}
+	ctx := &ToolContext{SessionID: "pre-approved", TenantID: "cli", Platform: "cli"}
 	result := CheckDangerousCommand("rm -rf /tmp/test", ctx)
 	if approved, _ := result["approved"].(bool); !approved {
 		t.Error("session-approved command should pass")
 	}
 
-	store.ClearSession("pre-approved")
+	store.ClearSession(compositeKey("cli", "pre-approved"))
 }
 
 func TestCheckDangerousCommand_WithHandler(t *testing.T) {

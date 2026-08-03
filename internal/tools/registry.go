@@ -48,6 +48,9 @@ type ToolContext struct {
 	// AllowPrivateIPs disables SSRF protection for testing. Must only be
 	// used in test environments with httptest servers.
 	AllowPrivateIPs bool
+	// DefaultModel is the model to use for sub-agent delegation. Injected by
+	// the agent layer so tools don't need to call config.Load() directly.
+	DefaultModel string
 }
 
 // SafetyInterceptor is the subset of safety interceptor functionality needed by tools.

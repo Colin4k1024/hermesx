@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Colin4k1024/hermesx/internal/permissions"
+	"github.com/Colin4k1024/hermesx/internal/tenant"
 )
 
 // ApprovalScope defines how broadly an approval applies.
@@ -109,25 +110,37 @@ func GetAllDangerousReasons(cmd string) []string {
 // --- Approval Store (per-session + permanent memory) ---
 
 // ApprovalStore manages approved command patterns. Thread-safe.
+// Session approvals are scoped by tenantID:sessionID composite key.
+// Permanent approvals are scoped per tenant to prevent cross-tenant leakage.
 type ApprovalStore struct {
 	mu                sync.RWMutex
-	sessionApproved   map[string]map[string]bool // sessionKey → approved patterns
-	permanentApproved map[string]bool
+	sessionApproved   map[string]map[string]bool // "tenantID:sessionID" → approved patterns
+	permanentApproved map[string]map[string]bool // tenantID → permanently approved patterns
 }
 
 // NewApprovalStore creates a new ApprovalStore.
 func NewApprovalStore() *ApprovalStore {
 	return &ApprovalStore{
 		sessionApproved:   make(map[string]map[string]bool),
-		permanentApproved: make(map[string]bool),
+		permanentApproved: make(map[string]map[string]bool),
 	}
 }
 
-// IsApproved checks if a pattern is approved for the session or permanently.
+// compositeKey builds a tenant-scoped session key.
+// Delegates to tenant.CompositeKey for shared logic.
+func compositeKey(tenantID, sessionKey string) string {
+	return tenant.CompositeKey(tenantID, sessionKey)
+}
+
+// IsApproved checks if a pattern is approved for the session or globally.
+//
+// Deprecated: Use IsApprovedWithTenant to prevent cross-tenant leakage.
+// This method only checks global (non-tenant) permanent approvals.
 func (s *ApprovalStore) IsApproved(sessionKey, patternKey string) bool {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	if s.permanentApproved[patternKey] {
+	// Only check global permanent approvals (empty tenant key).
+	if globalPatterns, ok := s.permanentApproved[""]; ok && globalPatterns[patternKey] {
 		return true
 	}
 	if sess, ok := s.sessionApproved[sessionKey]; ok {
@@ -136,7 +149,23 @@ func (s *ApprovalStore) IsApproved(sessionKey, patternKey string) bool {
 	return false
 }
 
+// IsApprovedWithTenant checks tenant-scoped session and permanent approvals.
+func (s *ApprovalStore) IsApprovedWithTenant(tenantID, sessionKey, patternKey string) bool {
+	ck := compositeKey(tenantID, sessionKey)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if tenantPatterns, ok := s.permanentApproved[tenantID]; ok && tenantPatterns[patternKey] {
+		return true
+	}
+	if sess, ok := s.sessionApproved[ck]; ok {
+		return sess[patternKey]
+	}
+	return false
+}
+
 // ApproveForSession marks a pattern as approved for the given session.
+//
+// Deprecated: Use ApproveForSessionWithTenant for tenant-scoped approvals.
 func (s *ApprovalStore) ApproveForSession(sessionKey, patternKey string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -146,11 +175,37 @@ func (s *ApprovalStore) ApproveForSession(sessionKey, patternKey string) {
 	s.sessionApproved[sessionKey][patternKey] = true
 }
 
-// ApprovePermanently marks a pattern as permanently approved.
+// ApproveForSessionWithTenant marks a pattern as approved for a tenant-scoped session.
+func (s *ApprovalStore) ApproveForSessionWithTenant(tenantID, sessionKey, patternKey string) {
+	ck := compositeKey(tenantID, sessionKey)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.sessionApproved[ck] == nil {
+		s.sessionApproved[ck] = make(map[string]bool)
+	}
+	s.sessionApproved[ck][patternKey] = true
+}
+
+// ApprovePermanently marks a pattern as permanently approved (global scope).
+//
+// Deprecated: Use ApprovePermanentlyForTenant for tenant-scoped approvals.
 func (s *ApprovalStore) ApprovePermanently(patternKey string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.permanentApproved[patternKey] = true
+	if s.permanentApproved[""] == nil {
+		s.permanentApproved[""] = make(map[string]bool)
+	}
+	s.permanentApproved[""][patternKey] = true
+}
+
+// ApprovePermanentlyForTenant marks a pattern as permanently approved for a specific tenant.
+func (s *ApprovalStore) ApprovePermanentlyForTenant(tenantID, patternKey string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.permanentApproved[tenantID] == nil {
+		s.permanentApproved[tenantID] = make(map[string]bool)
+	}
+	s.permanentApproved[tenantID][patternKey] = true
 }
 
 // ClearSession removes all session approvals for a session.
@@ -160,22 +215,30 @@ func (s *ApprovalStore) ClearSession(sessionKey string) {
 	delete(s.sessionApproved, sessionKey)
 }
 
-// LoadPermanent loads permanently approved patterns.
+// LoadPermanent loads permanently approved patterns (global scope).
 func (s *ApprovalStore) LoadPermanent(patterns []string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.permanentApproved[""] == nil {
+		s.permanentApproved[""] = make(map[string]bool)
+	}
 	for _, p := range patterns {
-		s.permanentApproved[p] = true
+		s.permanentApproved[""][p] = true
 	}
 }
 
-// PermanentPatterns returns a copy of all permanently approved patterns.
+// PermanentPatterns returns a copy of all permanently approved patterns (all tenants).
 func (s *ApprovalStore) PermanentPatterns() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// 规范四：边界处拷贝 slice 防止外部篡改
-	result := make([]string, 0, len(s.permanentApproved))
-	for p := range s.permanentApproved {
+	seen := make(map[string]bool)
+	for _, patterns := range s.permanentApproved {
+		for p := range patterns {
+			seen[p] = true
+		}
+	}
+	result := make([]string, 0, len(seen))
+	for p := range seen {
 		result = append(result, p)
 	}
 	return result
@@ -396,7 +459,7 @@ func (h *GatewayApprovalHandler) RequestApproval(ctx context.Context, req Approv
 			Scope:    ApproveDeny,
 		})
 		return ApprovalResult{Approved: false, Scope: ApproveDeny},
-			fmt.Errorf("approval timed out after %v", timeout)
+			fmt.Errorf("approval timed out after %v: %w", timeout, ctx.Err())
 	}
 }
 
@@ -440,11 +503,14 @@ func CheckDangerousCommand(command string, ctx *ToolContext) map[string]any {
 
 	allReasons := GetAllDangerousReasons(command)
 	sessionKey := ""
+	tenantID := ""
 	if ctx != nil {
 		sessionKey = ctx.SessionID
+		tenantID = ctx.TenantID
 	}
 
-	if sessionKey != "" && globalApprovalStore.IsApproved(sessionKey, reason) {
+	// Use tenant-scoped approval check to prevent cross-tenant leakage.
+	if sessionKey != "" && globalApprovalStore.IsApprovedWithTenant(tenantID, sessionKey, reason) {
 		return map[string]any{"approved": true, "message": nil}
 	}
 
@@ -473,13 +539,13 @@ func CheckDangerousCommand(command string, ctx *ToolContext) map[string]any {
 			switch result.Scope {
 			case ApproveSession:
 				if sessionKey != "" {
-					globalApprovalStore.ApproveForSession(sessionKey, reason)
+					globalApprovalStore.ApproveForSessionWithTenant(tenantID, sessionKey, reason)
 				}
 			case ApprovePermanent:
 				if sessionKey != "" {
-					globalApprovalStore.ApproveForSession(sessionKey, reason)
+					globalApprovalStore.ApproveForSessionWithTenant(tenantID, sessionKey, reason)
 				}
-				globalApprovalStore.ApprovePermanently(reason)
+				globalApprovalStore.ApprovePermanentlyForTenant(tenantID, reason)
 			}
 			return map[string]any{"approved": true, "message": nil}
 		}

@@ -348,8 +348,15 @@ func IsHighRiskTool(name string) bool {
 func resolveToolsetInner(name string, visited map[string]bool) []string {
 	// Special aliases for all tools.
 	if name == "all" || name == "*" {
+		mu.RLock()
+		names := make([]string, 0, len(Toolsets))
+		for n := range Toolsets {
+			names = append(names, n)
+		}
+		mu.RUnlock()
+
 		allTools := make(map[string]bool)
-		for tsName := range Toolsets {
+		for _, tsName := range names {
 			// Use a fresh visited set per branch to avoid cross-branch contamination.
 			branchVisited := make(map[string]bool)
 			for k, v := range visited {

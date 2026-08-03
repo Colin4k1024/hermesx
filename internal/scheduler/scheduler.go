@@ -133,7 +133,11 @@ func (s *SaasScheduler) Start(ctx context.Context) error {
 
 	s.sched.Start()
 
-	go s.pollLoop(s.ctx)
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.pollLoop(s.ctx)
+	}()
 	slog.Info("scheduler: started", "pod", s.cfg.PodID, "poll_interval", s.cfg.PollInterval)
 	return nil
 }

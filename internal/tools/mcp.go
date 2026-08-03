@@ -275,7 +275,10 @@ func handleSamplingOnStdio(serverName string, handler *SamplingHandler, st *stdi
 		return
 	}
 
-	resp := handler.HandleRequest(context.Background(), serverName, req.ID, req.Params)
+	// Use a bounded context since stdio has no parent context.
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	resp := handler.HandleRequest(ctx, serverName, req.ID, req.Params)
 
 	respData, err := json.Marshal(resp)
 	if err != nil {
@@ -297,7 +300,8 @@ func handleSamplingOnSSE(serverName string, handler *SamplingHandler, sseT *sseT
 		return
 	}
 
-	resp := handler.HandleRequest(context.Background(), serverName, req.ID, req.Params)
+	// Propagate the SSE transport's context so sampling is cancelled on shutdown.
+	resp := handler.HandleRequest(sseT.ctx, serverName, req.ID, req.Params)
 
 	respData, err := json.Marshal(resp)
 	if err != nil {

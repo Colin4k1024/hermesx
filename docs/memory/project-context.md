@@ -1,10 +1,12 @@
 # Project Context: hermesx
 
 **项目名**: hermesx  
-**当前任务**: 2026-06-04-code-review-fixes（CLOSED）
-**前任务**: 2026-06-01-hermes-agent-v0152-absorption + trusted-channel-login（完成）
-**阶段**: closed（code-review-fixes 4项修复已合入 main）
+**当前任务**: 2026-07-31-go-arch-remediation（released）
+**前任务**: 2026-06-04-code-review-fixes（CLOSED）
+**阶段**: closed（8 项 Go 架构审查修复已完成，观察窗口无异常，任务关闭）
 **版本目标**: v2.5.0 — Eino Phase 2 + governance backlog closure + channel auth
+**当前风险**: 无活跃风险——残余风险已接受或延后处理
+**下一步**: 新任务 intake（backlog 中有 6 项后续改进）
 
 ## Tech Stack
 

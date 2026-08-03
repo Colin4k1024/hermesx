@@ -136,7 +136,7 @@ func egressStores(s store.Store) (egress.RuleStore, egress.RuleAdminStore) {
 }
 
 // NewAPIServer creates and configures the API server with all routes and middleware.
-func NewAPIServer(cfg APIServerConfig) *APIServer {
+func NewAPIServer(cfg APIServerConfig) (*APIServer, error) {
 	backgroundCtx, backgroundCancel := context.WithCancel(context.Background())
 
 	egressStore, egressAdminStore := egressStores(cfg.Store)
@@ -267,7 +267,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	api.HandleFunc("/v1/workflow-tasks", workflowH.ServeTasksHTTP)
 	api.HandleFunc("/v1/workflow-tasks/", workflowH.ServeTasksHTTP)
 
-	me := NewMeHandler(cfg.Store)
+	me := NewMeHandler(cfg.Store.Tenants())
 	api.Handle("/v1/me", me)
 	if channelEnabled {
 		api.HandleFunc("/v1/channel-bindings", channelAuth.ServeBindingsHTTP)
@@ -320,7 +320,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 
 	// File workspace API — requires ObjectStore (MinIO) for blob storage.
 	if cfg.SkillsClient != nil {
-		fileHandler := NewFileHandler(cfg.Store, cfg.SkillsClient)
+		fileHandler := NewFileHandler(cfg.Store.FileEntries(), cfg.SkillsClient)
 		api.Handle("/v1/files", fileHandler)
 		api.Handle("/v1/files/", fileHandler)
 	}
@@ -391,8 +391,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 	// Production safety: reject wildcard CORS with credentials.
 	env := os.Getenv("HERMES_ENV")
 	if cfg.AllowedOrigins == "*" && env == "production" {
-		slog.Error("CORS wildcard '*' is not allowed in production — refusing to start. Set AllowedOrigins to specific domains.")
-		os.Exit(1)
+		return nil, fmt.Errorf("CORS wildcard '*' is not allowed in production; set AllowedOrigins to specific domains")
 	}
 
 	// Apply CORS if configured.
@@ -422,7 +421,7 @@ func NewAPIServer(cfg APIServerConfig) *APIServer {
 			IdleTimeout:  120 * time.Second,
 		},
 	}
-	return s
+	return s, nil
 }
 
 // Start begins serving. Blocks until the server is shut down.

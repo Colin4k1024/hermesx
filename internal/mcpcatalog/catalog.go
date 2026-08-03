@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -81,7 +82,9 @@ func NewMemoryStore(seed ...Item) *MemoryStore {
 		now:      func() time.Time { return time.Now().UTC() },
 	}
 	for _, item := range seed {
-		_, _ = s.UpsertItem(context.Background(), item)
+		if _, err := s.UpsertItem(context.Background(), item); err != nil {
+			slog.Warn("mcpcatalog: seed upsert failed", "item_id", item.ID, "error", err)
+		}
 	}
 	return s
 }

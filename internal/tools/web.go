@@ -417,7 +417,7 @@ func handleWebCrawl(ctx context.Context, args map[string]any, tctx *ToolContext)
 		}
 
 		pollBody, _ := io.ReadAll(pollResp.Body)
-		pollResp.Body.Close()
+		pollResp.Body.Close() //nolint:errcheck // immediately after ReadAll, safe non-deferred close in loop
 
 		var statusResp map[string]any
 		if err := json.Unmarshal(pollBody, &statusResp); err != nil {
