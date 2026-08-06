@@ -71,7 +71,9 @@ func (cm *ContextManager) CompressContext(ctx context.Context, messages []llm.Me
 		"message_count", len(messages),
 		"keep_count", keepCount,
 	)
-	cm.stream.FireStatus("Compressing context...")
+	if cm.stream != nil {
+		cm.stream.FireStatus("Compressing context...")
+	}
 
 	// Attempt compression with the summary completer first; if it fails and
 	// retryWithMain is enabled, fall back to the main client (iterative, not

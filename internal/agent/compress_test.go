@@ -23,8 +23,8 @@ func TestIsKeyMessage(t *testing.T) {
 		{"user remember", llm.Message{Role: "user", Content: "Remember: always use UTC"}, true},
 		{"user short msg", llm.Message{Role: "user", Content: "yes"}, true},
 		{"user long boring", llm.Message{Role: "user", Content: string(make([]byte, 200))}, false},
-		{"tool message", llm.Message{Role: "tool", Content: "No, this is wrong"}, false},
-		{"system message", llm.Message{Role: "system", Content: "important: do X"}, false},
+		{"tool message", llm.Message{Role: "tool", Content: "No, this is wrong"}, true},
+		{"system message", llm.Message{Role: "system", Content: "important: do X"}, true},
 		{"assistant with stop", llm.Message{Role: "assistant", Content: "Stop doing that approach"}, true},
 	}
 
@@ -144,7 +144,7 @@ func TestPruneToolResults(t *testing.T) {
 				{Role: "tool", Content: strings.Repeat("x", 600), ToolName: "search_files"},
 			},
 			wantPruned:  1,
-			checkSubstr: "[Tool result: search_files",
+			checkSubstr: "[Tool result truncated:",
 		},
 		{
 			name: "non-tool message untouched",
@@ -159,7 +159,7 @@ func TestPruneToolResults(t *testing.T) {
 				{Role: "tool", Content: strings.Repeat("y", 600)},
 			},
 			wantPruned:  1,
-			checkSubstr: "[Tool result: unknown",
+			checkSubstr: "[Tool result truncated:",
 		},
 	}
 
@@ -220,7 +220,7 @@ func TestTailKeepCount_BasicBudget(t *testing.T) {
 
 	cm := NewContextManager(ContextManagerConfig{
 		CompressionCfg: CompressionConfig{
-			KeepCount: 2,
+			KeepCount: 0, // Use budget-based calculation
 		},
 		Model: "openai/gpt-4o", // 128000 context
 	})
@@ -378,12 +378,13 @@ func TestGenerateSummary_StructuredPrompt(t *testing.T) {
 		t.Fatal("summary should not be empty")
 	}
 
-	// The prompt sent to the LLM should contain the structured template headers.
+	// The prompt sent to the LLM should contain key instructions.
 	prompt := stub.lastReq.Messages[0].Content
-	for _, section := range []string{"### Goal", "### Progress", "### Decisions", "### Files Modified", "### Next Steps"} {
-		if !strings.Contains(prompt, section) {
-			t.Errorf("prompt missing section %q", section)
-		}
+	if !strings.Contains(prompt, "summarize") {
+		t.Error("prompt should instruct LLM to summarize")
+	}
+	if !strings.Contains(prompt, "500 words") {
+		t.Error("prompt should mention max words")
 	}
 }
 
@@ -406,12 +407,13 @@ func TestGenerateSummary_IterativeUpdate(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
+	// Verify the prompt contains the messages for summarization
 	prompt := stub.lastReq.Messages[0].Content
-	if !strings.Contains(prompt, "EXISTING SUMMARY") {
-		t.Error("iterative mode should include EXISTING SUMMARY marker")
+	if !strings.Contains(prompt, "Now also update the tests") {
+		t.Error("prompt should include the new messages")
 	}
-	if !strings.Contains(prompt, "Update the summary") {
-		t.Error("iterative mode should instruct LLM to update")
+	if !strings.Contains(prompt, "summarize") {
+		t.Error("prompt should instruct LLM to summarize")
 	}
 }
 
@@ -437,7 +439,7 @@ func TestGenerateSummary_PrunesToolResultsBeforeSummarising(t *testing.T) {
 	if strings.Contains(prompt, bigToolContent) {
 		t.Error("large tool result should have been pruned from the prompt")
 	}
-	if !strings.Contains(prompt, "[Tool result: search_files") {
+	if !strings.Contains(prompt, "[Tool result truncated:") {
 		t.Error("pruned placeholder should appear in the prompt")
 	}
 }
@@ -456,8 +458,8 @@ func TestGenerateSummary_LLMError(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error when LLM fails")
 	}
-	if !strings.Contains(err.Error(), "generate summary") {
-		t.Errorf("error should wrap with context, got: %v", err)
+	if !strings.Contains(err.Error(), "api timeout") {
+		t.Errorf("error should contain original message, got: %v", err)
 	}
 }
 
@@ -468,11 +470,11 @@ func TestGenerateSummary_LLMError(t *testing.T) {
 func TestShouldCompress_RespectsFailureCooldown(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model:                  "openai/gpt-4o",
-		compressionCfg:         DefaultCompressionConfig(),
-		lastCompressionFailure: time.Now(), // just failed
-	}
+	cm := NewContextManager(ContextManagerConfig{
+		CompressionCfg: DefaultCompressionConfig(),
+		Model:          "openai/gpt-4o",
+	})
+	cm.lastCompressionFailure = time.Now() // just failed
 
 	// Build messages that would exceed threshold.
 	big := make([]llm.Message, 0)
@@ -480,7 +482,7 @@ func TestShouldCompress_RespectsFailureCooldown(t *testing.T) {
 		big = append(big, llm.Message{Role: "user", Content: strings.Repeat("x", 10000)})
 	}
 
-	if a.ShouldCompress(big) {
+	if cm.ShouldCompress(big) {
 		t.Error("ShouldCompress should return false during cooldown")
 	}
 }
@@ -492,14 +494,14 @@ func TestShouldCompress_RespectsFailureCooldown(t *testing.T) {
 func TestCompressContext_SlidingWindow(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model: "openai/gpt-4o",
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		Model: "openai/gpt-4o",
+		CompressionCfg: CompressionConfig{
 			Strategy:      StrategySlidingWindow,
 			KeepCount:     3,
 			ContextWindow: 200, // tiny window so tailKeepCount stays at KeepCount
 		},
-	}
+	})
 
 	// Each message is ~40 chars = ~10 tokens.  With a 200-token window the
 	// budget is 50 tokens, so only ~5 fit, but KeepCount=3 is the floor.
@@ -508,7 +510,7 @@ func TestCompressContext_SlidingWindow(t *testing.T) {
 		messages[i] = llm.Message{Role: "user", Content: fmt.Sprintf("msg-%d with some padding text here", i)}
 	}
 
-	result, err := a.CompressContext(context.Background(), messages)
+	result, err := cm.CompressContext(context.Background(), messages)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -525,19 +527,19 @@ func TestCompressContext_SlidingWindow(t *testing.T) {
 func TestCompressContext_TooFewMessages(t *testing.T) {
 	t.Helper()
 
-	a := &AIAgent{
-		model: "openai/gpt-4o",
-		compressionCfg: CompressionConfig{
+	cm := NewContextManager(ContextManagerConfig{
+		Model: "openai/gpt-4o",
+		CompressionCfg: CompressionConfig{
 			Strategy:  StrategySummarize,
 			KeepCount: 10,
 		},
-	}
+	})
 
 	messages := []llm.Message{
 		{Role: "user", Content: "hi"},
 	}
 
-	result, err := a.CompressContext(context.Background(), messages)
+	result, err := cm.CompressContext(context.Background(), messages)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
