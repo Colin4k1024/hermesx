@@ -13,23 +13,23 @@ import (
 // Extracted from AIAgent to reduce god-object complexity and enable
 // independent testing of compression logic.
 type ContextManager struct {
-	cfg                   CompressionConfig
-	model                 string
-	systemPrompt          string
-	completer             chatCompleter
-	summaryCompleter      chatCompleter // overrides completer for summaries; nil = use completer
-	stream                *StreamHandler
+	cfg                    CompressionConfig
+	model                  string
+	systemPrompt           string
+	completer              chatCompleter
+	summaryCompleter       chatCompleter // overrides completer for summaries; nil = use completer
+	stream                 *StreamHandler
 	lastCompressionFailure time.Time
 }
 
 // ContextManagerConfig holds the configuration for creating a ContextManager.
 type ContextManagerConfig struct {
-	CompressionCfg  CompressionConfig
-	Model           string
-	SystemPrompt    string
-	Completer       chatCompleter
+	CompressionCfg   CompressionConfig
+	Model            string
+	SystemPrompt     string
+	Completer        chatCompleter
 	SummaryCompleter chatCompleter
-	Stream          *StreamHandler
+	Stream           *StreamHandler
 }
 
 // NewContextManager creates a ContextManager from configuration.
@@ -216,7 +216,7 @@ func (cm *ContextManager) generateSummaryWith(ctx context.Context, completer cha
 	summaryPrompt := buildSummaryPrompt(pruned, maxWords)
 
 	req := llm.ChatRequest{
-		Messages: []llm.Message{{Role: "user", Content: summaryPrompt}},
+		Messages:  []llm.Message{{Role: "user", Content: summaryPrompt}},
 		MaxTokens: maxWords * 2,
 	}
 

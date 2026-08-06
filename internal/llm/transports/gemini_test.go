@@ -16,7 +16,7 @@ func TestGeminiTransport_Name(t *testing.T) {
 
 func TestNewGeminiTransport_StripsPrefix(t *testing.T) {
 	tests := []struct {
-		input    string
+		input     string
 		wantModel string
 	}{
 		{"gemini-2.0-flash", "gemini-2.0-flash"},

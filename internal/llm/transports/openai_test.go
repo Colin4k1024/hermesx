@@ -95,8 +95,8 @@ func TestOpenAITransport_buildRequest_WithImages(t *testing.T) {
 	req := llm.ChatRequest{
 		Messages: []llm.Message{
 			{
-				Role:     "user",
-				Content:  "What's in this image?",
+				Role:      "user",
+				Content:   "What's in this image?",
 				ImageURLs: []string{"https://example.com/cat.jpg"},
 			},
 		},

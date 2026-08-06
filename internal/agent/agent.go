@@ -90,8 +90,8 @@ type AIAgent struct {
 	auxiliaryClient *AuxiliaryClient
 	sessionDB       *state.SessionDB
 	budget          *IterationBudget
-	callbacks       *StreamCallbacks   // kept for backward-compat access via Callbacks()
-	streamHandler   *StreamHandler     // owns all fire* dispatch logic
+	callbacks       *StreamCallbacks // kept for backward-compat access via Callbacks()
+	streamHandler   *StreamHandler   // owns all fire* dispatch logic
 	toolDefs        []llm.ToolDef
 	validTools      map[string]bool
 	systemPrompt    string
