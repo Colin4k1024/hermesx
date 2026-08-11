@@ -199,3 +199,79 @@ func TestSanitizeEnvKey(t *testing.T) {
 		})
 	}
 }
+
+func TestListPluginsWithStatus_EmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	statuses := ListPluginsWithStatus()
+	if len(statuses) != 0 {
+		t.Errorf("expected 0 plugin statuses in empty dir, got %d", len(statuses))
+	}
+}
+
+func TestListPluginsWithStatus_WithPlugin(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	pluginDir := filepath.Join(tmpDir, "plugins", "myplugin")
+	os.MkdirAll(pluginDir, 0755)
+	os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"), []byte("name: myplugin\ndescription: Test\nversion: 0.1.0\n"), 0644)
+
+	statuses := ListPluginsWithStatus()
+	if len(statuses) != 1 {
+		t.Fatalf("expected 1 plugin status, got %d", len(statuses))
+	}
+	if statuses[0].Plugin.Name != "myplugin" {
+		t.Errorf("plugin name = %q, want myplugin", statuses[0].Plugin.Name)
+	}
+	if !statuses[0].Enabled {
+		t.Error("new plugin should be enabled by default")
+	}
+}
+
+func TestLoadEnabledPlugins_EmptyDir(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	plugins, err := LoadEnabledPlugins()
+	if err != nil {
+		t.Fatalf("LoadEnabledPlugins: %v", err)
+	}
+	if len(plugins) != 0 {
+		t.Errorf("expected 0 enabled plugins in empty dir, got %d", len(plugins))
+	}
+}
+
+func TestEnablePlugin_NotInDisabledList(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	err := EnablePlugin("some-plugin")
+	if err != nil {
+		t.Fatalf("EnablePlugin of non-disabled plugin: %v", err)
+	}
+}
+
+func TestLoadEnabledPlugins_WithEnabledPlugin(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	pluginDir := filepath.Join(tmpDir, "plugins", "enabled-plugin")
+	os.MkdirAll(pluginDir, 0755)
+	os.WriteFile(filepath.Join(pluginDir, "plugin.yaml"),
+		[]byte("name: enabled-plugin\ndescription: Test\nversion: 0.1.0\n"), 0644)
+
+	plugins, err := LoadEnabledPlugins()
+	if err != nil {
+		t.Fatalf("LoadEnabledPlugins: %v", err)
+	}
+	if len(plugins) != 1 {
+		t.Errorf("expected 1 enabled plugin, got %d", len(plugins))
+	}
+}

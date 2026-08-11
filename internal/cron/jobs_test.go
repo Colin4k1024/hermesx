@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestJobStore(t *testing.T) {
@@ -179,4 +180,86 @@ func TestJobStoreNonexistent(t *testing.T) {
 	if err == nil {
 		t.Error("Expected error for removing nonexistent job")
 	}
+}
+
+func TestJobStore_Save(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+	os.MkdirAll(filepath.Join(tmpDir, "cron"), 0755)
+
+	store := NewJobStore()
+	if err := store.Add(&Job{Schedule: "0 9 * * *", Prompt: "test"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Save(); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+}
+
+func TestJobStore_Update(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+	os.MkdirAll(filepath.Join(tmpDir, "cron"), 0755)
+
+	store := NewJobStore()
+	job := &Job{ID: "upd-1", Schedule: "0 9 * * *", Prompt: "before"}
+	store.jobs["upd-1"] = job
+
+	job.Prompt = "after"
+	if err := store.Update(job); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	got := store.Get("upd-1")
+	if got == nil || got.Prompt != "after" {
+		t.Errorf("Update: prompt not persisted, got %v", got)
+	}
+
+	// Update non-existent job should error.
+	if err := store.Update(&Job{ID: "nonexistent"}); err == nil {
+		t.Error("Update nonexistent should return error")
+	}
+}
+
+func TestJobStore_GetDueJobs(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+	os.MkdirAll(filepath.Join(tmpDir, "cron"), 0755)
+
+	store := NewJobStore()
+	past := time.Now().Add(-time.Hour)
+	future := time.Now().Add(time.Hour)
+
+	store.jobs["due"] = &Job{ID: "due", Enabled: true, NextRunAt: &past}
+	store.jobs["not-due"] = &Job{ID: "not-due", Enabled: true, NextRunAt: &future}
+	store.jobs["disabled"] = &Job{ID: "disabled", Enabled: false, NextRunAt: &past}
+
+	due := store.GetDueJobs()
+	if len(due) != 1 || due[0].ID != "due" {
+		t.Errorf("GetDueJobs: got %d jobs, want 1 with ID 'due'", len(due))
+	}
+}
+
+func TestJobStore_MarkRun(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+	os.MkdirAll(filepath.Join(tmpDir, "cron"), 0755)
+
+	store := NewJobStore()
+	store.jobs["run-1"] = &Job{ID: "run-1", Enabled: true}
+
+	store.MarkRun("run-1", true, "")
+	job := store.Get("run-1")
+	if job.RunCount != 1 {
+		t.Errorf("RunCount = %d, want 1", job.RunCount)
+	}
+	if job.LastRunSuccess == nil || !*job.LastRunSuccess {
+		t.Error("LastRunSuccess should be true")
+	}
+
+	// MarkRun on non-existent job should be a no-op.
+	store.MarkRun("nonexistent", false, "error")
 }

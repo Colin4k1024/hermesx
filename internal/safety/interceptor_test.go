@@ -621,3 +621,31 @@ func testBundleWithInvalidRegex() threatpatterns.Bundle {
 		},
 	}
 }
+
+func TestSafetyAction_String(t *testing.T) {
+	tests := []struct {
+		action SafetyAction
+		want   string
+	}{
+		{ActionAllow, "allow"},
+		{ActionLog, "log"},
+		{ActionBlock, "block"},
+		{ActionMask, "mask"},
+		{SafetyAction(99), "unknown"},
+	}
+	for _, tc := range tests {
+		got := tc.action.String()
+		if got != tc.want {
+			t.Errorf("SafetyAction(%d).String() = %q, want %q", tc.action, got, tc.want)
+		}
+	}
+}
+
+func TestInterceptorChain_IsModeEnforce_NoStore(t *testing.T) {
+	ic := NewInterceptorChain(nil)
+	// Default policy is not ModeEnforce, so should return false.
+	result := ic.IsModeEnforce(context.Background(), "tenant-1")
+	if result {
+		t.Error("IsModeEnforce with nil store should return false for default policy")
+	}
+}

@@ -137,3 +137,40 @@ func TestUsageRecorder_DropWhenFull(t *testing.T) {
 		t.Errorf("expected channel to have 2 items, got %d", len(rec.ch))
 	}
 }
+
+func TestUsageRecorder_Stop(t *testing.T) {
+	store := &mockUsageStore{}
+	rec := NewUsageRecorder(store, WithBufferSize(10), WithFlushInterval(time.Second), WithChannelCap(100))
+
+	// Enqueue a record.
+	rec.Record(UsageRecord{TenantID: "t1", SessionID: "s1", Model: "gpt-4o", Provider: "openai"})
+
+	// Stop should close channels without panic.
+	rec.Stop()
+
+	// Calling Stop again should be idempotent (once.Do).
+	rec.Stop()
+}
+
+func TestLogAlertNotifier_Notify(t *testing.T) {
+	n := &LogAlertNotifier{}
+	event := &AlertEvent{
+		TenantID:   "tenant-1",
+		Metric:     MetricInputTokens,
+		Threshold:  100,
+		Current:    150,
+		Percentage: 150.0,
+	}
+	// Should just log and return nil.
+	if err := n.Notify(context.Background(), event); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestWithAlertInterval(t *testing.T) {
+	checker := &AlertChecker{}
+	WithAlertInterval(5 * time.Second)(checker)
+	if checker.interval != 5*time.Second {
+		t.Errorf("interval = %v, want 5s", checker.interval)
+	}
+}

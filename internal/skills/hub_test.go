@@ -1,6 +1,8 @@
 package skills
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -92,4 +94,60 @@ func TestSearchHub_EmptyQuery_NoPanic(t *testing.T) {
 	}
 	// Results may be empty or non-empty depending on connectivity
 	_ = results
+}
+
+func TestIsTrustedSource_Known(t *testing.T) {
+	sources := DefaultSources()
+	if len(sources) == 0 {
+		t.Skip("no default sources configured")
+	}
+	// The first default source should be trusted.
+	if !isTrustedSource(sources[0].URL) {
+		t.Errorf("expected first default source to be trusted: %q", sources[0].URL)
+	}
+}
+
+func TestIsTrustedSource_Unknown(t *testing.T) {
+	if isTrustedSource("https://totally-unknown-domain-xyz.example.com/skill") {
+		t.Error("unknown source should not be trusted")
+	}
+}
+
+func TestGetLockPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	path := getLockPath()
+	if path == "" {
+		t.Fatal("getLockPath should return non-empty path")
+	}
+	// Should be within HERMES_HOME.
+	if !filepath.IsAbs(path) {
+		t.Error("getLockPath should return absolute path")
+	}
+}
+
+func TestWriteAndRemoveLockEntry(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.Setenv("HERMES_HOME", tmpDir)
+	defer os.Unsetenv("HERMES_HOME")
+
+	// Write a lock entry.
+	writeLockEntry("my-skill", "https://example.com/skill.zip")
+
+	// Verify the lock file was created.
+	lockPath := getLockPath()
+	if _, err := os.Stat(lockPath); os.IsNotExist(err) {
+		t.Fatal("lock file should be created after writeLockEntry")
+	}
+
+	// Write again to test update path.
+	writeLockEntry("my-skill", "https://example.com/skill-v2.zip")
+
+	// Remove it.
+	removeLockEntry("my-skill")
+
+	// Remove again should be a no-op.
+	removeLockEntry("my-skill")
 }

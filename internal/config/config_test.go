@@ -633,3 +633,98 @@ func TestMergeConfig_EmptySource(t *testing.T) {
 		t.Error("Empty source should not change destination model")
 	}
 }
+
+func TestMergeConfig_OverridesFields(t *testing.T) {
+	dst := DefaultConfig()
+	src := &Config{
+		Model:         "claude-opus",
+		Provider:      "anthropic",
+		BaseURL:       "https://api.example.com",
+		APIKey:        "sk-test-key",
+		MaxIterations: 50,
+		MaxTokens:     4096,
+	}
+
+	mergeConfig(dst, src)
+
+	if dst.Model != "claude-opus" {
+		t.Errorf("Model = %q, want claude-opus", dst.Model)
+	}
+	if dst.Provider != "anthropic" {
+		t.Errorf("Provider = %q, want anthropic", dst.Provider)
+	}
+	if dst.MaxIterations != 50 {
+		t.Errorf("MaxIterations = %d, want 50", dst.MaxIterations)
+	}
+	if dst.MaxTokens != 4096 {
+		t.Errorf("MaxTokens = %d, want 4096", dst.MaxTokens)
+	}
+}
+
+func TestMergeConfig_EvolutionAndObjStoreSSL(t *testing.T) {
+	dst := DefaultConfig()
+	src := DefaultConfig()
+	src.ObjStore.UseSSL = true
+	src.Evolution.Enabled = true
+	src.Evolution.StorageMode = "postgres"
+	src.Evolution.SharingMode = "tenant"
+	src.Evolution.MinConfidence = 0.8
+	src.Evolution.ReplayThreshold = 0.7
+	src.Evolution.MaxGenesInPrompt = 5
+
+	mergeConfig(dst, src)
+
+	if !dst.ObjStore.UseSSL {
+		t.Error("ObjStore.UseSSL should be merged")
+	}
+	if !dst.Evolution.Enabled {
+		t.Error("Evolution.Enabled should be merged")
+	}
+	if dst.Evolution.StorageMode != "postgres" {
+		t.Errorf("Evolution.StorageMode = %q, want postgres", dst.Evolution.StorageMode)
+	}
+}
+
+func TestMergeConfig_DatabaseAndRedis(t *testing.T) {
+	dst := DefaultConfig()
+	src := DefaultConfig()
+	src.Database.Driver = "postgres"
+	src.Database.URL = "postgres://localhost/db"
+	src.Redis.URL = "redis://localhost:6379"
+	src.ObjStore.Endpoint = "minio:9000"
+	src.ObjStore.AccessKey = "access"
+	src.ObjStore.SecretKey = "secret"
+	src.ObjStore.Bucket = "mybucket"
+	src.Memory.Provider = "mem0"
+
+	mergeConfig(dst, src)
+
+	if dst.Database.Driver != "postgres" {
+		t.Errorf("Database.Driver = %q, want postgres", dst.Database.Driver)
+	}
+	if dst.Redis.URL != "redis://localhost:6379" {
+		t.Errorf("Redis.URL = %q, want redis://localhost:6379", dst.Redis.URL)
+	}
+	if dst.Memory.Provider != "mem0" {
+		t.Errorf("Memory.Provider = %q, want mem0", dst.Memory.Provider)
+	}
+}
+
+func TestMaskSecret(t *testing.T) {
+	tests := []struct {
+		input string
+		want  string
+	}{
+		{"", ""},
+		{"short", "****"},
+		{"12345678", "****"},                 // exactly 8 chars → masked
+		{"abcdefghijklmnop", "abcd****mnop"}, // long → prefix + **** + suffix
+		{"123456789", "1234****6789"},        // 9 chars
+	}
+	for _, tc := range tests {
+		got := maskSecret(tc.input)
+		if got != tc.want {
+			t.Errorf("maskSecret(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}

@@ -88,3 +88,26 @@ func TestExtractorChain(t *testing.T) {
 		})
 	}
 }
+
+func TestExtractorChain_Add(t *testing.T) {
+	chain := NewExtractorChain()
+	if len(chain.extractors) != 0 {
+		t.Fatalf("expected 0 extractors initially, got %d", len(chain.extractors))
+	}
+
+	mock := &mockExtractor{ac: &AuthContext{Identity: "added"}}
+	chain.Add(mock)
+
+	if len(chain.extractors) != 1 {
+		t.Fatalf("expected 1 extractor after Add, got %d", len(chain.extractors))
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	ac, err := chain.Extract(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if ac == nil || ac.Identity != "added" {
+		t.Errorf("expected identity 'added', got %v", ac)
+	}
+}

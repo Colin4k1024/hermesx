@@ -3,6 +3,7 @@ package egress
 import (
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -42,5 +43,54 @@ func TestTenantAwareRoundTripper_InjectsTenantAndPath(t *testing.T) {
 	}
 	if base.path != "/v1/chat" {
 		t.Fatalf("path in transport context = %q, want /v1/chat", base.path)
+	}
+}
+
+func TestValidateRedirectTarget_NilRequest(t *testing.T) {
+	if err := ValidateRedirectTarget(nil); err != ErrNotAllowed {
+		t.Errorf("nil request: got %v, want ErrNotAllowed", err)
+	}
+}
+
+func TestValidateRedirectTarget_NilURL(t *testing.T) {
+	req := &http.Request{}
+	if err := ValidateRedirectTarget(req); err != ErrNotAllowed {
+		t.Errorf("nil URL: got %v, want ErrNotAllowed", err)
+	}
+}
+
+func TestValidateRedirectTarget_InvalidScheme(t *testing.T) {
+	req := &http.Request{URL: &url.URL{Scheme: "ftp", Host: "example.com"}}
+	if err := ValidateRedirectTarget(req); err != ErrNotAllowed {
+		t.Errorf("ftp scheme: got %v, want ErrNotAllowed", err)
+	}
+}
+
+func TestValidateRedirectTarget_EmptyHost(t *testing.T) {
+	req := &http.Request{URL: &url.URL{Scheme: "https", Host: ""}}
+	if err := ValidateRedirectTarget(req); err != ErrNotAllowed {
+		t.Errorf("empty host: got %v, want ErrNotAllowed", err)
+	}
+}
+
+func TestValidateRedirectTarget_BlockedIP(t *testing.T) {
+	// 127.0.0.1 is a loopback/blocked IP.
+	req := &http.Request{URL: &url.URL{Scheme: "https", Host: "127.0.0.1"}}
+	if err := ValidateRedirectTarget(req); err != ErrBlockedIP {
+		t.Errorf("blocked IP: got %v, want ErrBlockedIP", err)
+	}
+}
+
+func TestValidateRedirectTarget_ValidHTTPS(t *testing.T) {
+	req := &http.Request{URL: &url.URL{Scheme: "https", Host: "api.example.com"}}
+	if err := ValidateRedirectTarget(req); err != nil {
+		t.Errorf("valid https: got %v, want nil", err)
+	}
+}
+
+func TestValidateRedirectTarget_ValidHTTP(t *testing.T) {
+	req := &http.Request{URL: &url.URL{Scheme: "http", Host: "api.example.com"}}
+	if err := ValidateRedirectTarget(req); err != nil {
+		t.Errorf("valid http: got %v, want nil", err)
 	}
 }
