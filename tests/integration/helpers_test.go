@@ -157,7 +157,7 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 	)
 
 	// Build API server
-	apiSrv := api.NewAPIServer(api.APIServerConfig{
+	apiSrv, err := api.NewAPIServer(api.APIServerConfig{
 		Port:           0,
 		Store:          pgStore,
 		AuthChain:      chain,
@@ -171,6 +171,9 @@ func SetupTestEnv(ctx context.Context) (*TestEnv, error) {
 			DefaultRPM: 1000,
 		},
 	})
+	if err != nil {
+		return nil, fmt.Errorf("build api server: %w", err)
+	}
 
 	// Use httptest.Server instead of real listener
 	ts := httptest.NewServer(apiSrv.Handler())
